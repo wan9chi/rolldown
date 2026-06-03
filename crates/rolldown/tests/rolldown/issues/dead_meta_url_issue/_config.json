@@ -1,6 +1,0 @@
-{
-  "config": {
-    "treeshake": false,
-    "platform": "node"
-  }
-}

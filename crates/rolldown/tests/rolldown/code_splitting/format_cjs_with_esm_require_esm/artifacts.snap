@@ -3,21 +3,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ---
 # Assets
 
-## main1.js
-
-```js
-require("./rolldown-runtime.js");
-
-```
-
-## main2.js
-
-```js
-require("./rolldown-runtime.js").__esmMin((() => {}));
-
-```
-
-## rolldown-runtime.js
+## chunk.js
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
@@ -39,5 +25,22 @@ Object.defineProperty(exports, "__toESM", {
 		return __toESM;
 	}
 });
+
+```
+
+## main1.js
+
+```js
+require("./chunk.js");
+
+```
+
+## main2.js
+
+```js
+//#endregion
+//#region main2.js
+require("./chunk.js").__esmMin((() => {}))();
+//#endregion
 
 ```

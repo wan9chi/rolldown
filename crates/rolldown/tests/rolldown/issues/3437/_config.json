@@ -2,7 +2,7 @@
   "config": {
     "format": "esm",
     "platform": "node",
-    "codeSplitting": {
+    "manualCodeSplitting": {
       "groups": [
         {
           "name": "rolldown",

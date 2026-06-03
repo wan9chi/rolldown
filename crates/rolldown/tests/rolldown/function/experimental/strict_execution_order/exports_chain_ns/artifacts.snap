@@ -7,25 +7,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import nodeAssert from "node:assert";
-// main.js
+//#endregion
+//#region main.js
 nodeAssert.equal("foo", "foo");
+//#endregion
 
 ```
 
-# Variant: on-demand: [on_demand_wrapping: true] [strict_execution_order: true]
-
-## Assets
-
-### main.js
-
-```js
-import nodeAssert from "node:assert";
-// main.js
-nodeAssert.equal("foo", "foo");
-
-```
-
-# Variant: wrap-all: [strict_execution_order: true]
+# Variant: [strict_execution_order: true]
 
 ## Assets
 
@@ -34,20 +23,29 @@ nodeAssert.equal("foo", "foo");
 ```js
 import nodeAssert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// lib-foo.js
+//#region dep.js
+var init_dep = __esmMin((() => {}));
+//#endregion
+//#region lib-foo.js
 var value;
-function init_lib_foo() {
-	return (init_lib_foo = __esmMin((() => {
-		value = "foo";
-	})))();
-}
-// main.js
-function init_main() {
-	return (init_main = __esmMin((() => {
-		init_lib_foo();
-		nodeAssert.equal(value, "foo");
-	})))();
-}
-init_main();
+var init_lib_foo = __esmMin((() => {
+	init_dep();
+	value = "foo";
+}));
+//#endregion
+//#region proxy-foo.js
+var init_proxy_foo = __esmMin((() => {
+	init_lib_foo();
+}));
+//#endregion
+//#region proxy.js
+var init_proxy = __esmMin((() => {
+	init_proxy_foo();
+}));
+//#endregion
+__esmMin((() => {
+	init_proxy();
+	nodeAssert.equal(value, "foo");
+}))();
 
 ```

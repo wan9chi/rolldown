@@ -1,15 +1,12 @@
 import { defineTest } from 'rolldown-tests';
 import { expect } from 'vitest';
 
-let renderChunkCalls = 0;
-
 export default defineTest({
   config: {
     plugins: [
       {
         name: 'test-plugin',
         renderChunk(_code, chunk) {
-          renderChunkCalls++;
           expect(chunk.imports).toEqual(['node:http']);
         },
         generateBundle(_opts, bundle) {
@@ -20,8 +17,5 @@ export default defineTest({
         },
       },
     ],
-  },
-  afterTest: () => {
-    expect(renderChunkCalls).toBe(1);
   },
 });

@@ -1,23 +1,16 @@
 {
-  "configName": "on-demand",
   "config": {
     "strictExecutionOrder": true,
-    "codeSplitting": {
+    "experimental": {
+      "onDemandWrapping": true
+    },
+    "manualCodeSplitting": {
       "groups": [
         {
           "name": "test",
           "test": "foo(?:_\\w+)?\\.js"
         }
       ]
-    },
-    "experimental": {
-      "onDemandWrapping": true
     }
-  },
-  "configVariants": [
-    {
-      "_configName": "wrap-all",
-      "onDemandWrapping": false
-    }
-  ]
+  }
 }

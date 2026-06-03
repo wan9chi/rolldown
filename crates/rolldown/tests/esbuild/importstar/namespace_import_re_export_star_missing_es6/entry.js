@@ -1,13 +1,7 @@
-import assert from 'node:assert/strict'
+import assert from 'node:assert'
 import * as ns from './foo'
-assert.deepEqual(
-  ns,
-  Object.defineProperty(
-    {
-      x: 123,
-    },
-    Symbol.toStringTag,
-    { value: "Module" },
-  ),
-)
+assert.deepEqual(ns, {
+  [Symbol.toStringTag]: 'Module',
+  x: 123
+})
 assert.equal(ns.foo, undefined)

@@ -32,6 +32,7 @@ export default defineTest({
       		__esModule: { value: true },
       		[Symbol.toStringTag]: { value: "Module" }
       	});
+      	//#endregion
       	exports.default = node_path.join;
       	return exports;
       })({}, node_path);

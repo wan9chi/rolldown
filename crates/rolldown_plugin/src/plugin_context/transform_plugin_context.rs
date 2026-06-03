@@ -2,7 +2,7 @@ use std::{ops::Deref, sync::Arc};
 
 use crate::PluginContext;
 use arcstr::ArcStr;
-use rolldown_common::{ModuleIdx, PluginIdx, SourceMapGenMsg, SourcemapChainElement, WatchPath};
+use rolldown_common::{ModuleIdx, PluginIdx, SourceMapGenMsg, SourcemapChainElement};
 use rolldown_sourcemap::{SourceMap, collapse_sourcemaps, empty_sourcemap};
 use rolldown_utils::unique_arc::WeakRef;
 use std::sync::mpsc;
@@ -16,7 +16,7 @@ pub struct TransformPluginContext {
   id: ArcStr,
   module_idx: ModuleIdx,
   plugin_idx: PluginIdx,
-  magic_string_tx: Option<mpsc::Sender<SourceMapGenMsg>>,
+  magic_string_tx: Option<Arc<mpsc::Sender<SourceMapGenMsg>>>,
 }
 
 impl TransformPluginContext {
@@ -27,7 +27,7 @@ impl TransformPluginContext {
     id: ArcStr,
     module_idx: ModuleIdx,
     plugin_idx: PluginIdx,
-    magic_string_tx: Option<mpsc::Sender<SourceMapGenMsg>>,
+    magic_string_tx: Option<Arc<mpsc::Sender<SourceMapGenMsg>>>,
   ) -> Self {
     Self { inner, sourcemap_chain, original_code, id, module_idx, plugin_idx, magic_string_tx }
   }
@@ -62,7 +62,9 @@ impl TransformPluginContext {
     })
   }
 
-  /// Add a file or a directory as a watch dependency.
+  /// Add a file as a dependency.
+  ///
+  /// * file - The file to add as a watch dependency. This should be a normalized absolute path.
   pub fn add_watch_file(&self, file: &str) {
     // Skip all operations for virtual modules (starting with \0)
     // Virtual modules can't be refetched from disk during HMR
@@ -76,8 +78,7 @@ impl TransformPluginContext {
     // Add to this module's transform dependencies
     if let crate::PluginContext::Native(ctx) = &self.inner {
       if let Some(plugin_driver) = ctx.plugin_driver.upgrade() {
-        plugin_driver
-          .add_transform_dependency(self.module_idx, WatchPath::new(file, &ctx.options.cwd));
+        plugin_driver.add_transform_dependency(self.module_idx, file);
       }
     }
   }

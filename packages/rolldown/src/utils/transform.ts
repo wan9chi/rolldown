@@ -57,8 +57,7 @@ function normalizeBindingWarning(warning: BindingEnhancedTransformResult['warnin
  * @param sourceText The source code to transform.
  * @param options The transform options including tsconfig and inputMap. See {@linkcode TransformOptions} for more information.
  * @param cache Optional tsconfig cache for reusing resolved tsconfig across multiple transforms.
- * Used when `options.tsconfig` is `true` or a path. For a path, construct the
- * cache with the same path.
+ * Only used when `options.tsconfig` is `true`.
  *
  * @returns a promise that resolves to an object containing the transformed code,
  * source maps, and any errors that occurred during parsing or transformation.
@@ -88,8 +87,7 @@ export async function transform(
  * @param sourceText The source code to transform.
  * @param options The transform options including tsconfig and inputMap. See {@linkcode TransformOptions} for more information.
  * @param cache Optional tsconfig cache for reusing resolved tsconfig across multiple transforms.
- * Used when `options.tsconfig` is `true` or a path. For a path, construct the
- * cache with the same path.
+ * Only used when `options.tsconfig` is `true`.
  *
  * @returns an object containing the transformed code, source maps, and any errors
  * that occurred during parsing or transformation.

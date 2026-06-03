@@ -2,15 +2,14 @@
  * @description This file is used for normalize the options.
  * In CLI, the input options and output options are mixed together. We need to tell them apart.
  */
-import type { InputOptions } from '../../options/input-options.ts';
-import type { OutputOptions } from '../../options/output-options.ts';
-import { getInputCliKeys, getOutputCliKeys, validateCliOptions } from '../../utils/validator.ts';
-import { logger } from '../logger.ts';
-import type { ConfigLoader } from '../../utils/load-config.ts';
-import type { CliOptions } from './alias.ts';
-import { setNestedProperty } from './utils.ts';
+import type { InputOptions } from '../../options/input-options';
+import type { OutputOptions } from '../../options/output-options';
+import { getInputCliKeys, getOutputCliKeys, validateCliOptions } from '../../utils/validator';
+import { logger } from '../logger';
+import type { CliOptions } from './alias';
+import { setNestedProperty } from './utils';
 
-const reservedKeys = new Set(['help', 'version', 'config', 'watch', 'environment', 'configLoader']);
+const reservedKeys = new Set(['help', 'version', 'config', 'watch', 'environment']);
 
 export interface NormalizedCliOptions {
   input: InputOptions;
@@ -20,7 +19,6 @@ export interface NormalizedCliOptions {
   version: boolean;
   watch: boolean;
   environment?: string | string[];
-  configLoader?: ConfigLoader;
 }
 
 export function normalizeCliOptions(
@@ -53,10 +51,6 @@ export function normalizeCliOptions(
 
   if (options.environment !== undefined) {
     result.environment = options.environment;
-  }
-
-  if (options.configLoader !== undefined) {
-    result.configLoader = options.configLoader;
   }
 
   const keysOfInput = new Set(getInputCliKeys());

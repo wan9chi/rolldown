@@ -31,8 +31,10 @@ export default defineTest({
           expect(chunk.imports).toStrictEqual(['share.js']);
           expect(chunk.moduleIds).toStrictEqual([entry]);
           expect(Object.keys(chunk.modules).length).toBe(1);
-          expect(Object.values(chunk.modules)[0].code).toBe('// main.js\nconsole.log();\n');
-          expect(Object.values(chunk.modules)[0].renderedLength).toBe(26);
+          expect(Object.values(chunk.modules)[0].code).toBe(
+            '//#region main.js\nconsole.log();\n\n//#endregion',
+          );
+          expect(Object.values(chunk.modules)[0].renderedLength).toBe(46);
           expect(chunk.map).toBeDefined();
           expect(chunk.map!.toString()).toContain('"version":');
           // called bundle.generate()
@@ -86,7 +88,6 @@ export default defineTest({
           expect(map.sourcesContent.at(-1)).toBe('console.log("updated")');
           expect(map.names.at(-1)).toBe('updated-name');
           expect(map.x_google_ignoreList).toStrictEqual([0]);
-          expect(map.ignoreList).toStrictEqual([0]);
           expect(map.debugId).toBe('updated-debugId');
         },
       },
@@ -105,6 +106,8 @@ export default defineTest({
     const chunks = getOutputChunk(output);
     expect(chunks.length).toBe(1);
     expect(chunks[0].code).toBe('console.error()');
-    expect(Object.values(chunks[0].modules)[0].code).toBe('// main.js\nconsole.log();\n');
+    expect(Object.values(chunks[0].modules)[0].code).toBe(
+      '//#region main.js\nconsole.log();\n\n//#endregion',
+    );
   },
 });

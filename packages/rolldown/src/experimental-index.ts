@@ -4,16 +4,13 @@ export type { DevOptions, DevWatchOptions } from './api/dev/dev-options';
 export { freeExternalMemory, scan } from './api/experimental';
 export {
   type BindingClientHmrUpdate,
-  type BindingNativeMemoryStats,
   BindingRebuildStrategy,
-  getNativeMemoryStats,
   isolatedDeclaration,
   type IsolatedDeclarationsOptions,
   type IsolatedDeclarationsResult,
   isolatedDeclarationSync,
   moduleRunnerTransform,
   type NapiResolveOptions as ResolveOptions,
-  resetNativeMemoryStats,
   type ResolveResult,
   ResolverFactory,
 } from './binding.cjs';
@@ -34,6 +31,7 @@ export {
   viteReactRefreshWrapperPlugin,
   viteReporterPlugin,
   viteResolvePlugin,
+  viteWasmFallbackPlugin,
   viteWebWorkerPostPlugin,
 } from './builtin-plugin/constructors';
 

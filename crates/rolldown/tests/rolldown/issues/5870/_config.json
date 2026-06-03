@@ -1,15 +1,9 @@
 {
-  "configName": "on-demand",
-  "config": {
-    "strictExecutionOrder": true,
-    "experimental": {
-      "onDemandWrapping": true
-    }
-  },
+  "config": {},
   "configVariants": [
     {
-      "_configName": "wrap-all",
-      "onDemandWrapping": false
+      "strictExecutionOrder": true,
+      "onDemandWrapping": true
     }
   ]
 }

@@ -1,8 +1,9 @@
-use std::ffi::OsString;
+use std::{ffi::OsString, sync::Arc};
 
 use arcstr::ArcStr;
 use cow_utils::CowUtils;
 use rolldown_common::{Output, OutputAsset, OutputChunk};
+use rolldown_plugin_utils::constants::ChunkMetadata;
 use rolldown_utils::pattern_filter::normalize_path;
 use serde::Serialize;
 
@@ -76,7 +77,15 @@ impl ViteManifestPlugin {
     chunk: &OutputChunk,
     src: &str,
     is_legacy: bool,
+    vite_metadata: Option<&Arc<ChunkMetadata>>,
   ) -> ManifestChunk {
+    let css = vite_metadata
+      .as_ref()
+      .map(|meta| meta.imported_css.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+    let assets = vite_metadata
+      .as_ref()
+      .map(|meta| meta.imported_assets.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+
     ManifestChunk {
       file: chunk.filename.to_string(),
       name: Some(chunk.name.to_string()),
@@ -85,8 +94,8 @@ impl ViteManifestPlugin {
       is_dynamic_entry: chunk.is_dynamic_entry,
       imports: self.get_internal_imports(bundle, &chunk.imports, is_legacy),
       dynamic_imports: self.get_internal_imports(bundle, &chunk.dynamic_imports, is_legacy),
-      css: None,
-      assets: None,
+      css,
+      assets,
       ..Default::default()
     }
   }

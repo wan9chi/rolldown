@@ -1,5 +1,4 @@
 {
-  "configName": "on-demand",
   "config": {
     "input": [
       {
@@ -9,15 +8,6 @@
     ],
     "external": ["node:assert"],
     "strictExecutionOrder": true,
-    "preserveEntrySignatures": "false",
-    "experimental": {
-      "onDemandWrapping": true
-    }
-  },
-  "configVariants": [
-    {
-      "_configName": "wrap-all",
-      "onDemandWrapping": false
-    }
-  ]
+    "preserveEntrySignatures": "false"
+  }
 }

@@ -60,11 +60,7 @@ impl<'text> MagicString<'text> {
       let trimmed_content = trim_start_pattern(&content, pattern);
 
       if content.is_empty() {
-        // Content is empty (e.g. from a remove); the outro is next in output order, so trim
-        // it and abort if non-whitespace remains.
-        if trim_deque_start(&mut chunk.outro, pattern) {
-          return true;
-        }
+        // Content is empty (e.g., from a remove), continue to next chunk
         chunk_idx = next_idx;
         continue;
       }
@@ -126,11 +122,7 @@ impl<'text> MagicString<'text> {
       let trimmed_content = trim_end_pattern(&content, pattern);
 
       if content.is_empty() {
-        // Content is empty (e.g. from a remove); the intro is next in reverse output order,
-        // so trim it and abort if non-whitespace remains.
-        if trim_deque_end(&mut chunk.intro, pattern) {
-          return true;
-        }
+        // Content is empty (e.g., from a remove), continue to prev chunk
         chunk_idx = prev_idx;
         continue;
       }

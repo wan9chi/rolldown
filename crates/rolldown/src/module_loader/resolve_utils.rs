@@ -4,7 +4,7 @@ use arcstr::ArcStr;
 use futures::future::join_all;
 use oxc_index::{IndexVec, index_vec};
 use rolldown_common::{
-  ImportKind, ImportRecordIdx, ImportRecordMeta, ModuleDefFormat, ModuleId,
+  ImportKind, ImportRecordIdx, ImportRecordMeta, ModuleDefFormat, ModuleId, ModuleType,
   NormalizedBundlerOptions, RUNTIME_MODULE_KEY, RawImportRecord, ResolvedId,
 };
 use rolldown_error::{
@@ -13,7 +13,7 @@ use rolldown_error::{
 use rolldown_fs::FileSystem;
 use rolldown_plugin::{__inner::resolve_id_check_external, PluginDriver, SharedPluginDriver};
 use rolldown_resolver::{ResolveError, Resolver};
-use rolldown_utils::ecmascript;
+use rolldown_utils::ecmascript::{self};
 use rustc_hash::FxHashMap;
 
 use crate::{SharedOptions, SharedResolver};
@@ -51,6 +51,7 @@ pub async fn resolve_id<Fs: FileSystem>(
   .await
 }
 
+#[expect(clippy::too_many_arguments)]
 pub async fn resolve_dependencies<Fs: FileSystem>(
   self_resolved_id: &ResolvedId,
   options: &SharedOptions,
@@ -59,6 +60,7 @@ pub async fn resolve_dependencies<Fs: FileSystem>(
   dependencies: &IndexVec<ImportRecordIdx, RawImportRecord>,
   source: ArcStr,
   warnings: &mut Vec<BuildDiagnostic>,
+  module_type: &ModuleType,
 ) -> BuildResult<IndexVec<ImportRecordIdx, ResolvedId>> {
   // NOTE: this dedupes the identical (specifier, kind) resolve calls
   let dedup_map: FxHashMap<(&str, ImportKind), ImportRecordIdx> = dependencies
@@ -85,6 +87,9 @@ pub async fn resolve_dependencies<Fs: FileSystem>(
     sparse_results[repr_idx].as_ref().expect("dedup representative should be resolved")
   });
 
+  // FIXME: if the import records came from css view, but source from ecma view,
+  // the span will not matched.
+  let is_css_module = matches!(module_type, ModuleType::Css);
   let mut ret = IndexVec::with_capacity(dependencies.len());
   let mut build_errors = vec![];
   for (dep, resolved_id) in dependencies.iter().zip(resolved_results) {
@@ -105,24 +110,28 @@ pub async fn resolve_dependencies<Fs: FileSystem>(
                 build_errors.push(BuildDiagnostic::resolve_error(
                   source.clone(),
                   self_resolved_id.id.as_arc_str().clone(),
-                  diagnosable_importee(dep),
+                  if dep.is_unspanned() || is_css_module {
+                    DiagnosableArcstr::String(specifier.as_str().into())
+                  } else {
+                    DiagnosableArcstr::Span(dep.state.span)
+                  },
                   "Module not found.".into(),
                   EventKind::UnresolvedImport,
                   None,
                 ));
               } else {
-                let help = if specifier.starts_with("virtual:") {
-                  Some(r#"The id starts with "virtual:", which by convention denotes a virtual module that is expected to be resolved by a plugin. Make sure the plugin that should provide it is registered and resolves the id in its `resolveId` hook."#.to_string())
-                } else {
-                  matches!(options.platform, rolldown_common::Platform::Neutral).then(|| {
-                    r#"The "main" field here was ignored. Main fields must be configured explicitly when using the "neutral" platform."#.to_string()
-                  })
-                };
+                let help = matches!(options.platform, rolldown_common::Platform::Neutral).then(|| {
+                  r#"The "main" field here was ignored. Main fields must be configured explicitly when using the "neutral" platform."#.to_string()
+                });
                 warnings.push(
                   BuildDiagnostic::resolve_error(
                     source.clone(),
                     self_resolved_id.id.as_arc_str().clone(),
-                    diagnosable_importee(dep),
+                    if dep.is_unspanned() || is_css_module {
+                      DiagnosableArcstr::String(specifier.as_str().into())
+                    } else {
+                      DiagnosableArcstr::Span(dep.state.span)
+                    },
                     "Module not found, treating it as an external dependency".into(),
                     EventKind::UnresolvedImport,
                     help,
@@ -141,7 +150,11 @@ pub async fn resolve_dependencies<Fs: FileSystem>(
             build_errors.push(BuildDiagnostic::resolve_error(
                 source.clone(),
                 self_resolved_id.id.as_arc_str().clone(),
-                diagnosable_importee(dep),
+                if dep.is_unspanned() || is_css_module {
+                  DiagnosableArcstr::String(specifier.as_str().into())
+                } else {
+                  DiagnosableArcstr::Span(dep.state.span)
+                },
                 format!("Matched alias not found for '{specifier}'"),
                     EventKind::ResolveError,
                 Some("Maybe you expected `resolve.alias` to call other plugins resolveId hook? see the docs https://rolldown.rs/reference/InputOptions.resolve#alias for more details".to_string()),
@@ -152,7 +165,11 @@ pub async fn resolve_dependencies<Fs: FileSystem>(
             build_errors.push(BuildDiagnostic::resolve_error(
               source.clone(),
               self_resolved_id.id.as_arc_str().clone(),
-              diagnosable_importee(dep),
+              if dep.is_unspanned() || is_css_module {
+                DiagnosableArcstr::String(specifier.as_str().into())
+              } else {
+                DiagnosableArcstr::Span(dep.state.span)
+              },
               rolldown_error::resolve_error_to_message(e, &diagnostic_opts),
               EventKind::ResolveError,
               None,
@@ -164,14 +181,4 @@ pub async fn resolve_dependencies<Fs: FileSystem>(
   }
 
   if build_errors.is_empty() { Ok(ret) } else { Err(build_errors.into()) }
-}
-
-/// The message names `module_request`. The span only underlines the import in source.
-fn diagnosable_importee(dep: &RawImportRecord) -> DiagnosableArcstr {
-  let text = ArcStr::from(dep.module_request.as_str());
-  if dep.is_unspanned() {
-    DiagnosableArcstr::String(text)
-  } else {
-    DiagnosableArcstr::Span { span: dep.state.span, text }
-  }
 }

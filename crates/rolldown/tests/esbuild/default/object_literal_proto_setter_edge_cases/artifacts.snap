@@ -35,6 +35,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import "foo";
+//#endregion
 
 ```
 
@@ -42,17 +43,20 @@ import "foo";
 
 ```js
 import "foo";
+//#endregion
 
 ```
 
 ## local-normal.js
 
 ```js
+//#endregion
 
 ```
 
 ## local-shorthand.js
 
 ```js
+//#endregion
 
 ```

@@ -1,12 +1,15 @@
-use arcstr::ArcStr;
-use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
-/// Per-client input for selecting the factories an HMR push ships. The server never
-/// sees execution state; it reads only its own records.
 #[derive(Debug)]
 pub struct ClientHmrInput<'a> {
   pub client_id: &'a str,
-  /// The ship map `shipped[C]`: module stable id → rebuild stamp.
-  pub shipped: &'a FxHashMap<ArcStr, u32>,
-  pub top_level_evaluated: &'a FxHashMap<ArcStr, u32>,
+  pub executed_modules: &'a FxHashSet<String>,
+}
+
+impl ClientHmrInput<'_> {
+  /// Check if a module is executed for this client.
+  /// For the special testing client ID "rolldown-tests", all modules are considered executed.
+  pub fn is_module_executed(&self, module_id: &str) -> bool {
+    self.client_id == "rolldown-tests" || self.executed_modules.contains(module_id)
+  }
 }

@@ -22,9 +22,7 @@ export async function bundleWithConfig(
     process.env.ROLLDOWN_WATCH = 'true';
   }
 
-  const config = await loadConfig(configPath, {
-    configLoader: cliOptions.configLoader,
-  });
+  const config = await loadConfig(configPath);
   // If config is a function, call it with raw command line arguments
   const resolvedConfig = typeof config === 'function' ? await config(rawArgs) : config;
 
@@ -61,8 +59,7 @@ export async function bundleWithCliOptions(cliOptions: NormalizedCliOptions): Pr
 
   if (outputs.length === 0) {
     logger.error('No output generated');
-    process.exitCode = 1;
-    return;
+    process.exit(1);
   }
 
   for (const file of outputs) {

@@ -6,7 +6,7 @@
         "import": "./main.js"
       }
     ],
-    "codeSplitting": {
+    "manualCodeSplitting": {
       "groups": [
         {
           "name": "initial-deps",

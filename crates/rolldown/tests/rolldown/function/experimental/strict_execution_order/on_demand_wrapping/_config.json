@@ -1,5 +1,4 @@
 {
-  "configName": "on-demand",
   "config": {
     "input": [
       {
@@ -16,11 +15,5 @@
       "onDemandWrapping": true
     }
   },
-  "expectExecuted": false,
-  "configVariants": [
-    {
-      "_configName": "wrap-all",
-      "onDemandWrapping": false
-    }
-  ]
+  "expectExecuted": false
 }

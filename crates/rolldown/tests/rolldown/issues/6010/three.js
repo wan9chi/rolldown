@@ -1,1 +1,0 @@
-export const myVariable = 'world';

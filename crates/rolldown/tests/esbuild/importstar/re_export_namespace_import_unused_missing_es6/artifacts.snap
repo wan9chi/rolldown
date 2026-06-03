@@ -21,8 +21,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-import assert from "node:assert/strict";
-// entry.js
+import assert from "node:assert";
+//#region entry.js
 assert.deepEqual(void 0, void 0);
+//#endregion
 
 ```

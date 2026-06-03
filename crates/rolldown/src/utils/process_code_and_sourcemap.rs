@@ -1,17 +1,15 @@
 use std::path::Path;
 
+use futures::future::try_join_all;
 use oxc::ast::CommentKind;
 use rolldown_common::{NormalizedBundlerOptions, OutputAsset, SourceMapType};
 use rolldown_error::{BuildResult, ResultExt};
 use rolldown_sourcemap::SourceMap;
-use rolldown_std_utils::relative_path_to_slash;
 use sugar_path::SugarPath;
 use url::Url;
 
 use super::uuid::uuid_v4_string_from_u128;
 
-#[expect(clippy::too_many_arguments)]
-#[cfg(feature = "experimental")]
 pub async fn process_code_and_sourcemap(
   options: &NormalizedBundlerOptions,
   code: &mut String,
@@ -20,19 +18,9 @@ pub async fn process_code_and_sourcemap(
   filename: &str,
   debug_id: u128,
   is_css: bool,
-  sourcemap_filename: Option<String>,
 ) -> BuildResult<Option<OutputAsset>> {
-  prepare_sourcemap(options, map, file_dir, filename).await?;
-  let map_filename = sourcemap_filename.unwrap_or_else(|| format!("{filename}.map"));
-  emit_sourcemap(options, code, map, &map_filename, debug_id, is_css)
-}
-
-pub async fn prepare_sourcemap(
-  options: &NormalizedBundlerOptions,
-  map: &mut SourceMap,
-  file_dir: &Path,
-  filename: &str,
-) -> BuildResult<()> {
+  let source_map_link_comment_kind =
+    if is_css { CommentKind::SingleLineBlock } else { CommentKind::Line };
   let file_base_name = Path::new(filename).file_name().expect("should have file name");
   map.set_file(file_base_name.to_string_lossy().as_ref());
 
@@ -40,91 +28,62 @@ pub async fn prepare_sourcemap(
     map.set_source_contents(vec![]);
   }
 
-  let map_filename = format!("{}.map", file_base_name.to_string_lossy());
+  let map_filename = format!("{filename}.map");
   let map_path = file_dir.join(&map_filename);
 
   if let Some(source_map_ignore_list) = &options.sourcemap_ignore_list {
-    let relative_sources = map
-      .get_sources()
-      .map(|source| source.as_path().relative(file_dir).to_string_lossy().into_owned())
-      .collect::<Vec<_>>();
-
-    let ignored = match source_map_ignore_list {
-      rolldown_common::SourceMapIgnoreList::Boolean(_)
-      | rolldown_common::SourceMapIgnoreList::StringOrRegex(_) => {
-        // Fast path: no async overhead for static values (boolean/string/regex)
-        relative_sources
-          .iter()
-          .map(|source| source_map_ignore_list.exec_static(source))
-          .collect::<Vec<_>>()
-      }
-      rolldown_common::SourceMapIgnoreList::Fn(_) => {
-        // Slow path: one call decides every source, so the napi boundary is crossed once per
-        // sourcemap instead of once per source.
-        let source_count = relative_sources.len();
-        let ignored = source_map_ignore_list
-          .exec_dynamic(relative_sources, map_path.to_string_lossy().as_ref())
-          .await?;
-        if ignored.len() != source_count {
-          return Err(
-            anyhow::anyhow!(
-              "`sourcemapIgnoreList` returned {} results for {} sources",
-              ignored.len(),
-              source_count
-            )
-            .into(),
-          );
+    let mut x_google_ignore_list = vec![];
+    for (index, source) in map.get_sources().enumerate() {
+      let source = source.as_path().relative(file_dir);
+      let should_ignore = match source_map_ignore_list {
+        rolldown_common::SourceMapIgnoreList::Boolean(_)
+        | rolldown_common::SourceMapIgnoreList::StringOrRegex(_) => {
+          // Fast path: no async overhead for static values (boolean/string/regex)
+          source_map_ignore_list.exec_static(source.to_string_lossy().as_ref())
         }
-        ignored
+        rolldown_common::SourceMapIgnoreList::Fn(_) => {
+          // Slow path: async function call only when needed
+          source_map_ignore_list
+            .exec_dynamic(source.to_string_lossy().as_ref(), map_path.to_string_lossy().as_ref())
+            .await?
+        }
+      };
+
+      if should_ignore {
+        #[expect(clippy::cast_possible_truncation)]
+        x_google_ignore_list.push(index as u32);
       }
-    };
-
-    #[expect(clippy::cast_possible_truncation)]
-    let ignore_list = ignored
-      .into_iter()
-      .enumerate()
-      .filter_map(|(index, should_ignore)| should_ignore.then_some(index as u32))
-      .collect::<Vec<_>>();
-
-    if !ignore_list.is_empty() {
-      map.set_ignore_list(ignore_list);
+    }
+    if !x_google_ignore_list.is_empty() {
+      map.set_x_google_ignore_list(x_google_ignore_list);
     }
   }
 
   if let Some(sourcemap_path_transform) = &options.sourcemap_path_transform {
     let map_path = map_path.to_string_lossy();
-    let relative_sources = map
-      .get_sources()
-      .map(|source| source.as_path().relative(file_dir).to_string_lossy().into_owned())
-      .collect::<Vec<_>>();
-    let source_count = relative_sources.len();
-
-    // One call rewrites every source, so the napi boundary is crossed once per sourcemap instead
-    // of once per source.
-    let sources = sourcemap_path_transform.call(relative_sources, map_path.as_ref()).await?;
-    if sources.len() != source_count {
-      return Err(
-        anyhow::anyhow!(
-          "`sourcemapPathTransform` returned {} results for {} sources",
-          sources.len(),
-          source_count
-        )
-        .into(),
-      );
-    }
-
-    #[cfg(windows)]
-    // Normalize the windows path.
-    let sources = sources
-      .into_iter()
-      .map(|source| source.replace(std::path::MAIN_SEPARATOR, "/"))
-      .collect::<Vec<_>>();
+    let sources = try_join_all(map.get_sources().map(async |source| {
+      let source = source.as_path().relative(file_dir);
+      let source =
+        sourcemap_path_transform.call(source.to_string_lossy().as_ref(), map_path.as_ref()).await?;
+      #[cfg(windows)]
+      {
+        // Normalize the windows path.
+        Ok::<_, anyhow::Error>(source.replace(std::path::MAIN_SEPARATOR, "/"))
+      }
+      #[cfg(not(windows))]
+      {
+        Ok::<_, anyhow::Error>(source)
+      }
+    }))
+    .await?;
 
     map.set_sources(sources);
   } else if cfg!(windows) {
     // Normalize the windows path at final.
-    let sources =
-      map.get_sources().map(|x| relative_path_to_slash(x.as_path(), file_dir)).collect::<Vec<_>>();
+    let sources = map
+      .get_sources()
+      .map(|x| x.as_path().relative(file_dir).to_slash_lossy().to_string())
+      .collect::<Vec<_>>();
     map.set_sources(sources);
   } else {
     map.set_sources(
@@ -134,20 +93,6 @@ pub async fn prepare_sourcemap(
         .collect::<Vec<_>>(),
     );
   }
-
-  Ok(())
-}
-
-pub fn emit_sourcemap(
-  options: &NormalizedBundlerOptions,
-  code: &mut String,
-  map: &mut SourceMap,
-  map_filename: &str,
-  debug_id: u128,
-  is_css: bool,
-) -> BuildResult<Option<OutputAsset>> {
-  let source_map_link_comment_kind =
-    if is_css { CommentKind::SingleLineBlock } else { CommentKind::Line };
 
   if options.sourcemap_debug_ids && options.sourcemap.is_some() {
     let debug_id_str = uuid_v4_string_from_u128(debug_id);
@@ -177,13 +122,13 @@ pub fn emit_sourcemap(
               match &options.sourcemap_base_url {
                 Some(url_string) => {
                   let url = Url::parse(url_string)
-                    .and_then(|base| base.join(map_filename))
+                    .and_then(|base| base.join(&map_filename))
                     .map_err_to_unhandleable()?;
                   source.push_str(url.as_str());
                 }
                 None => {
                   source.push_str(
-                    &Path::new(map_filename)
+                    &Path::new(&map_filename)
                       .file_name()
                       .ok_or(anyhow::anyhow!("should have filename"))?
                       .to_string_lossy(),
@@ -196,7 +141,7 @@ pub fn emit_sourcemap(
           )?;
         }
         return Ok(Some(OutputAsset {
-          filename: map_filename.into(),
+          filename: map_filename.as_str().into(),
           source: source.into(),
           original_file_names: vec![],
           names: vec![],
@@ -227,7 +172,7 @@ fn process_sourcemap_related_reference(
 ) -> BuildResult<()> {
   source.push('\n');
   match comment_kind {
-    CommentKind::Line | CommentKind::HtmlOpen | CommentKind::HtmlClose => {
+    CommentKind::Line => {
       source.push_str("//");
       reference_body_processor(source)?;
     }

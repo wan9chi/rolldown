@@ -6,10 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// HIDDEN [\0rolldown/runtime.js]
+var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod), cb = null), mod.exports);
 (/* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.foo = 123;
 })))();
 console.log(123, 123, 234);
+//#endregion
 
 ```

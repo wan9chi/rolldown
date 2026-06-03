@@ -21,9 +21,8 @@ pub enum OutputFormat {
 impl OutputFormat {
   #[inline]
   pub const fn as_str(&self) -> &'static str {
-    // Aligned with InternalModuleFormat type on JS side
     match self {
-      Self::Esm => "es",
+      Self::Esm => "esm",
       Self::Cjs => "cjs",
       Self::Iife => "iife",
       Self::Umd => "umd",
@@ -56,7 +55,8 @@ impl OutputFormat {
   pub fn source_type(&self) -> SourceType {
     match self {
       Self::Esm => SourceType::mjs(),
-      Self::Cjs => SourceType::cjs(),
+      // TODO: remove `.with_commonjs(true)` when https://github.com/oxc-project/oxc/pull/18276 is released
+      Self::Cjs => SourceType::cjs().with_commonjs(true),
       Self::Iife | Self::Umd => SourceType::cjs().with_script(true),
     }
   }

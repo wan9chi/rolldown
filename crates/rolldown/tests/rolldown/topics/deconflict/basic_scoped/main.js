@@ -1,4 +1,4 @@
-import assert from 'assert/strict';
+import assert from 'assert';
 import { a as aJs } from './a';
 const a = 'main.js';
 

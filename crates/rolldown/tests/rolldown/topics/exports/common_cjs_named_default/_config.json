@@ -1,7 +1,7 @@
 {
   "config": {
     "format": "cjs",
-    "codeSplitting": {
+    "manualCodeSplitting": {
       "groups": [
         {
           "name": "shared",

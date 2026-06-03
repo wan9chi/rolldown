@@ -10,7 +10,7 @@
         "import": "./b.cjs"
       }
     ],
-    "codeSplitting": {
+    "manualCodeSplitting": {
       "groups": [
         {
           "test": "[ab]\\.cjs",

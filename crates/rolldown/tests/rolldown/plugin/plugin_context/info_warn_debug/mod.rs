@@ -69,7 +69,7 @@ async fn allow_pass_custom_arg() {
         on_log: Some(on_log),
         ..Default::default()
       },
-      vec![Plugin::new_shared(TestPlugin)],
+      vec![Arc::new(TestPlugin)],
     )
     .await;
 

@@ -6,11 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-import assert from "node:assert/strict";
+import assert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// types.mjs
+//#region types.mjs
 var types_exports = /* @__PURE__ */ __exportAll({});
-// entry.js
-assert.deepEqual(__toCommonJS(types_exports), {});
+var init_types = __esmMin((() => {}));
+//#endregion
+//#region entry.js
+assert.deepEqual((init_types(), __toCommonJS(types_exports)), {});
+//#endregion
 
 ```

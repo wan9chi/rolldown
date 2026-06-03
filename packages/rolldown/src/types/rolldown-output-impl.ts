@@ -9,13 +9,8 @@ export class RolldownOutputImpl
   extends PlainObjectLike
   implements RolldownOutput, ExternalMemoryHandle
 {
-  declare mangleCache?: RolldownOutput['mangleCache'];
-
   constructor(private bindingOutputs: BindingOutputs) {
     super();
-    if (bindingOutputs.mangleCache !== undefined) {
-      this.mangleCache = bindingOutputs.mangleCache;
-    }
   }
 
   @lazyProp

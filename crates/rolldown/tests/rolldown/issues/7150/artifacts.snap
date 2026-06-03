@@ -3,17 +3,26 @@ source: crates/rolldown_testing/src/integration_test.rs
 ---
 # Assets
 
+## chunk.js
+
+```js
+// HIDDEN [\0rolldown/runtime.js]
+export { __name as t };
+
+```
+
 ## main.js
 
 ```js
-import { t as __name } from "./rolldown-runtime.js";
+import { t as __name } from "./chunk.js";
 import assert from "node:assert";
-// dep.js
+//#region dep.js
 function dep_default() {
 	return "anonymous default function";
 }
 __name(dep_default, "default");
-// dep-class.js
+//#endregion
+//#region dep-class.js
 var dep_class_default = class {
 	static {
 		__name(this, "default");
@@ -22,7 +31,8 @@ var dep_class_default = class {
 		this.type = "anonymous default class";
 	}
 };
-// main.js
+//#endregion
+//#region main.js
 var count = 100;
 assert.strictEqual(dep_default.name, "default", "Anonymous default export function name should be \"default\"");
 assert.strictEqual(dep_class_default.name, "default", "Anonymous default export class name should be \"default\"");
@@ -32,6 +42,7 @@ var main_default = class {
 	}
 };
 assert.strictEqual(count, 100);
+//#endregion
 export { main_default as default };
 
 ```
@@ -39,21 +50,14 @@ export { main_default as default };
 ## main2.js
 
 ```js
-import { t as __name } from "./rolldown-runtime.js";
+import { t as __name } from "./chunk.js";
 import assert from "node:assert";
-// main2.js
+//#region main2.js
 var count = 100;
 function main2_default() {}
 __name(main2_default, "default");
 assert.strictEqual(count, 100);
+//#endregion
 export { main2_default as default };
-
-```
-
-## rolldown-runtime.js
-
-```js
-// HIDDEN [\0rolldown/runtime.js]
-export { __name as t };
 
 ```

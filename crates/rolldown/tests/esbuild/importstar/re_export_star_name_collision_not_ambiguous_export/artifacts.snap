@@ -6,9 +6,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// c.js
+//#region c.js
 let x = 1;
 let y = 2;
+//#endregion
 export { x, y };
 
 ```

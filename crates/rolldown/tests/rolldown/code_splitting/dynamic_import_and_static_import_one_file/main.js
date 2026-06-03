@@ -1,16 +1,10 @@
 import * as fooNamespace from './foo.js';
-import assert from 'node:assert/strict';
+import assert from 'node:assert';
 
-assert.deepEqual(
-  fooNamespace,
-  Object.defineProperty(
-    {
-      foo: 1,
-    },
-    Symbol.toStringTag,
-    { value: 'Module' },
-  ),
-);
+assert.deepEqual(fooNamespace, {
+  [Symbol.toStringTag]: 'Module',
+  foo: 1,
+});
 
 import('./foo.js').then((mod) => {
   assert.deepEqual(mod, fooNamespace);

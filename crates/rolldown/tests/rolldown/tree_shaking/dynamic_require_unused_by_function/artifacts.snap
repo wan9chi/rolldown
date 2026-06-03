@@ -6,11 +6,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// lib.js
+//#region lib.js
 function a() {
 	console.log("a");
 }
-// main.js
+//#endregion
+//#region main.js
 a();
+//#endregion
 
 ```

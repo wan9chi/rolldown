@@ -10,9 +10,10 @@ Object.defineProperties(exports, {
 	__esModule: { value: true },
 	[Symbol.toStringTag]: { value: "Module" }
 });
-// lib.js
+//#region lib.js
 var lib_default = { value: 42 };
 const named = "named_value";
+//#endregion
 exports.default = lib_default;
 exports.named = named;
 
@@ -26,8 +27,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const require_lib = require("./lib.js");
 let node_assert = require("node:assert");
 node_assert = __toESM(node_assert);
-// main.js
+//#region main.js
 node_assert.default.strictEqual(require_lib.default.value, 42);
+//#endregion
 exports.lib = require_lib.default;
 
 ```

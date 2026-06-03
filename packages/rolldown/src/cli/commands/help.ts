@@ -1,9 +1,8 @@
-import packageJson from '../../../package.json' with { type: 'json' };
-import { styleText } from '../../utils/style-text.ts';
-import { options } from '../arguments/index.ts';
-import { logger } from '../logger.ts';
-
-const { description, version } = packageJson;
+import { description, version } from '../../../package.json' with { type: 'json' };
+import { styleText } from '../../utils/style-text';
+import { options } from '../arguments';
+import { camelCaseToKebabCase } from '../arguments/utils';
+import { logger } from '../logger';
 
 const examples = [
   {
@@ -69,6 +68,7 @@ export function generateHelpText(): string {
       })
       .map(([option, { type, short, hint, description }]) => {
         let optionStr = `  --${option} `;
+        option = camelCaseToKebabCase(option);
         if (short) {
           optionStr += `-${short}, `;
         }

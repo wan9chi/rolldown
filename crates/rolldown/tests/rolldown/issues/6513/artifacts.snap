@@ -7,8 +7,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 const require_main = require("./main.js");
-// dynamic.js
+//#region dynamic.js
 var ddd;
+//#endregion
 require_main.__esmMin((() => {
 	ddd = 100;
 }))();
@@ -23,7 +24,8 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 // HIDDEN [\0rolldown/runtime.js]
 let node_assert = require("node:assert");
 node_assert = __toESM(node_assert);
-// entry.js
+//#endregion
+//#region entry.js
 var import_lib = (/* @__PURE__ */ __commonJSMin(((exports) => {
 	const remoteProvider = async function() {
 		return await Promise.resolve().then(() => require("./dynamic.js"));
@@ -31,9 +33,9 @@ var import_lib = (/* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.defaultProvider = remoteProvider;
 })))();
 (async () => {
-	const mod = await (0, import_lib.defaultProvider)();
-	(0, node_assert.default)(mod.ddd === 100);
+	(0, node_assert.default)((await (0, import_lib.defaultProvider)()).ddd === 100);
 })();
+//#endregion
 exports.__esmMin = __esmMin;
 
 ```

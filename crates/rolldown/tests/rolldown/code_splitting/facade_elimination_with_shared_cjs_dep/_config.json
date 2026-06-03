@@ -1,7 +1,7 @@
 {
   "snapshotOutputStats": true,
   "config": {
-    "codeSplitting": {
+    "manualCodeSplitting": {
       "groups": [
         {
           "name": "i18n-ar",

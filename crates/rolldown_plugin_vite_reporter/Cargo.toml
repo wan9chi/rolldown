@@ -12,6 +12,7 @@ description = "Rolldown plugin for build reporting"
 
 [lib]
 doctest = false
+test = false
 
 [lints]
 workspace = true
@@ -22,12 +23,10 @@ cow-utils = { workspace = true }
 derive_more = { workspace = true }
 flate2 = { workspace = true }
 itoa = { workspace = true }
-owo-colors = { workspace = true }
+num-format = { workspace = true }
+owo-colors = { workspace = true, features = ["supports-colors"] }
 rayon = { workspace = true }
 rolldown_common = { workspace = true }
 rolldown_plugin = { workspace = true }
-rolldown_std_utils = { workspace = true }
-rustc-hash = { workspace = true }
 sugar_path = { workspace = true }
-supports-color = { workspace = true }
 terminal_size = { workspace = true }

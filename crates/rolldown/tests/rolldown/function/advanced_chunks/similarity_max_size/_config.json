@@ -1,6 +1,6 @@
 {
   "config": {
-    "codeSplitting": {
+    "manualCodeSplitting": {
       "groups": [
         {
           // Real-world style vendor splitting:

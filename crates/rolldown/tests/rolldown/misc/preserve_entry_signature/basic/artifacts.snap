@@ -6,18 +6,20 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## dynamic.js
 
 ```js
-// dynamic.js
+//#region dynamic.js
 console.log(`shared: `, 100);
+//#endregion
 
 ```
 
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 import("./dynamic.js");
 console.log(`shared: `, 100);
 const unused = 100;
+//#endregion
 export { unused };
 
 ```
@@ -29,18 +31,20 @@ export { unused };
 ### dynamic.js
 
 ```js
-// dynamic.js
+//#region dynamic.js
 console.log(`shared: `, 100);
+//#endregion
 
 ```
 
 ### main.js
 
 ```js
-// main.js
+//#region main.js
 import("./dynamic.js");
 console.log(`shared: `, 100);
 const unused = 100;
+//#endregion
 export { unused };
 
 ```
@@ -52,16 +56,18 @@ export { unused };
 ### dynamic.js
 
 ```js
-// dynamic.js
+//#region dynamic.js
 console.log(`shared: `, 100);
+//#endregion
 
 ```
 
 ### main.js
 
 ```js
-// main.js
+//#region main.js
 import("./dynamic.js");
 console.log(`shared: `, 100);
+//#endregion
 
 ```

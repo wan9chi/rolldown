@@ -1,1 +1,0 @@
-export { Injector } from 'ext';

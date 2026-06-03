@@ -6,8 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.ts
-var Foo = class {
+(class {
 	static {
 		this.prop1 = null;
 	}
@@ -21,11 +20,12 @@ var Foo = class {
 		this["prop4_"] = null;
 	}
 	static {
-		this[/* @__KEY__ */ "prop5"] = null;
+		this["prop5"] = null;
 	}
 	static {
-		this[/* @__KEY__ */ "prop6_"] = null;
+		this["prop6_"] = null;
 	}
-};
+});
+//#endregion
 
 ```

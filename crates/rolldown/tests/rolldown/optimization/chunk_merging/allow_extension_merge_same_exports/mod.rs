@@ -1,9 +1,8 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 use rolldown::{BundlerOptions, InputItem, PreserveEntrySignatures};
 use rolldown_common::{
-  CodeSplittingMode, EmittedChunk, ManualCodeSplittingOptions, MatchGroup, MatchGroupName,
-  MatchGroupTest,
+  EmittedChunk, ManualCodeSplittingOptions, MatchGroup, MatchGroupName, MatchGroupTest,
 };
 use rolldown_plugin::{HookUsage, Plugin, PluginContext};
 use rolldown_testing::{manual_integration_test, test_config::TestMeta};
@@ -53,17 +52,17 @@ async fn allow_extension_merge_same_exports() {
     .run_with_plugins(
       BundlerOptions {
         input: Some(vec![InputItem { name: Some("index".into()), import: "./index.js".into() }]),
-        code_splitting: Some(CodeSplittingMode::Advanced(ManualCodeSplittingOptions {
+        manual_code_splitting: Some(ManualCodeSplittingOptions {
           groups: Some(vec![MatchGroup {
             name: MatchGroupName::Static("libs".to_string()),
             test: Some(MatchGroupTest::Regex(HybridRegex::new("lib").unwrap())),
             ..Default::default()
           }]),
           ..Default::default()
-        })),
+        }),
         ..Default::default()
       },
-      vec![Plugin::new_shared(EmitChunkPlugin)],
+      vec![Arc::new(EmitChunkPlugin)],
     )
     .await;
 }

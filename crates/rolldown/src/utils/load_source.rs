@@ -7,6 +7,7 @@ use rolldown_common::{
 use rolldown_fs::FileSystem;
 use rolldown_plugin::{HookLoadArgs, PluginDriver};
 use rustc_hash::FxHashMap;
+use sugar_path::SugarPath;
 
 #[expect(clippy::too_many_arguments)]
 pub async fn load_source<Fs: FileSystem + 'static>(
@@ -64,12 +65,12 @@ pub async fn load_source<Fs: FileSystem + 'static>(
               {
                 let id = resolved_id.id.clone();
                 tokio::runtime::Handle::current()
-                  .spawn_blocking(move || fs.read_to_string(Path::new(id.as_str())))
+                  .spawn_blocking(move || fs.read_to_string(id.as_path()))
                   .await??
               }
               #[cfg(target_family = "wasm")]
               {
-                fs.read_to_string(Path::new(resolved_id.id.as_str()))?
+                fs.read_to_string(resolved_id.id.as_path())?
               }
             }),
             ModuleType::Js,
@@ -82,11 +83,11 @@ pub async fn load_source<Fs: FileSystem + 'static>(
                 Some(s) => s.into_bytes(),
                 None => {
                   if cfg!(target_family = "wasm") {
-                    fs.read(Path::new(resolved_id.id.as_str()))?
+                    fs.read(resolved_id.id.as_path())?
                   } else {
                     let id = resolved_id.id.clone();
                     tokio::runtime::Handle::current()
-                      .spawn_blocking(move || fs.read(Path::new(id.as_str())))
+                      .spawn_blocking(move || fs.read(id.as_path()))
                       .await??
                   }
                 }
@@ -121,12 +122,12 @@ pub async fn load_source<Fs: FileSystem + 'static>(
                 {
                   let id = resolved_id.id.clone();
                   tokio::runtime::Handle::current()
-                    .spawn_blocking(move || fs.read_to_string(Path::new(id.as_str())))
+                    .spawn_blocking(move || fs.read_to_string(id.as_path()))
                     .await??
                 }
                 #[cfg(target_family = "wasm")]
                 {
-                  fs.read_to_string(Path::new(resolved_id.id.as_str()))?
+                  fs.read_to_string(resolved_id.id.as_path())?
                 }
               }
             }),
@@ -138,7 +139,7 @@ pub async fn load_source<Fs: FileSystem + 'static>(
     }
     (None, Some(ty)) => {
       assert!(asserted_module_type.is_some(), "Invalid state");
-      Ok((read_file_by_module_type(Path::new(resolved_id.id.as_str()), &ty, fs).await?, ty))
+      Ok((read_file_by_module_type(resolved_id.id.as_path(), &ty, fs).await?, ty))
     }
   }
 }

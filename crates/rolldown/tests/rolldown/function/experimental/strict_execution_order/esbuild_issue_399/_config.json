@@ -13,13 +13,8 @@
   },
   "configVariants": [
     {
-      "_configName": "wrap-all",
+      "_configName": "strict",
       "strictExecutionOrder": true
-    },
-    {
-      "_configName": "on-demand",
-      "strictExecutionOrder": true,
-      "onDemandWrapping": true
     }
   ],
   "expectExecuted": false

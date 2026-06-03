@@ -26,7 +26,7 @@ use crate::{
 };
 
 type SourcemapChannel = (
-  Option<std::sync::mpsc::Sender<SourceMapGenMsg>>,
+  Option<Arc<std::sync::mpsc::Sender<SourceMapGenMsg>>>,
   Option<thread::JoinHandle<FxHashMap<ModuleIdx, Vec<SourcemapChainElement>>>>,
 );
 
@@ -232,7 +232,7 @@ impl<Fs: FileSystem + Clone + 'static> ScanStage<Fs> {
         }
         map
       });
-      (Some(tx), Some(handler))
+      (Some(Arc::new(tx)), Some(handler))
     } else {
       (None, None)
     }

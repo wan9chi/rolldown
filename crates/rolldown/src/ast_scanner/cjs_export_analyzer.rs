@@ -1,9 +1,10 @@
+use oxc::allocator::{GetAddress, UnstableAddress};
 use oxc::ast::{
   AstKind, MemberExpressionKind,
   ast::{self, AssignmentExpression, Expression, IdentifierReference, PropertyKey},
 };
-use oxc::semantic::NodeId;
-use oxc_str::{CompactStr, JSStr};
+use oxc::span::Span;
+use oxc_str::CompactStr;
 use rolldown_common::{AstScopes, EcmaModuleAstUsage};
 use rolldown_ecmascript_utils::ExpressionExt;
 
@@ -41,7 +42,7 @@ pub enum CommonJsAstType {
   /// `console.log(exports)`
   ExportsRead,
   EsModuleFlag,
-  Reexport(NodeId),
+  Reexport(Span),
 }
 
 impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
@@ -76,7 +77,7 @@ impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
               if call_expr
                 .arguments
                 .first()
-                .is_some_and(|arg| arg.node_id() == parent.node_id()) =>
+                .is_some_and(|arg| arg.address() == parent.address()) =>
             {
               self.check_object_define_property(call_expr)
             }
@@ -94,7 +95,10 @@ impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
         }
       },
       AstKind::CallExpression(call_expr)
-        if call_expr.arguments.first().is_some_and(|arg| arg.node_id() == ident_ref.node_id()) =>
+        if call_expr
+          .arguments
+          .first()
+          .is_some_and(|arg| arg.address() == ident_ref.unstable_address()) =>
       {
         // one scenario:
         // 1. Object.defineProperty(exports, "__esModule", { value: true });
@@ -115,9 +119,9 @@ impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
       Some(CommonJsAstType::ExportsPropWrite(prop)) if prop == "*" => {
         self.result.ast_usage.remove(EcmaModuleAstUsage::AllStaticExportPropertyAccess);
       }
-      Some(CommonJsAstType::Reexport(node_id)) => {
+      Some(CommonJsAstType::Reexport(span)) => {
         self.result.ast_usage.insert(EcmaModuleAstUsage::IsCjsReexport);
-        self.result.cjs_reexport_require_node_ids.push(*node_id);
+        self.result.cjs_reexport_require_spans.push(*span);
       }
       _ => {}
     }
@@ -142,12 +146,10 @@ impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
       return Some(CommonJsAstType::ExportsRead);
     }
 
-    // Rolldown stores export names as UTF-8, so a name with a lone surrogate is treated like a
-    // computed one.
-    let Some(static_property_name) = static_property_name.and_then(JSStr::as_str) else {
+    let Some(static_property_name) = static_property_name else {
       return Some(CommonJsAstType::ExportsPropWrite(CompactStr::from("*")));
     };
-    if static_property_name != "__esModule" {
+    if static_property_name.as_str() != "__esModule" {
       return Some(CommonJsAstType::ExportsPropWrite(CompactStr::from(static_property_name)));
     }
 
@@ -179,7 +181,7 @@ impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
       .as_expression()?
       .as_string_literal()
       .is_some()
-      .then_some(CommonJsAstType::Reexport(call_expr.node_id()))
+      .then_some(CommonJsAstType::Reexport(call_expr.span))
   }
 }
 
@@ -216,10 +218,7 @@ pub fn is_object_define_property_es_module(
     return Some(CommonJsAstType::ExportsPropWrite("*".into()));
   };
   if string_lit.value != "__esModule" {
-    let Some(name) = string_lit.value.as_str() else {
-      return Some(CommonJsAstType::ExportsPropWrite("*".into()));
-    };
-    return Some(CommonJsAstType::ExportsPropWrite(name.into()));
+    return Some(CommonJsAstType::ExportsPropWrite(string_lit.value.as_str().into()));
   }
   let third = call_expr.arguments.get(2)?;
   let ret = third

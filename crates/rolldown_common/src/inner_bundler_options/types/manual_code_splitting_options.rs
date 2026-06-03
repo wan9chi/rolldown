@@ -7,9 +7,7 @@ use schemars::JsonSchema;
 #[cfg(feature = "deserialize_bundler_options")]
 use serde::{Deserialize, Deserializer};
 
-use crate::{InvalidateJsSideCache, ModuleInfo, ModuleTag, SharedModuleInfoDashMap};
-
-use super::inline_common_chunks_options::InlineCommonChunksOptions;
+use crate::{ModuleInfo, ModuleTag, SharedModuleInfoDashMap};
 
 /// Schema-only enum for built-in module tags. Used by `schemars` to generate
 /// a restricted JSON Schema for the `tags` field. Not used at runtime.
@@ -38,10 +36,6 @@ pub struct ManualCodeSplittingOptions {
   pub max_module_size: Option<f64>,
   pub include_dependencies_recursively: Option<bool>,
   pub groups: Option<Vec<MatchGroup>>,
-  /// See internal-docs/inline-common-chunks/design.md. Experimental.
-  pub experimental_inline_common_chunks: Option<InlineCommonChunksOptions>,
-  #[cfg_attr(feature = "deserialize_bundler_options", serde(skip), schemars(skip))]
-  pub internal_invalidate_module_info_cache: Option<InvalidateJsSideCache>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -74,7 +68,7 @@ pub struct MatchGroup {
   /// Only effective when `entriesAware` is set to `true`.
   pub entries_aware_merge_threshold: Option<f64>,
   /// Filter modules by tags. Only modules with all specified tags are captured.
-  /// See internal-docs/module-tags/implementation.md
+  /// See meta/design/module-tags.md
   #[cfg_attr(
     feature = "deserialize_bundler_options",
     schemars(with = "Option<Vec<BuiltinModuleTag>>")
@@ -83,12 +77,7 @@ pub struct MatchGroup {
   pub include_dependencies_recursively: Option<bool>,
 }
 
-/// Classifies a whole batch of module ids in one call.
-///
-/// The returned `Vec` must match `module_ids` by index. The caller rejects any other length.
-type MatchGroupTestFn = dyn Fn(
-    /* module ids */ Vec<String>,
-  ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<bool>>> + Send + 'static>>
+type MatchGroupTestFn = dyn Fn(&str) -> Pin<Box<dyn Future<Output = anyhow::Result<Option<bool>>> + Send + 'static>>
   + Send
   + Sync;
 
@@ -108,16 +97,14 @@ where
   let transformed = deserialized
     .map(|inner| HybridRegex::new(&inner))
     .transpose()
-    .map_err(|e| serde::de::Error::custom(format!("failed to deserialize {e} to HybridRegex")))?;
+    .map_err(|e| serde::de::Error::custom(format!("failed to deserialize {e:?} to HybridRegex")))?;
   Ok(transformed.map(MatchGroupTest::Regex))
 }
 
-/// Names a whole batch of module ids in one call. The returned `Vec` follows the same rule as
-/// [`MatchGroupTestFn`].
 type MatchGroupNameFn = dyn Fn(
-    /* module ids */ Vec<String>,
+    /* module id */ &str,
     /* chunking context */ &ChunkingContext,
-  ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<Option<String>>>> + Send + 'static>>
+  ) -> Pin<Box<dyn Future<Output = anyhow::Result<Option<String>>> + Send + 'static>>
   + Send
   + Sync;
 
@@ -129,28 +116,16 @@ pub enum MatchGroupName {
 }
 
 impl MatchGroupName {
-  /// Resolves the group name of every id in `module_ids`, in the same order. The result always
-  /// has the same length as `module_ids`.
-  pub async fn values<'a>(
+  pub async fn value<'a>(
     &'a self,
     ctx: &ChunkingContext,
-    module_ids: Vec<String>,
-  ) -> BuildResult<Vec<Option<Cow<'a, str>>>> {
+    module_id: &str,
+  ) -> BuildResult<Option<Cow<'a, str>>> {
     match self {
-      Self::Static(name) => Ok(vec![Some(Cow::Borrowed(name.as_str())); module_ids.len()]),
+      Self::Static(name) => Ok(Some(Cow::Borrowed(name))),
       Self::Dynamic(func) => {
-        let expected = module_ids.len();
-        let names = func(module_ids, ctx).await?;
-        if names.len() != expected {
-          return Err(
-            anyhow::anyhow!(
-              "a `codeSplitting` group `name` function returned {} names for {expected} modules",
-              names.len()
-            )
-            .into(),
-          );
-        }
-        Ok(names.into_iter().map(|name| name.map(Cow::Owned)).collect())
+        let name = func(module_id, ctx).await?;
+        Ok(name.map(Cow::Owned))
       }
     }
   }

@@ -16,10 +16,10 @@ pub enum GlobalsOutputOption {
 }
 
 impl GlobalsOutputOption {
-  pub async fn call(&self, name: &str) -> anyhow::Result<Option<String>> {
+  pub async fn call(&self, name: &str) -> Option<String> {
     match self {
-      Self::FxHashMap(value) => Ok(value.get(name).cloned()),
-      Self::Fn(value) => value(name).await.map(Some),
+      Self::FxHashMap(value) => value.get(name).cloned(),
+      Self::Fn(value) => value(name).await.ok(),
     }
   }
 }

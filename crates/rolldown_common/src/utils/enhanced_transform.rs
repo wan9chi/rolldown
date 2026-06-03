@@ -25,7 +25,7 @@ use oxc::{
 use oxc_resolver::TsConfig;
 use rolldown_ecmascript::semantic_builder_for_transform;
 use rolldown_error::{BuildDiagnostic, EventKind, Severity};
-use rolldown_sourcemap::{SourceMap, collapse_sourcemaps};
+use rolldown_sourcemap::{OwnedSourceMap, SourceMap, collapse_sourcemaps};
 use rustc_hash::FxHashMap;
 
 use crate::inner_bundler_options::types::transform_option::{
@@ -42,8 +42,6 @@ pub type InjectOptions = Vec<(String, Either<String, Vec<String>>)>;
 pub enum TsconfigOption {
   /// Auto-discover tsconfig.json by walking up from the file's directory.
   Auto,
-  /// Use the tsconfig at the provided path.
-  Path(PathBuf),
   /// Use the provided tsconfig directly.
   Config(Arc<TsConfig>),
   /// Don't use tsconfig options.
@@ -188,8 +186,8 @@ fn generate_declarations(
     IsolatedDeclarationsOptions { strip_internal: options.strip_internal.unwrap_or(false) };
 
   let ret = IsolatedDeclarations::new(allocator, isolated_decl_options).build(program);
-  if !ret.diagnostics.is_empty() {
-    append_oxc_diagnostics(ret.diagnostics, source, filename, warnings, errors);
+  if !ret.errors.is_empty() {
+    append_oxc_diagnostics(ret.errors, source, filename, warnings, errors);
     if !errors.is_empty() {
       return (None, None);
     }
@@ -206,11 +204,11 @@ fn generate_declarations(
       ..Default::default()
     })
     .build(&ret.program);
-  (Some(codegen_ret.code), codegen_ret.map.map(oxc_sourcemap::SourceMap::into_owned))
+  (Some(codegen_ret.code), codegen_ret.map.map(OwnedSourceMap::into_inner))
 }
 
 fn append_oxc_diagnostics(
-  diagnostics: impl IntoIterator<Item = OxcDiagnostic>,
+  diagnostics: Vec<OxcDiagnostic>,
   source: &ArcStr,
   filename: &str,
   warnings: &mut Vec<BuildDiagnostic>,
@@ -285,30 +283,7 @@ pub fn enhanced_transform(
       let found = match result {
         Ok(found) => found,
         Err(err) => {
-          errors.push(BuildDiagnostic::tsconfig_error(err));
-          return EnhancedTransformResult::new_for_error(errors, warnings, tsconfig_file_paths);
-        }
-      };
-      if let Some(tsconfig) = &found {
-        tsconfig_file_paths.push(tsconfig.path.clone());
-      }
-      found
-    }
-    Some(TsconfigOption::Path(config_file)) => {
-      let file_path = PathBuf::from(filename);
-      let result = oxc_resolver::Resolver::new(oxc_resolver::ResolveOptions {
-        tsconfig: Some(oxc_resolver::TsconfigDiscovery::Manual(oxc_resolver::TsconfigOptions {
-          config_file: config_file.clone(),
-          references: oxc_resolver::TsconfigReferences::Auto,
-        })),
-        yarn_pnp,
-        ..Default::default()
-      })
-      .find_tsconfig(file_path);
-      let found = match result {
-        Ok(found) => found,
-        Err(err) => {
-          errors.push(BuildDiagnostic::tsconfig_error(err));
+          errors.push(BuildDiagnostic::tsconfig_error(filename.to_string(), err));
           return EnhancedTransformResult::new_for_error(errors, warnings, tsconfig_file_paths);
         }
       };
@@ -349,14 +324,10 @@ pub fn enhanced_transform(
 
   let allocator = Allocator::default();
   let parse_ret = Parser::new(&allocator, &source, source_type)
-    .with_options(ParseOptions {
-      allow_return_outside_function: true,
-      preserve_parens: false,
-      ..Default::default()
-    })
+    .with_options(ParseOptions { allow_return_outside_function: true, ..Default::default() })
     .parse();
-  if parse_ret.fatal_error || !parse_ret.diagnostics.is_empty() {
-    append_oxc_diagnostics(parse_ret.diagnostics, &source, filename, &mut warnings, &mut errors);
+  if parse_ret.panicked || !parse_ret.errors.is_empty() {
+    append_oxc_diagnostics(parse_ret.errors, &source, filename, &mut warnings, &mut errors);
     return EnhancedTransformResult::new_for_error(errors, warnings, tsconfig_file_paths);
   }
 
@@ -364,8 +335,8 @@ pub fn enhanced_transform(
 
   let semantic_ret = semantic_builder_for_transform().build(&program);
   let mut scoping = Some(semantic_ret.semantic.into_scoping());
-  if !semantic_ret.diagnostics.is_empty() {
-    append_oxc_diagnostics(semantic_ret.diagnostics, &source, filename, &mut warnings, &mut errors);
+  if !semantic_ret.errors.is_empty() {
+    append_oxc_diagnostics(semantic_ret.errors, &source, filename, &mut warnings, &mut errors);
     if !errors.is_empty() {
       return EnhancedTransformResult::new_for_error(errors, warnings, tsconfig_file_paths);
     }
@@ -421,14 +392,8 @@ pub fn enhanced_transform(
 
   let transform_ret = Transformer::new(&allocator, Path::new(filename), &oxc_transform_options)
     .build_with_scoping(scoping, &mut program);
-  if !transform_ret.diagnostics.is_empty() {
-    append_oxc_diagnostics(
-      transform_ret.diagnostics,
-      &source,
-      filename,
-      &mut warnings,
-      &mut errors,
-    );
+  if !transform_ret.errors.is_empty() {
+    append_oxc_diagnostics(transform_ret.errors, &source, filename, &mut warnings, &mut errors);
     if !errors.is_empty() {
       return EnhancedTransformResult::new_for_error(errors, warnings, tsconfig_file_paths);
     }
@@ -449,11 +414,9 @@ pub fn enhanced_transform(
     })
     .build(&program);
 
-  let output_map = match (input_map, codegen_ret.map) {
-    // The collapse only keeps strings from `im`, so the borrowed codegen map can be
-    // used directly — detaching it first would copy the whole source for nothing.
+  let output_map = match (input_map, codegen_ret.map.map(OwnedSourceMap::into_inner)) {
     (Some(im), Some(om)) => Some(collapse_sourcemaps(&[&im, &om])),
-    (None, map) => map.map(oxc_sourcemap::SourceMap::into_owned),
+    (None, map) => map,
     (Some(_), None) => None,
   };
 

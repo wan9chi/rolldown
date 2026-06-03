@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::sync::mpsc::Sender;
 
 use anyhow::Result;
@@ -19,7 +20,7 @@ pub async fn transform_source(
   sourcemap_chain: &mut Vec<SourcemapChainElement>,
   side_effects: &mut Option<HookSideEffects>,
   module_type: &mut ModuleType,
-  magic_string_tx: Option<Sender<SourceMapGenMsg>>,
+  magic_string_tx: Option<Arc<Sender<SourceMapGenMsg>>>,
 ) -> Result<String> {
   plugin_driver
     .transform(

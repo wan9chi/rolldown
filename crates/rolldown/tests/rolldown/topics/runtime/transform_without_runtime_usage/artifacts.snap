@@ -6,10 +6,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// \0rolldown/runtime.js
+//#region \0rolldown/runtime.js
 console.log("transform-without-usage");
-// entry.js
+//#endregion
+//#region entry.js
 const value = "esm-only";
+//#endregion
 export { value };
 
 ```

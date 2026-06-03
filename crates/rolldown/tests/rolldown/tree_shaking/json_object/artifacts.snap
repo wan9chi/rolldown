@@ -7,7 +7,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import assert from "node:assert";
-// main.js
+//#endregion
+//#region main.js
 assert.equal("shouldBeReserved", "shouldBeReserved");
+//#endregion
 
 ```

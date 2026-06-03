@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use napi::{Unknown, bindgen_prelude::FromNapiValue};
-use rolldown_plugin::{__inner::SharedPluginable, Plugin};
+use rolldown_plugin::__inner::Pluginable;
 use rolldown_plugin_bundle_analyzer::BundleAnalyzerPlugin;
 use rolldown_plugin_esm_external_require::EsmExternalRequirePlugin;
 use rolldown_plugin_isolated_declaration::IsolatedDeclarationPlugin;
@@ -17,6 +19,7 @@ use rolldown_plugin_vite_react_refresh_wrapper::ViteReactRefreshWrapperPlugin;
 use rolldown_plugin_vite_reporter::ViteReporterPlugin;
 use rolldown_plugin_vite_resolve::ViteResolvePlugin;
 use rolldown_plugin_vite_transform::ViteTransformPlugin;
+use rolldown_plugin_vite_wasm_fallback::ViteWasmFallbackPlugin;
 use rolldown_plugin_vite_web_worker_post::ViteWebWorkerPostPlugin;
 
 use crate::options::plugin::config::{
@@ -52,7 +55,7 @@ impl std::fmt::Debug for BindingBuiltinPlugin<'_> {
   }
 }
 
-impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
+impl TryFrom<BindingBuiltinPlugin<'_>> for Arc<dyn Pluginable> {
   type Error = napi::Error;
 
   fn try_from(plugin: BindingBuiltinPlugin) -> Result<Self, Self::Error> {
@@ -63,7 +66,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           BundleAnalyzerPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::EsmExternalRequire => {
         let plugin = if let Some(options) = plugin.options {
@@ -71,7 +74,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           EsmExternalRequirePlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::IsolatedDeclaration => {
         let plugin = if let Some(options) = plugin.options {
@@ -79,7 +82,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           IsolatedDeclarationPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::Replace => {
         let config = if let Some(options) = plugin.options {
@@ -87,7 +90,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           BindingReplacePluginConfig::default()
         };
-        Plugin::new_shared(ReplacePlugin::with_options(config.try_into()?)?)
+        Arc::new(ReplacePlugin::with_options(config.into())?)
       }
       BindingBuiltinPluginName::ViteAlias => {
         let plugin = if let Some(options) = plugin.options {
@@ -95,7 +98,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           ViteAliasPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::ViteBuildImportAnalysis => {
         let config = if let Some(options) = plugin.options {
@@ -106,7 +109,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
             "Missing options for ViteBuildImportAnalysisPlugin",
           ));
         };
-        Plugin::new_shared(ViteBuildImportAnalysisPlugin::try_from(config)?)
+        Arc::new(ViteBuildImportAnalysisPlugin::try_from(config)?)
       }
       BindingBuiltinPluginName::ViteDynamicImportVars => {
         let plugin = if let Some(options) = plugin.options {
@@ -114,7 +117,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           ViteDynamicImportVarsPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::ViteImportGlob => {
         let plugin = if let Some(options) = plugin.options {
@@ -122,7 +125,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           ViteImportGlobPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::ViteJson => {
         let plugin = if let Some(options) = plugin.options {
@@ -130,9 +133,9 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           ViteJsonPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
-      BindingBuiltinPluginName::ViteLoadFallback => Plugin::new_shared(ViteLoadFallbackPlugin),
+      BindingBuiltinPluginName::ViteLoadFallback => Arc::new(ViteLoadFallbackPlugin),
       BindingBuiltinPluginName::ViteManifest => {
         let plugin: ViteManifestPlugin = if let Some(options) = plugin.options {
           BindingViteManifestPluginConfig::from_unknown(options)?.into()
@@ -142,7 +145,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
             "Missing options for ViteManifestPlugin",
           ));
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::ViteModulePreloadPolyfill => {
         let plugin = if let Some(options) = plugin.options {
@@ -150,7 +153,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           ViteModulePreloadPolyfillPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::ViteReactRefreshWrapper => {
         let config = if let Some(options) = plugin.options {
@@ -161,7 +164,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
             "Missing options for ViteReactRefreshWrapperPlugin",
           ));
         };
-        Plugin::new_shared(ViteReactRefreshWrapperPlugin::new(config.into()))
+        Arc::new(ViteReactRefreshWrapperPlugin::new(config.into()))
       }
       BindingBuiltinPluginName::ViteReporter => {
         let plugin: ViteReporterPlugin = if let Some(options) = plugin.options {
@@ -172,7 +175,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
             "Missing options for ViteReporterPlugin",
           ));
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
       BindingBuiltinPluginName::ViteResolve => {
         let config = if let Some(options) = plugin.options {
@@ -183,7 +186,7 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
             "Missing options for ViteResolvePlugin",
           ));
         };
-        Plugin::new_shared(ViteResolvePlugin::new(config.into()))
+        Arc::new(ViteResolvePlugin::new(config.into()))
       }
       BindingBuiltinPluginName::ViteTransform => {
         let plugin = if let Some(options) = plugin.options {
@@ -191,10 +194,11 @@ impl TryFrom<BindingBuiltinPlugin<'_>> for SharedPluginable {
         } else {
           ViteTransformPlugin::default()
         };
-        Plugin::new_shared(plugin)
+        Arc::new(plugin)
       }
-      BindingBuiltinPluginName::ViteWebWorkerPost => Plugin::new_shared(ViteWebWorkerPostPlugin),
-      BindingBuiltinPluginName::OxcRuntime => Plugin::new_shared(OxcRuntimePlugin),
+      BindingBuiltinPluginName::ViteWasmFallback => Arc::new(ViteWasmFallbackPlugin),
+      BindingBuiltinPluginName::ViteWebWorkerPost => Arc::new(ViteWebWorkerPostPlugin),
+      BindingBuiltinPluginName::OxcRuntime => Arc::new(OxcRuntimePlugin),
     })
   }
 }

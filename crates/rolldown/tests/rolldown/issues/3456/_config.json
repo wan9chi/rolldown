@@ -4,8 +4,8 @@
   },
   "configVariants": [
     {
-      "format": "cjs",
-      "_configName": "cjs"
+      "format": "cjs"
     }
-  ]
+  ],
+  "expectExecuted": false
 }

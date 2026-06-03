@@ -1,1 +1,0 @@
-globalThis.effects.push('effect');

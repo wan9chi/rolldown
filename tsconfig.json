@@ -13,15 +13,13 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "skipLibCheck": true,
-    "allowImportingTsExtensions": true
+    "skipLibCheck": true
   },
   "references": [
     { "path": "./crates/rolldown/src/runtime" },
     { "path": "./crates/rolldown_plugin_hmr/src/runtime" },
     { "path": "./crates/rolldown_testing/src" },
     { "path": "./packages/bench" },
-    { "path": "./packages/browser-tests" },
     { "path": "./packages/rolldown" },
     { "path": "./packages/rolldown/tests" },
     { "path": "./packages/rollup-tests" },

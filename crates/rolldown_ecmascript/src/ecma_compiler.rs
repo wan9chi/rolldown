@@ -3,16 +3,13 @@ use std::path::PathBuf;
 use arcstr::ArcStr;
 use oxc::{
   allocator::Allocator,
-  ast::{
-    ast::{Program, Statement},
-    builder::AstBuilder,
-  },
+  ast::AstBuilder,
   codegen::{Codegen, CodegenOptions, CodegenReturn, CommentOptions, LegalComment},
-  minifier::{ManglePropertyCache, Minifier, MinifierOptions},
+  minifier::{Minifier, MinifierOptions},
   parser::{ParseOptions, Parser},
   span::{SPAN, SourceType},
 };
-use oxc_sourcemap::SourceMap;
+use oxc_sourcemap::{OwnedSourceMap, SourceMap};
 use rolldown_error::{BuildDiagnostic, BuildResult, EventKind, Severity};
 
 use crate::ecma_ast::{
@@ -29,13 +26,12 @@ impl EcmaCompiler {
       ProgramCell::try_new(ProgramCellOwner { source: source.clone(), allocator }, |owner| {
         let parser = Parser::new(&owner.allocator, &owner.source, ty).with_options(ParseOptions {
           allow_return_outside_function: true,
-          preserve_parens: false,
           ..ParseOptions::default()
         });
         let ret = parser.parse();
-        if ret.fatal_error || !ret.diagnostics.is_empty() {
+        if ret.panicked || !ret.errors.is_empty() {
           Err(BuildDiagnostic::from_oxc_diagnostics(
-            ret.diagnostics,
+            ret.errors,
             &source.clone(),
             id,
             Severity::Error,
@@ -58,20 +54,18 @@ impl EcmaCompiler {
     let inner =
       ProgramCell::try_new(ProgramCellOwner { source: source.clone(), allocator }, |owner| {
         let builder = AstBuilder::new(&owner.allocator);
-        let parser = Parser::new(&owner.allocator, &owner.source, ty)
-          .with_options(ParseOptions { preserve_parens: false, ..ParseOptions::default() });
+        let parser = Parser::new(&owner.allocator, &owner.source, ty);
         let ret = parser.parse_expression();
         match ret {
           Ok(expr) => {
-            let program = Program::new(
+            let program = builder.program(
               SPAN,
               SourceType::default().with_module(true),
               owner.source.as_str(),
-              [],
+              builder.vec(),
               None,
-              [],
-              [Statement::new_expression_statement(SPAN, expr, &builder)],
-              &builder,
+              builder.vec(),
+              builder.vec1(builder.statement_expression(SPAN, expr)),
             );
             Ok(ProgramCellDependent { program })
           }
@@ -87,7 +81,7 @@ impl EcmaCompiler {
     Ok(EcmaAst { program: inner, source_type: ty })
   }
 
-  pub fn print_with(ast: &EcmaAst, options: PrintOptions) -> CodegenReturn<'_> {
+  pub fn print_with(ast: &EcmaAst, options: PrintOptions) -> CodegenReturn {
     let legal = if options.comments.legal { LegalComment::Inline } else { LegalComment::None };
     Codegen::new()
       .with_options(CodegenOptions {
@@ -98,51 +92,30 @@ impl EcmaCompiler {
           annotation: options.comments.annotation,
         },
         initial_indent: options.initial_indent,
-        ascii_only: options.ascii_only,
         source_map_path: options.sourcemap.then(|| PathBuf::from(options.filename)),
         ..CodegenOptions::default()
       })
       .build(ast.program())
   }
 
-  /// The returned map borrows `source_text` (its `sourcesContent` and token names are slices
-  /// of it) — callers that keep it beyond the borrow must `into_owned` it; callers that only
-  /// feed it to `collapse_sourcemaps` can use it as-is and skip that copy.
-  /// The property-mangle cache is present when property mangling ran.
   #[expect(clippy::too_many_arguments)]
-  pub fn dce_or_minify<'a>(
-    allocator: &'a Allocator,
-    source_text: &'a str,
+  pub fn dce_or_minify(
+    allocator: &Allocator,
+    source_text: &str,
     source_type: SourceType,
     enable_sourcemap: bool,
     filename: &str,
     compress: bool,
     minify_options: MinifierOptions,
     codegen_options: CodegenOptions,
-  ) -> BuildResult<(String, Option<SourceMap<'a>>, Option<ManglePropertyCache>)> {
-    let ret = Parser::new(allocator, source_text, source_type)
-      .with_options(ParseOptions { preserve_parens: false, ..ParseOptions::default() })
-      .parse();
-    if ret.fatal_error || !ret.diagnostics.is_empty() {
-      return Err(
-        BuildDiagnostic::from_oxc_diagnostics(
-          ret.diagnostics,
-          &ArcStr::from(source_text),
-          filename,
-          Severity::Error,
-          EventKind::ParseError,
-        )
-        .into(),
-      );
-    }
-    let mut program = ret.program;
+  ) -> (String, Option<SourceMap<'static>>) {
+    let mut program = Parser::new(allocator, source_text, source_type).parse().program;
     let minifier = Minifier::new(minify_options);
     let ret = if compress {
       minifier.minify(allocator, &mut program)
     } else {
       minifier.dce(allocator, &mut program)
     };
-    let property_mangle_cache = ret.property_mangle_cache;
     let ret = Codegen::new()
       .with_options(CodegenOptions {
         source_map_path: enable_sourcemap.then(|| PathBuf::from(filename)),
@@ -151,7 +124,7 @@ impl EcmaCompiler {
       .with_scoping(ret.scoping)
       .with_private_member_mappings(ret.class_private_mappings)
       .build(&program);
-    Ok((ret.code, ret.map, property_mangle_cache))
+    (ret.code, ret.map.map(OwnedSourceMap::into_inner))
   }
 }
 
@@ -168,7 +141,6 @@ pub struct PrintOptions {
   pub filename: String,
   pub sourcemap: bool,
   pub initial_indent: u32,
-  pub ascii_only: bool,
 }
 
 #[derive(Debug, Default, Clone, Copy)]

@@ -2,7 +2,6 @@ import os from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { ParallelJsPluginRegistry } from '../binding.cjs';
 import type { RolldownPlugin } from '../plugin';
-import { getParallelPluginInfo } from './parallel-plugin';
 
 export type WorkerData = {
   registryId: number;
@@ -25,9 +24,8 @@ export async function initializeParallelPlugins(plugins: RolldownPlugin[]): Prom
 > {
   const pluginInfos: ParallelPluginInfo[] = [];
   for (const [index, plugin] of plugins.entries()) {
-    const parallel = getParallelPluginInfo(plugin);
-    if (parallel) {
-      const { fileUrl, options } = parallel;
+    if ('_parallel' in plugin) {
+      const { fileUrl, options } = plugin._parallel;
       pluginInfos.push({ index, fileUrl, options });
     }
   }
