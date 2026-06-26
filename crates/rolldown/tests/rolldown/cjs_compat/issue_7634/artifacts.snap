@@ -8,12 +8,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 // HIDDEN [\0rolldown/runtime.js]
-// baz.js
+//#region baz.js
 var baz_exports = /* @__PURE__ */ __exportAll({ baz: () => "baz" });
-// main.js
+//#endregion
+//#region main.js
 function foo() {
 	return { bar: baz_exports };
 }
+//#endregion
 exports.foo = foo;
 var bar = require("bar");
 Object.keys(bar).forEach(function(k) {

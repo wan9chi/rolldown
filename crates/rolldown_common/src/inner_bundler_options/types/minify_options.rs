@@ -4,7 +4,6 @@ use oxc::{
   minifier::{CompressOptions, CompressOptionsKeepNames, CompressOptionsUnused, TreeShakeOptions},
   transformer::EngineTargets,
 };
-use oxc_str::CompactStr;
 use rustc_hash::FxHashSet;
 #[cfg(feature = "deserialize_bundler_options")]
 use schemars::JsonSchema;
@@ -15,7 +14,6 @@ use serde::Deserialize;
 pub struct RawMangleOptions {
   pub top_level: Option<bool>,
   pub keep_names: Option<MangleOptionsKeepNames>,
-  pub reserved: Option<FxHashSet<CompactStr>>,
 }
 
 impl RawMangleOptions {
@@ -29,7 +27,6 @@ impl RawMangleOptions {
       } else {
         MangleOptionsKeepNames::all_false()
       }),
-      reserved: self.reserved.unwrap_or_default(),
       debug: false,
     }
   }
@@ -85,32 +82,11 @@ pub enum RawMinifyOptions {
   Object(RawMinifyOptionsDetailed),
 }
 
-/// Original source and flags from a JavaScript `RegExp`.
-#[derive(Debug, Clone)]
-pub struct ManglePropertiesPattern {
-  pub source: String,
-  pub flags: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ManglePropertiesPatterns {
-  pub include: ManglePropertiesPattern,
-  pub exclude: Option<ManglePropertiesPattern>,
-}
-
-#[derive(Debug, Clone)]
-pub struct RawManglePropertiesOptions {
-  pub options: oxc::minifier::ManglePropertiesOptions,
-  pub patterns: ManglePropertiesPatterns,
-}
-
 #[derive(Debug, Clone)]
 pub struct RawMinifyOptionsDetailed {
   pub mangle: Option<RawMangleOptions>,
-  pub mangle_properties: Option<Box<RawManglePropertiesOptions>>,
   pub compress: Option<RawCompressOptions>,
   pub remove_whitespace: bool,
-  pub ascii_only: bool,
 }
 
 impl RawMinifyOptions {
@@ -135,16 +111,10 @@ impl RawMinifyOptions {
             keep_names,
             TreeShakeOptions::from(&options.treeshake),
           );
-          MinifyOptions::Enabled(EnabledMinifyOptions {
-            options: oxc::minifier::MinifierOptions {
-              mangle: Some(mangle),
-              mangle_properties: None,
-              compress: Some(compress),
-            },
-            remove_whitespace: true,
-            ascii_only: false,
-            mangle_properties_patterns: None,
-          })
+          MinifyOptions::Enabled((
+            oxc::minifier::MinifierOptions { mangle: Some(mangle), compress: Some(compress) },
+            true,
+          ))
         } else {
           MinifyOptions::Disabled
         }
@@ -152,7 +122,6 @@ impl RawMinifyOptions {
       RawMinifyOptions::DeadCodeEliminationOnly => {
         MinifyOptions::DeadCodeEliminationOnly(oxc::minifier::MinifierOptions {
           mangle: None,
-          mangle_properties: None,
           compress: Some(CompressOptions {
             // For `dce-only`, disable all syntax transforming optimizations
             target: EngineTargets::from_target("es2015").expect("es2015 to be a valid target"),
@@ -162,31 +131,19 @@ impl RawMinifyOptions {
         })
       }
       RawMinifyOptions::Object(value) => {
-        let RawMinifyOptionsDetailed {
-          mangle,
-          mangle_properties,
-          compress,
-          remove_whitespace,
-          ascii_only,
-        } = value;
-        let mangle = mangle.map(|m| m.into_mangle_options(options.keep_names, options.format));
-        let compress = compress.map(|c| {
+        let mangle =
+          value.mangle.map(|m| m.into_mangle_options(options.keep_names, options.format));
+        let compress = value.compress.map(|c| {
           c.into_compress_options(
             options.transform_options.target.clone(),
             options.keep_names,
             TreeShakeOptions::from(&options.treeshake),
           )
         });
-        let (mangle_properties, mangle_properties_patterns) = mangle_properties.map_or_else(
-          || (None, None),
-          |mangle_properties| (Some(mangle_properties.options), Some(mangle_properties.patterns)),
-        );
-        MinifyOptions::Enabled(EnabledMinifyOptions {
-          options: oxc::minifier::MinifierOptions { mangle, mangle_properties, compress },
-          remove_whitespace,
-          ascii_only,
-          mangle_properties_patterns,
-        })
+        MinifyOptions::Enabled((
+          oxc::minifier::MinifierOptions { mangle, compress },
+          value.remove_whitespace,
+        ))
       }
     }
     //
@@ -204,15 +161,7 @@ pub enum MinifyOptions {
   Disabled,
   DeadCodeEliminationOnly(oxc::minifier::MinifierOptions),
   /// Setting all values to false in `MinifyOptionsObject` means DCE only.
-  Enabled(EnabledMinifyOptions),
-}
-
-#[derive(Debug, Clone)]
-pub struct EnabledMinifyOptions {
-  pub options: oxc::minifier::MinifierOptions,
-  pub remove_whitespace: bool,
-  pub ascii_only: bool,
-  pub mangle_properties_patterns: Option<ManglePropertiesPatterns>,
+  Enabled((oxc::minifier::MinifierOptions, bool)),
 }
 
 impl MinifyOptions {
@@ -236,10 +185,8 @@ mod tests {
     let from_bool = RawMinifyOptions::Bool(true).normalize(&options);
     let from_object = RawMinifyOptions::Object(RawMinifyOptionsDetailed {
       mangle: Some(RawMangleOptions::default()),
-      mangle_properties: None,
       compress: Some(RawCompressOptions::default()),
       remove_whitespace: true,
-      ascii_only: false,
     })
     .normalize(&options);
 

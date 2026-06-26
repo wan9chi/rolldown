@@ -3,15 +3,14 @@ import type { SourceMap } from './rolldown-output';
 
 /** @category Plugin APIs */
 export interface ExistingRawSourceMap {
-  file?: string | null | undefined;
+  file?: string | null;
   mappings: string;
-  names?: string[] | undefined;
-  sources?: (string | null)[] | undefined;
-  sourcesContent?: (string | null | undefined)[] | undefined;
-  sourceRoot?: string | undefined;
-  version?: number | undefined; // make it optional to compat { mappings: '' }
-  ignoreList?: number[] | undefined;
-  x_google_ignoreList?: number[] | undefined;
+  names?: string[];
+  sources?: (string | null)[];
+  sourcesContent?: (string | null | undefined)[];
+  sourceRoot?: string;
+  version?: number; // make it optional to compat { mappings: '' }
+  x_google_ignoreList?: number[];
 }
 
 /** @inline @category Plugin APIs */
@@ -39,7 +38,6 @@ export function bindingifySourcemap(
             sources: map.sources?.map((s) => s ?? undefined),
             sourcesContent: map.sourcesContent?.map((s) => s ?? undefined),
             names: map.names,
-            ignoreList: map.ignoreList,
             x_google_ignoreList: map.x_google_ignoreList,
             debugId: 'debugId' in map ? map.debugId : undefined,
           },

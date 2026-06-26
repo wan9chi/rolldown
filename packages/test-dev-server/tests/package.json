@@ -14,10 +14,9 @@
     "fast-glob": "catalog:",
     "kill-port": "^1.6.1",
     "rimraf": "^6.0.1",
-    "vitest": "catalog:",
-    "ws": "catalog:"
+    "vitest": "catalog:"
   },
   "devDependencies": {
-    "playwright": "^1.63.0"
+    "playwright": "^1.60.0"
   }
 }

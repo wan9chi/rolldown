@@ -4,11 +4,13 @@ use std::{collections::HashSet, sync::Arc};
 
 use napi::bindgen_prelude::{Either4, FnArgs};
 use napi_derive::napi;
-use oxc_napi::JsRegExp;
 use rolldown::{InnerOptions, ModuleSideEffects, ModuleSideEffectsRule};
 use rolldown_utils::js_regex::HybridRegex;
 
-use crate::types::js_callback::{JsCallback, JsCallbackExt, JsCallbackResultExt};
+use crate::{
+  types::js_callback::{JsCallback, JsCallbackExt, JsCallbackResultExt},
+  types::js_regex::JsRegExp,
+};
 
 #[napi]
 #[derive(Debug)]
@@ -67,7 +69,7 @@ impl TryFrom<BindingTreeshake> for rolldown::TreeshakeOptions {
         let mut ret = Vec::with_capacity(rules.len());
         for rule in rules {
           let test = match rule.test {
-            Some(test) => Some(HybridRegex::with_flags(&test.source, &test.flags)?),
+            Some(test) => Some(HybridRegex::try_from(test)?),
             None => None,
           };
           ret.push(ModuleSideEffectsRule {

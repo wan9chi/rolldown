@@ -1,5 +1,4 @@
 {
-  "configName": "on-demand",
   "config": {
     "format": "cjs",
     "strictExecutionOrder": true,
@@ -10,16 +9,7 @@
           "test": "shared"
         }
       ]
-    },
-    "experimental": {
-      "onDemandWrapping": true
     }
   },
-  "_comment": "Tests Common chunk + Esm WrapKind + Named OutputExports + named export access",
-  "configVariants": [
-    {
-      "_configName": "wrap-all",
-      "onDemandWrapping": false
-    }
-  ]
+  "_comment": "Tests Common chunk + Esm WrapKind + Named OutputExports + named export access"
 }

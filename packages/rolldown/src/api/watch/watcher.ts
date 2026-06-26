@@ -1,9 +1,4 @@
-import {
-  type BindingWatcherEvent,
-  BindingWatcher,
-  shutdownAsyncRuntime,
-  startAsyncRuntime,
-} from '../../binding.cjs';
+import { type BindingWatcherEvent, BindingWatcher, shutdownAsyncRuntime } from '../../binding.cjs';
 import { LOG_LEVEL_WARN } from '../../log/logging';
 import { logMultipleWatcherOption } from '../../log/logs';
 import { aggregateBindingErrorsIntoJsError } from '../../utils/error';
@@ -74,7 +69,6 @@ class Watcher {
     this.closed = false;
     this.inner = inner;
     this.emitter = emitter;
-    startAsyncRuntime();
     const originClose = emitter.close.bind(emitter);
     emitter.close = async () => {
       await this.close();
@@ -91,14 +85,11 @@ class Watcher {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    try {
-      for (const stop of this.stopWorkers) {
-        await stop?.();
-      }
-      await this.inner.close();
-    } finally {
-      shutdownAsyncRuntime();
+    for (const stop of this.stopWorkers) {
+      await stop?.();
     }
+    await this.inner.close();
+    shutdownAsyncRuntime();
   }
 
   private async run(): Promise<void> {
@@ -140,7 +131,8 @@ function warnMultiplePollingOptions(bundlerOptions: BundlerOptionWithStopWorker[
   let found = false;
   for (const option of bundlerOptions) {
     const watch = option.inputOptions.watch;
-    const watcher = watch && typeof watch === 'object' ? watch.watcher : undefined;
+    const watcher =
+      watch && typeof watch === 'object' ? (watch.watcher ?? watch.notify) : undefined;
     if (watcher && (watcher.usePolling != null || watcher.pollInterval != null)) {
       if (found) {
         option.onLog(LOG_LEVEL_WARN, logMultipleWatcherOption());

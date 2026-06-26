@@ -168,7 +168,7 @@ impl LinkStage<'_> {
         );
         let tla_keyword_span = tla_keyword_span.unwrap_or(Span::empty(0));
 
-        self.diagnostics.push(BuildDiagnostic::require_tla(RequireTla {
+        self.errors.push(BuildDiagnostic::require_tla(RequireTla {
           importer_stable_id: module.stable_id.as_arc_str().clone(),
           importer_source: module.source.clone(),
           require_span,

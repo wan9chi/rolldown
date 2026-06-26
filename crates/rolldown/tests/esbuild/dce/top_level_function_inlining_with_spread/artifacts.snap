@@ -6,21 +6,24 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry-outer.js
 
 ```js
-// entry-outer.js
+//#endregion
+//#region entry-outer.js
 args;
 [...args];
 args;
 [...args];
+//#endregion
 
 ```
 
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 args;
 [...args];
 args;
 [...args];
+//#endregion
 
 ```

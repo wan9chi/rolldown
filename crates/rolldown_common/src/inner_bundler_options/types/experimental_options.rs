@@ -96,6 +96,10 @@ impl ExperimentalOptions {
     self.incremental_build.unwrap_or(false)
   }
 
+  pub fn is_attach_debug_info_enabled(&self) -> bool {
+    self.attach_debug_info.is_some_and(|info| info.is_enabled())
+  }
+
   pub fn is_attach_debug_info_full(&self) -> bool {
     self.attach_debug_info.is_some_and(|info| info.is_full())
   }
@@ -119,6 +123,6 @@ impl ExperimentalOptions {
   }
 
   pub fn is_lazy_barrel_enabled(&self) -> bool {
-    self.lazy_barrel.unwrap_or(false)
+    self.lazy_barrel.unwrap_or(true)
   }
 }

@@ -3,19 +3,21 @@ source: crates/rolldown_testing/src/integration_test.rs
 ---
 # Assets
 
-## lazy-B9-cLIVh.js
+## lazy-AClzwoon.js
 
 ```js
-// lazy.js
+//#region lazy.js
 const value = "lazy_loaded";
+//#endregion
 export { value };
 
 ```
 
-## main-B5qPViW-.js
+## main-CUtrtAQI.js
 
 ```js
-// main.js
-import("./lazy-B9-cLIVh.js").then((m) => console.log(m));
+//#region main.js
+import("./lazy-AClzwoon.js").then((m) => console.log(m));
+//#endregion
 
 ```

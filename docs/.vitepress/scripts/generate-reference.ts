@@ -1,6 +1,6 @@
 import { copyFile, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Application, OptionDefaults, type TypeDocOptions } from 'typedoc';
+import { Application, type TypeDocOptions } from 'typedoc';
 import type { PluginOptions } from 'typedoc-plugin-markdown';
 
 const root = path.resolve(import.meta.dirname, '../../..');
@@ -72,9 +72,9 @@ async function runTypedoc(entryPoints: string[]): Promise<void> {
     out: './reference',
     entryPoints,
     readme: 'none',
-    // `@kind` documents a plugin hook's kind, e.g. `@kind async parallel`.
-    // It is rendered by `custom-theme-plugin.ts`, not by the default comment partial.
-    blockTags: [...OptionDefaults.blockTags, '@kind'],
+    // Replay: link sources to main instead of the checked-out commit, so the reference doesn't
+    // depend on the commit, which isn't a task input; a fresh build then matches a cache hit.
+    gitRevision: 'main',
     excludeInternal: true,
     excludeExternals: true,
     externalPattern: ['**/packages/pluginutils/**', '**/node_modules/**/@oxc-project/types/**'],
@@ -86,7 +86,6 @@ async function runTypedoc(entryPoints: string[]): Promise<void> {
     categoryOrder: [
       'Programmatic APIs',
       'Plugin APIs',
-      'Code Splitting',
       'Config',
       'Builtin Plugins',
       'Utilities',

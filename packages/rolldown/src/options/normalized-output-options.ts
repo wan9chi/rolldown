@@ -32,12 +32,8 @@ export interface NormalizedOutputOptions {
   file: string | undefined;
   /** @see {@linkcode OutputOptions.dir | dir} */
   dir: string | undefined;
-  /** @see {@linkcode OutputOptions.charset | charset} */
-  charset: NonNullable<OutputOptions['charset']>;
   /** @see {@linkcode OutputOptions.entryFileNames | entryFileNames} */
   entryFileNames: string | ChunkFileNamesFunction;
-  /** @see {@linkcode OutputOptions.sourcemapFileNames | sourcemapFileNames} */
-  sourcemapFileNames: string | ChunkFileNamesFunction | undefined;
   /** @see {@linkcode OutputOptions.chunkFileNames | chunkFileNames} */
   chunkFileNames: string | ChunkFileNamesFunction;
   /** @see {@linkcode OutputOptions.assetFileNames | assetFileNames} */
@@ -131,11 +127,6 @@ export class NormalizedOutputOptionsImpl
   }
 
   @lazyProp
-  get charset(): NonNullable<OutputOptions['charset']> {
-    return this.inner.charset;
-  }
-
-  @lazyProp
   get entryFileNames(): string | ChunkFileNamesFunction {
     return this.inner.entryFilenames || this.outputOptions.entryFileNames!;
   }
@@ -165,10 +156,6 @@ export class NormalizedOutputOptionsImpl
     return this.inner.sourcemap;
   }
 
-  @lazyProp
-  get sourcemapFileNames(): string | ChunkFileNamesFunction | undefined {
-    return this.inner.sourcemapFilenames || this.outputOptions.sourcemapFileNames;
-  }
   @lazyProp
   get sourcemapBaseUrl(): string | undefined {
     return this.inner.sourcemapBaseUrl ?? undefined;

@@ -58,9 +58,6 @@ bitflags::bitflags! {
     /// for facade (generated) symbols — user-defined names are left unchanged
     /// because `<obj.Foo>` is already a valid component reference in JSX.
     const UsedAsJSXMemberExprRoot = 1 << 6;
-    /// A binding that always holds a top-level function that never reads `this`, so calling it as
-    /// a namespace member cannot observe the namespace.
-    const NeverReadsThis = 1 << 7;
   }
 }
 
@@ -373,7 +370,7 @@ impl SymbolRefDb {
   pub fn canonical_ref_for(&self, target: SymbolRef) -> SymbolRef {
     let mut canonical = target;
     while let Some(founded) = self.get(canonical).link {
-      debug_assert_ne!(founded, target);
+      debug_assert!(founded != target);
       canonical = founded;
     }
     canonical
@@ -427,14 +424,14 @@ impl GetLocalDbMut for SymbolRefDb {
 
 impl GetLocalDb for SymbolRefDbForModule {
   fn local_db(&self, owner: ModuleIdx) -> &SymbolRefDbForModule {
-    debug_assert_eq!(self.owner_idx, owner);
+    debug_assert!(self.owner_idx == owner);
     self
   }
 }
 
 impl GetLocalDbMut for SymbolRefDbForModule {
   fn local_db_mut(&mut self, owner: ModuleIdx) -> &mut SymbolRefDbForModule {
-    debug_assert_eq!(self.owner_idx, owner);
+    debug_assert!(self.owner_idx == owner);
     self
   }
 }

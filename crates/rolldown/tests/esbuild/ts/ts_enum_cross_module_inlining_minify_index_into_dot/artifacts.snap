@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.ts
+//#region entry.ts
 inlined = [
 	obj["abc"],
 	obj["xyz"],
@@ -23,5 +23,6 @@ notInlined = [
 	obj?.prop["a b c"],
 	obj?.prop["x y z"]
 ];
+//#endregion
 
 ```

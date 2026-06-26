@@ -13,9 +13,7 @@ source: crates/rolldown_testing/src/integration_test.rs
    │ ───────┬───────  
    │        ╰───────── comment ignored due to position
    │ 
-   │ Help 1: Correct annotation placement: https://rolldown.rs/in-depth/dead-code-elimination#pure
-   │ 
-   │ Help 2: Disable with `checks.invalidAnnotation: false`.
+   │ Help: For more information on how to use pure annotations correctly, check the documentation: https://rolldown.rs/in-depth/dead-code-elimination#pure
 ───╯
 
 ```
@@ -25,9 +23,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 const a = /* #__PURE__ */ (() => 1)();
 /* #__PURE__ */ globalThis.foo;
 console.log(a);
+//#endregion
 
 ```

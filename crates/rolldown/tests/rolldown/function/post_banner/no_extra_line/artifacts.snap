@@ -8,7 +8,8 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 #!/usr/bin/env node
 // Banner comment
-// main.js
+//#region main.js
 console.log("Hello World");
+//#endregion
 
 ```

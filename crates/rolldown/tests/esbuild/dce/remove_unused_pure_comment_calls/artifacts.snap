@@ -13,9 +13,7 @@ source: crates/rolldown_testing/src/integration_test.rs
     │                  ───────┬───────  
     │                         ╰───────── comment ignored due to position
     │ 
-    │ Help 1: Correct annotation placement: https://rolldown.rs/in-depth/dead-code-elimination#pure
-    │ 
-    │ Help 2: Disable with `checks.invalidAnnotation: false`.
+    │ Help: For more information on how to use pure annotations correctly, check the documentation: https://rolldown.rs/in-depth/dead-code-elimination#pure
 ────╯
 
 ```
@@ -30,9 +28,7 @@ source: crates/rolldown_testing/src/integration_test.rs
     │                          ───────┬───────  
     │                                 ╰───────── comment ignored due to position
     │ 
-    │ Help 1: Correct annotation placement: https://rolldown.rs/in-depth/dead-code-elimination#pure
-    │ 
-    │ Help 2: Disable with `checks.invalidAnnotation: false`.
+    │ Help: For more information on how to use pure annotations correctly, check the documentation: https://rolldown.rs/in-depth/dead-code-elimination#pure
 ────╯
 
 ```
@@ -42,7 +38,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 function bar() {}
 foo(bar);
 foo(bar);
@@ -51,5 +47,6 @@ foo(bar);
 new foo(bar);
 /* @__PURE__ */ foo() ** foo();
 /* @__PURE__ */ new foo() ** foo();
+//#endregion
 
 ```

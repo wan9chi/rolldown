@@ -1,9 +1,0 @@
-{
-  "name": "@rolldown/test-dual-format",
-  "exports": {
-    ".": {
-      "import": "./index.mjs",
-      "require": "./index.cjs"
-    }
-  }
-}

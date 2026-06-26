@@ -6,14 +6,15 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// define-false/index.ts
+//#region define-false/index.ts
 var Foo = class {
 	static {
 		c, d, C, D;
 	}
 };
 (() => new Foo())();
-// define-true/index.ts
+//#endregion
+//#region define-true/index.ts
 var Bar = class {
 	a;
 	[c];
@@ -21,5 +22,6 @@ var Bar = class {
 	static [C];
 };
 (() => new Bar())();
+//#endregion
 
 ```

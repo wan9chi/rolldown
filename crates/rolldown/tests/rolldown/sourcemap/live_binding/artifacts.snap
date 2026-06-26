@@ -7,11 +7,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 const require_shared = require("./shared.js");
-// main1.js
+//#region main1.js
 function main() {
 	require_shared.shared();
 }
 main();
+//#endregion
 
 //# sourceMappingURL=main1.js.map
 ```
@@ -28,10 +29,11 @@ exports.shared = require_shared.shared;
 ## shared.js
 
 ```js
-// shared.js
+//#region shared.js
 function shared() {
 	console.trace("shared");
 }
+//#endregion
 Object.defineProperty(exports, "shared", {
 	enumerable: true,
 	get: function() {

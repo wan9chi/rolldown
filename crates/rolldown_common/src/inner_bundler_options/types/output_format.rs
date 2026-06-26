@@ -21,9 +21,8 @@ pub enum OutputFormat {
 impl OutputFormat {
   #[inline]
   pub const fn as_str(&self) -> &'static str {
-    // Aligned with InternalModuleFormat type on JS side
     match self {
-      Self::Esm => "es",
+      Self::Esm => "esm",
       Self::Cjs => "cjs",
       Self::Iife => "iife",
       Self::Umd => "umd",

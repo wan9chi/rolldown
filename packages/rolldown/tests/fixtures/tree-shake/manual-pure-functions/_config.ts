@@ -5,7 +5,7 @@ export default defineTest({
   sequential: true,
   config: {
     treeshake: {
-      manualPureFunctions: ['styled'],
+      manualPureFunctions: ['styled', 'local'],
     },
     external: ['styled-components'],
   },
@@ -14,6 +14,10 @@ export default defineTest({
 
     expect(code).toMatchInlineSnapshot(`
       "import "styled-components";
+      //#region main.js
+      let another = console.log;
+      another();
+      //#endregion
       "
     `);
   },

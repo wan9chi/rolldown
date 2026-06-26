@@ -1,7 +1,5 @@
 # Code Splitting
 
-The rationale and target architecture are documented in [design.md](./design.md). This file describes the current implementation, where generate-stage order lowering owns wrappers and importer overlays in `OrderWrapState` without changing link-stage `WrapKind` or user statement inclusion, and final interop/order init facts are sealed separately in `FinalEsmInitMetadata`. One strict-mode exception stays at the link stage: `wrap_modules` forces `WrapKind::Cjs` onto every CommonJS module when `strictExecutionOrder` is enabled and `codeSplitting` groups are configured, because order lowering only wraps ESM modules while the interop rules leave a CommonJS module nobody imports (a CommonJS entry in cjs output) eager — a co-locating group would otherwise run one entry's top level while loading another. The wrap is gated on groups being present because only a group can move such a module out of its own entry chunk; without groups the raw body is safe where it is and preserves the entry's Node module contract (`module.filename`, `require.main === module`, the `exports` object shape), which a wrapper's synthetic `module`/`exports` parameters cannot reproduce.
-
 ## Summary
 
 Code splitting determines which modules go into which output chunks. Rolldown uses a BitSet-based reachability model — the same fundamental approach as esbuild and Rollup. Each entry point gets a bit position, modules are marked with the set of entries that can reach them, and modules with identical reachability patterns are grouped into the same chunk.
@@ -43,54 +41,30 @@ The entry point is `generate_chunks()` in `code_splitting.rs`, called from `Gene
 ```
 generate_chunks()
     │
-    ├─ pre_chunk_order_state()        Discover possible order wrappers and consumer-local routes
-    │
     ├─ init_entry_point()             Assign bit positions, create entry chunks
     │
-    ├─ split_chunks()
-    │    │
-    │    ├─ pre_chunk_init_dependencies()             Retained initializer loading edges
-    │    ├─ determine_reachable_modules_for_entry()   BFS + importer-local route bits per entry
-    │    │
-    │    ├─ apply_manual_code_splitting()             User-defined chunk groups (manualChunks)
-    │    │
-    │    ├─ Module assignment         Group modules by identical BitSet → chunks
-    │    │
-    │    ├─ ChunkOptimizer           Merge common chunks into entry chunks, remove empty facades
-    │    └─ try_merge_runtime_chunk() Optionally merge the standalone runtime into a safe host
-    │
-    └─ Chunk exec-order assignment    → ChunkGraph    Provisional module-to-chunk assignment
+    └─ split_chunks()
+         │
+         ├─ determine_reachable_modules_for_entry()   BFS per entry, set bits on reachable modules
+         │
+         ├─ apply_manual_code_splitting()             User-defined chunk groups (manualChunks)
+         │
+         ├─ Module assignment         Group modules by identical BitSet → chunks
+         │
+         └─ ChunkOptimizer           Merge common chunks into entry chunks, remove empty facades
+              │
+              ▼
+         ChunkGraph                   Final module-to-chunk assignment
 
 Post-ChunkGraph processing (in generate()):
 
 ChunkGraph
     │
-    ├─ finalize_chunk_plan()
-    │    ├─ finalize provisional namespace/external facts
-    │    ├─ analyze_execution_order()                Build an OrderWrapPlan with per-module reasons
-    │    ├─ if runtime_evicted_for_analysis
-    │    │    ├─ ensure_runtime_module_for_order_wraps()
-    │    │    ├─ find_entry_level_external_module()
-    │    │    ├─ finalized_module_namespace_ref_usage()
-    │    │    └─ analyze_execution_order()
-    │    ├─ apply_order_wraps()                      Lower the plan into wrappers and topology edits
-    │    │    └─ ensure_runtime_module_for_order_wraps()   Re-place the runtime, then sole-consumer fold
-    │    ├─ recompute metadata if topology changed
-    │    ├─ sweep_unused_runtime_module()            Drop a runtime with no source or order-state demand
-    │    ├─ compute_wrapped_esm_init_metadata()       Derive sealed init facts for the current layout
-    │    ├─ compute_cross_chunk_link_state()          Derive imports/exports, including synthetic symbols
-    │    ├─ preserve_strict_entry_signatures()        Separate public facades from internal exports
-    │    ├─ rederive init facts and links if facades changed topology
-    │    └─ validate final output shape
-    │
-    ├─ used_symbol_refs.seal()                        Freeze liveness; the sweep is the last writer
-    │
-    ├─ select_inline_common_chunks()                 experimentalInlineCommonChunks: pick records on the derived edges, register registry demand, derive again
-    ├─ commit_cross_chunk_links()                     Write the derived links into the chunk graph
-    │
-    ├─ apply_inline_common_chunks_links()             experimentalInlineCommonChunks: project record edges onto files
+    ├─ compute_cross_chunk_links()                    Determine cross-chunk imports/exports
     │
     ├─ ensure_lazy_module_initialization_order()      Reorder wrapped module init calls
+    │
+    ├─ on_demand_wrapping()                           Strip unnecessary wrappers
     │
     └─ merge_cjs_namespace()                          Merge CJS namespace objects
 ```
@@ -98,68 +72,11 @@ ChunkGraph
 **Key files:**
 
 - `crates/rolldown/src/stages/generate_stage/code_splitting.rs` — pipeline orchestration, `generate_chunks()`, `ensure_lazy_module_initialization_order()`
-- `crates/rolldown/src/stages/generate_stage/order_analysis.rs` — `strictExecutionOrder` analysis and the reasoned `OrderWrapPlan`
-- `crates/rolldown/src/stages/generate_stage/order_wrapping.rs` — applies order wrappers after chunk assignment
-- `crates/rolldown/src/stages/generate_stage/order_wrap_state.rs` — owns synthetic wrapper/carrier declarations, importer overlays, namespace/runtime requirements, and re-export routing evidence
-- `crates/rolldown/src/ast_scanner/independent_init.rs` — proves local initialization independent of outside state for ESM-only consumer-local routes
-- `crates/rolldown/src/stages/generate_stage/compute_wrapped_esm_init_metadata.rs` — derives the sealed final no-op and excluded-statement init facts shared by interop and order wrappers
-- `crates/rolldown/src/stages/generate_stage/finalize_chunk_plan.rs` — final topology boundary before output metadata and validation
-- `crates/rolldown/src/stages/generate_stage/entry_facades.rs` — strict entry-signature checks and the facade conversion shared with order lowering
 - `crates/rolldown/src/stages/generate_stage/dynamic_already_loaded.rs` — Rollup-style dynamic import already-loaded atom reduction
 - `crates/rolldown/src/stages/generate_stage/chunk_optimizer.rs` — merge/optimization
-- `crates/rolldown/src/stages/generate_stage/runtime_module_sweep.rs` — post-optimization runtime-demand sweep
-- `crates/rolldown/src/stages/generate_stage/inline_common_chunks/` — `experimentalInlineCommonChunks`: selection, placement, physical projection, per-carrier finalization of records (see `internal-docs/inline-common-chunks/`)
 - `crates/rolldown/src/chunk_graph.rs` — output data structure
 - `crates/rolldown_utils/src/bitset.rs` — compact reachability representation
-- `crates/rolldown/src/types/linking_metadata.rs` — immutable link-stage `wrap_kind()`
-
-Wrap-all (the default strict mode) seeds the plan from the expected orders alone and skips prediction; `experimental.onDemandWrapping` enables the selective analysis. Namespace usage and entry-level external re-exports are first finalized on the provisional graph. They are recomputed when order wrapping or strict entry facades change topology.
-
-`create_order_wrap_entry_facades` and `restore_order_wrap_entry_facades` share one statement-aware scan of live dynamic importers. When a pure dynamic entry has a synchronous activation target and every surviving call site can be rewritten, the create path avoids minting a strict-only facade (or the restore path leaves an optimizer-removed facade dead): the implementation chunk is marked common, `common_chunk_exported_facade_chunk_namespace` requests namespace extraction, and `rewrite_dynamic_import_for_merged_entry` carries the trigger at each call site. An ordinary entry carries its single ESM init target; a consumer-local entry carries its complete cached namespace target list, so the intentionally empty shared barrel wrapper is never used as activation. Same-chunk rewrites call the list directly. Cross-chunk rewrites make the host chunk depend on and export every leaf/carrier wrapper alongside the simulated namespace, then invoke those exported wrappers in list order before returning the namespace. TLA-tainted entries or targets, callable-`then` host namespaces, emitted/user entries, and entries with any entry-level external star retain a real facade. Converting an external-star entry to a common chunk removes the facade's format-specific merge. ESM loses its chunk-level `export *`; CJS-like formats replace a deduplicated `Object.keys` merge with per-record `__reExport` calls, which also differ for primitive module values, and a transitive star is not available from the entry module's direct records at all. The chunk's `entry_level_external_module_idx` covers direct and transitive chains, so one format-independent guard preserves all of these interfaces. This external-star guard is create-path-only; the restore path relies on the chunk optimizer's simulated-namespace handling, whose external-star preservation is handled separately. If the restore path has already revived an empty facade because its own collapse proof failed, the create path cannot reclassify that facade as an implementation chunk.
-
-Both collapse paths register a synthetic namespace declaration and its runtime demand in `OrderWrapState`, then recompute the runtime-symbol closure: the create path does so when it avoids minting a facade, and the restore path does so when it leaves an optimizer-eliminated facade dead. The state stores the exact export names selected by `DynamicImportExportsUsage` and the non-inlined bindings behind them. The names keep finalization identical to the removed facade even when another alias of the same canonical binding is live elsewhere; the binding references let normal cross-chunk linking import every getter target after the entry becomes a common chunk. A real semantic namespace consumer overrides this narrowing and keeps the complete interface. Runtime demand includes `ExportAll`; entries that would require an external-star merge retain their facade instead. Simulated-facade namespace demand remains separate from semantic namespace demand, so this does not turn the narrowed dynamic-import interface into an opaque namespace read or reopen link-stage user-code liveness.
-
-`finalize_chunk_plan` sweeps unused runtime helpers after order lowering and namespace/external finalization, then derives sealed init facts and cross-chunk links. Strict entry signatures compare the actual exported symbols, including generated wrappers, namespace objects, and import bindings, against the entry's canonical public exports. A strict entry needing an internal export becomes a common implementation chunk behind a public facade. An unwrapped CommonJS entry module moves into the public facade because its `exports` and `module.exports` writes address that file; its dependencies remain in the original chunk, which becomes common. `create_entry_facade` preserves entry naming, reference-ID routing and creation metadata for both signature preservation and order lowering. A signature facade preserves the entry module set and module-level runtime demand, so the sweep can precede it. After a split, namespace/external facts and chunk order are refreshed and the derived init facts and links are replaced. An unchanged layout reuses the first derivation through the final commit.
-
-An `exports-only` entry with dynamic star exports requires a strict signature even when it has no statically known export names.
-
-Missing-export shims are part of the module's public interface. `bind_imports_and_exports` registers named-import shims, discovers missing static namespace members, and propagates the synthesized names through star re-exports before collecting canonical exports. Entry-signature checks, namespace generation, and export naming all use that interface. Creation emits one `SHIMMED_EXPORT` warning per module/name when `shimMissingExports` is enabled; implicit empty-module shims remain silent. Public entries and observed namespaces retain their shim names even when the requesting import binding is unused.
-
-Star propagation runs after declared exports have been resolved. Shims cannot replace real exports or resolve genuine ambiguities. A module's own shim shadows star fallbacks; among fallback paths, the first path in source order supplies the `undefined` binding. The traversal excludes default exports, honors explicit exports, handles cycles, and records the selected path for strict execution order.
-
-`compute_wrapped_esm_init_metadata` produces a sparse `Sealed<FinalEsmInitMetadata>`: absence of a module entry means the default no-op/empty-target values, not absence of a wrapper. `Sealed<T>` has a private field and constructor, exposes only `Deref`, and offers neither `DerefMut` nor an unwrap operation. Final cross-chunk linking and module finalization consume the same result for the completed topology. The earlier `predicted_static_import_edges` pass explicitly marks final metadata unavailable instead of manufacturing an empty sealed artifact; its Project-mode obligation traversal remains separate and conservative.
-
-Both modes consume the same frozen tree-shaking facts. `order_wrapper_is_reexport_transparent` identifies pure ESM order wrappers that are only init-routing waypoints. `consumer_local_reexport_plan` extends that category to barrels whose retained statements are direct re-exports and whose generated CJS interop can be extracted safely, and to interop ESM barrels with independently initialized static dependencies. Tree-shaken local declarations contribute no executable body. For CJS records it creates one `OrderCjsCarrierKey { importer, record }` per retained record and maps each affected export/facade symbol to that carrier. The CJS importee's finalizer declares the memoized carrier and namespace in the importee's chunk.
-
-`has_independent_initialization` records the local AST proof in `EcmaViewMeta::IndependentInitialization` for strict builds with tree shaking enabled. It tracks initialized local symbols in source order, preloads hoisted function declarations, and accepts only inert allocations and expressions that cannot observe outside state or throw. `independently_initialized_esm_modules` closes this proof over resolved static imports with a reverse-index rejection worklist. It rejects CJS, externals, synchronous SCCs, TLA, generated missing-export assignments, concatenated wrappers and explicit effectful/no-treeshake contracts. `Analyzed(true)` alone is insufficient to reject a candidate because wrapped star-re-export glue sets that bit. ESM-only route seeds require enabled code splitting and immutable link-stage `WrapKind::Esm`; ordinary unwrapped ESM-only forwarders require both an accepted inner route and the complete dependency proof. The fixpoint tracks CJS carrier routes separately, retaining their record-based eligibility across pre-chunk placement and lowering. The existing module initializers still own the leaf data assignments and once-only guards.
-
-Pre-chunk placement preserves empty forwarding waypoints, but does not propagate an inner route with `ModuleNamespaceIncludedReason::Unknown` as an unconditional dependency. Consumers that expose the namespace already have symbol-derived `load_dependencies` for its owner, and the shared resolver supplies every retained member initializer. A retained namespace also keeps the owners of any nested namespace objects referenced by its getters reachable.
-
-`consumer_local_reexport_records` selects direct ESM re-export records in mixed modules from immutable scan/link facts. A single reverse-graph walk propagates side effects, `EcmaViewMeta::ExecutionOrderSensitive`, and unsupported initialization shapes through static imports and retained binding dependencies. Eligible records are stored in `OrderWrapState::consumer_local_reexport_records`; a wrapped module keeps its local wrapper. Ordinary body dependencies and namespace-valued exports stay on the module's initialization path.
-
-The per-record collector returns selected forwarded targets before the mixed module's own initializer. Non-routed exports are delegated to that initializer only when it is reachable; an unwrapped mixed module leaves the obligations of its consumed bindings with the consumer, and the on-demand plan wraps an included mixed module whose wrapper would own a non-routed hop to a planned module. Each such mixed module initializes those planned targets from its own wrapper (see [design.md](./design.md#tree-shaking-parity-across-strict-modes)). `record_owns_reexport_init` keeps frozen forwarding paths consumer-owned at routed records, and the excluded-hop traversal visits their selected dependencies before adding the local wrapper. The same records are omitted from included obligations, excluded-statement metadata, and wrapper-import overlays. Pre-chunk reachability consumes the selected targets while preserving the mixed module's ordinary dependency union. Cached namespace activation lists follow the same ownership rule for entry prologues and collapsed dynamic imports.
-
-For statically resolved namespace-member reads, linking records the named import's forwarding prefix and each resolved member's re-export hops as one retained path (`MemberReadStarReexportPath`), together with the reading statement and the final binding. A namespace import that is re-exported contributes its import record before the path continues through the selected member. `collect_frozen_reexport_usage` retains the path only while that statement is included and the binding is used, so a direct import of the leaf elsewhere keeps no forwarding hop alive on its own (`export_star_reexported_namespace_dead_reader`). This lets an outer wrapper initialize the leaf even when tree shaking removes the intermediate namespace and its barrel (`issues/11033`).
-
-`collect_wrapped_esm_init_targets_for_import_record` then resolves obligations per consumer into `WrappedEsmInitTarget::{Module, CjsCarrier}`: it filters named specifiers by local facade liveness, follows consumed re-export facades recorded in `OrderWrapState`, resolves static namespace-member reads from included `StmtInfo` references, expands all exports only for opaque namespace use, and applies the same constant-inline bypass as the inclusion pass. It also recursively includes effectful carriers and sorts them with selected leaves by the full nested record path. `sort_consumer_local_targets` visits each forwarding module once in source order and assigns record ranks before descending. Child routes resolve before symbol-owner fallbacks, while a fallback retains the parent's earlier rank. This preserves nested path ordering without scanning every import and named binding again for each comparison in a large barrel. Emit, cross-chunk Register, on-demand Project, and pre-chunk placement consume this same target model. An unwrapped consumer still registers the leaf initializers that its included imports of consumer-local routes emit. This lets wrap-all emit more wrappers without retaining or executing more user code than on-demand.
-
-Lowering also caches the complete namespace targets for every consumer-local route. Entry prologues and collapsed dynamic-entry call-site triggers use that list when the route itself is an entry. Included import/re-export records and namespace-retained excluded `export *` records use `collect_wrapped_esm_init_targets_for_import_record`, including routes whose link-stage interop kind is `WrapKind::Esm`. The star-record branch selects names owned by that record in `star_export_record_by_name` and present in the importer's non-ambiguous export surface. This excludes `default`, shadowed names, and conflicts even when another consumer keeps their defining wrappers live. Mixed-module local initializers remain separate from consumer-owned forwarded targets. Calls stay inside the consuming wrapper's memoized guard and at the re-export record position. Final metadata filters resolved targets against final live chunk placement before Emit and Register consume them.
-
-A re-export-transparent wrapper owns no init calls. For emission and registration, `record_is_init_obligation` returns false for every record of a transparent importer. Consumer-local routes suppress all their static import records, including source imports normalized into direct re-exports while retaining plain-import record metadata. The finalizer removes their forwarding glue, cross-chunk linking skips those statement references and the empty shared wrapper reference, and `transitive_esm_init_targets` returns no targets for either an order-wrapped transparent module or an interop-wrapped consumer-local route. Other interop modules retain legacy excluded-statement metadata. The per-record resolver (`collect_wrapped_esm_init_targets_for_import_record`) routes each consumer's named or star import through the wrapper to the leaves that consumer reads. If the wrapper kept those calls, its chunk would import a leaf placed beside one of its consumers, creating a static chunk cycle even when the source graph is acyclic.
-
-The resolver also routes through a transparent wrapper that has dynamic exports. A consumer that reads a name only the runtime `export *` provides needs the wrapper's namespace object, and building that object gives the wrapper execution dependencies, so such a wrapper is not transparent and its consumers call its `init_*`.
-
-Projection (`ObligationPurpose::Project`, read by chunk placement and emergent-cycle prediction) keeps the records of a transparent wrapper that is not a consumer-local route. Chunk placement resolves a route from the record that imports it, and for a route behind the wrapper that record is the wrapper's own; dropping it would leave the CommonJS module behind the route assigned to no entry.
-
-The CJS-carrier portion of `consumer_local_reexport_plan` uses a monotone fixpoint so a carrier-free outer barrel can become a routing waypoint after its inner carrier-owning barrel is accepted. It rejects tree-shaking-disabled builds, synchronous `import`/`require` SCC members, modules targeted by an opaque CommonJS `require()`, TLA-tainted modules, dynamic exports, CJS `export *`, shimmed exports, concatenated wrappers, and any retained statement that is not a direct re-export. These cases retain the existing monolithic init path. A direct require target stays monolithic; if its re-export record exposes a downstream consumer-local namespace, final metadata resolves the bindings that record exposes and initializes their targets inside the monolithic guard. The SCC fallback keeps one module-level evaluating guard around mixed ESM/CJS cycles. A carrier is eager only when both its source record is side-effectful and the barrel's own side-effect contract retains that record unconditionally, so `moduleSideEffects: false` on the barrel can keep an otherwise effectful CJS route lazy. Recursive eager-carrier discovery applies this side-effect gate at every forwarding hop, so an outer `moduleSideEffects: false` barrel also blocks a deeper carrier from leaking into unrelated consumers. Carrier-owning barrels are forced into the on-demand plan even when provisional source order alone would not select them; otherwise their ordinary CJS lowering would reappear after placement.
-
-Consumer-local eligibility never reads the order-wrap plan, and `apply_order_wraps` materializes a non-empty consumer-local plan even when that plan is empty (an all-interop graph, or an on-demand round with no at-risk modules): pre-chunk placement applied the same routes unconditionally, so skipping the lowering would emit the barrel's monolithic interop body against per-consumer leaf placement and cycle the chunks (#10515). The one exception is a single-entry build with code splitting disabled and an empty plan — there the probe's routes had no placement consumer, and an inert on-demand plan keeps its promise of flag-off-equivalent output (`cjs_reexport_barrel_code_splitting_disabled`). The disabled option alone is not the fact that matters: a plugin-emitted chunk still adds a second entry with per-entry placement (`disabled_splitting_emitted_entry` in the strict invariants suite), so the exception is keyed on entry count as well.
-
-Excluded re-exports with a recorded retained path use the same boundary rule. `collect_order_wrap_esm_init_targets` computes which retained-path modules are reachable through an entirely side-effect-retaining chain before adding any off-path eager carrier; an explicitly selected carrier is still retained because that is binding demand, not eagerness. Computing the permission as an any-path reachability fact also makes converging retained paths independent of DFS order. A non-empty retained-path overlay drops its direct wrapper reference after recording the path: sealed init metadata registers exactly the resolver's targets, and finalization emits exactly those targets, so the otherwise-unused direct wrapper cannot create a bare cross-chunk import into a carrier-hosting chunk.
-
-Order planning closes over sensitive suffixes, dependent importers/readers, and eligible sensitive modules in any static chunk SCC already touched by the plan. Under `onDemandWrapping` it then runs the emergent-cycle fixpoint in `order_analysis.rs` (`post_lowering_import_edges`): each round projects the plan's post-lowering `init_*` forwarding edges onto the pre-lowering baseline from `predicted_static_import_edges`, wraps every eligible module in a chunk cycle those edges close, and repeats until the at-risk set stops growing (see the design doc for the projected/omitted edge-source inventory). The same fixpoint wraps every eager module whose wrapper would forward `init_*` to a planned module through a tree-shaken re-export hop or a retained re-export path. `wrap_all_forwarded_importers` resolves each eager-eligible module's excluded-statement obligations with `compute_wrapped_esm_init_metadata`, reusing the wrap-all state built for CJS carrier discovery. Each round walks the reverse obligations from planned modules to close forwarding chains before rebuilding the plan. Set `ROLLDOWN_ORDER_DEBUG=1` for a stderr trace of the per-round SCC counts, forwarder additions, and final wrap delta.
-
-The scanner derives a module's intrinsic order sensitivity without changing its tree-shaking result. The ordinary `StmtEvalAnalyzer` remains the only producer of `tree_shaking_flags`. For strict on-demand builds only, a statement in a module not already known to be sensitive gets a separate eager-evaluation reason walk when ordinary analysis has not classified that statement as order-sensitive. That walk follows top-level expressions, binding defaults and computed keys, immediately invoked function literals (including conditional/logical/assignment callees, directly invoked literal template tags, and the construction-time positions of a directly `new`ed class literal), and calls/new/tagged templates covered by `manualPureFunctions`; it stops at ordinary function and method bodies and at unconstructed instance initializers. Like `TopLevelImportReadDetector`, it also honors `propertyReadSideEffects: false` as that option's documented contract: a getter or `Proxy` trap invoked through a certified property read stays invisible to order analysis. This separation prevents Oxc's valid tree-shaking early exits for pure calls or property operations from hiding an observable global read from order wrapping, while default builds, wrap-all builds, and cross-module tree-shaking re-analysis keep their existing hot paths and flags.
+- `crates/rolldown/src/types/linking_metadata.rs` — `original_wrap_kind()` used for init order analysis
 
 ## Bit Positions and Entry Points
 
@@ -183,23 +100,9 @@ Before chunk materialization, Rolldown can reduce dynamic-entry bits for modules
 
 The pass groups modules into temporary atoms by their current dependent-entry bitset, computes the static atoms loaded by each entry, then runs a fixed-point propagation over dynamic imports. A dynamic entry's already-loaded atoms are the intersection of the static and already-loaded atoms of all entries that can reach its included dynamic importers. Any atom already loaded for a dynamic entry can drop that dynamic entry bit, and modules are then regrouped by the reduced bitsets during normal chunk creation.
 
-Both entry reachability and the acyclicity check are computed from predictions of the static imports emission will produce, but on two different graphs whose safe approximations point in opposite directions. The reachability graph must never claim an edge the emitted chunks lack (or a side effect could be skipped as "already loaded"); the cycle graph must never miss an edge the emitted chunks have (or a fold could emit a cyclic graph). Their shared base is `predicted_static_import_targets`: referenced symbol owners, side-effectful direct imports, and the side-effectful runtime flag. It filters transitive side-effect dependencies propagated through a `sideEffects: false` barrel because those do not become imports of the barrel's chunk; retaining them would invent cycles (`optimization/chunk_merging/already_loaded_side_effectful_barrel`).
-
-On top of the base, `entry_export_service_targets` models the imports `register_entry_export_depended_symbols` creates: an entry chunk imports the canonical symbol of every live resolved export it serves (plus re-exported ESM wrapper inits), even when no included statement of the entry references it — an unused re-export is still served by a real import of the owner's chunk (`optimization/chunk_merging/already_loaded_entry_reexport_service_edge`). The two graphs attach these targets differently. The cycle graph attaches them to the atom hosting the entry module, unconditionally and without a liveness gate: `used_symbol_refs` still grows after the fold (namespace-extraction and facade-elimination replays), so a dead-here export can be live at emission, and hosting-atom attribution only over-approximates. That over-approximation holds only because of the facade edge described next: a facade depends on the chunk hosting its entry module, which is the same atom the service edges were attached to, so every service edge emission hangs on the facade stays reachable as facade → host → target. It used to rest instead on facades having zero static in-degree, which stopped holding once a fold could give a facade modules: folding an atom into an entry chunk whose entry module lives in a shared chunk populates that facade, and so gives it static in-degree. `reduced_atom_graph_has_static_cycle` therefore adds the matching outgoing edge on top of the atom graph — every entry chunk whose entry module is hosted elsewhere depends on the hosting chunk, to run it and re-export its interface; without it the fold can produce a chunk cycle that evaluates in the wrong order ([#10734](https://github.com/rolldown/rolldown/issues/10734)). The reachability graph attaches them gated by decision-time liveness — growth is monotone, so a live-here export is guaranteed emitted — and only when the entry module's atom belongs to exactly its own entry, because emission hangs service imports on the entry (possibly facade) chunk, not on whichever shared chunk hosts the module; attaching them to a shared atom would leak the edges into other entries' closures.
-
-A debug assertion in `compute_cross_chunk_links` reconciles the prediction functions against the pass's derived edges on every build: emitted edges must be predicted (modulo emission-owned runtime-helper requests), and a predicted side-effectful _service_ edge must be emitted — those targets exceed `load_dependencies`, so only their liveness gate keeps entry reachability truthful, and the assert validates that the gate mirrors emission. Base-prediction over-predictions are exempt from that direction: they filter the same `load_dependencies` edges the pre-prediction bits reachability trusted, so they are main-parity by construction — constant inlining routinely kills a symbol's import without touching `load_dependencies`, and can even orphan an annotated-side-effectful chunk (`rollup@chunking form@namespace-reexport-side-effect-cache`), on main just as here. Chunks without modules are outside the contract — a husk left by facade elimination or absorption gets no emission edges, and a live empty facade's only edges are the emission-owned facade and service imports, which the bits-closure invariant keeps off any static cycle.
-
-Two accepted residuals. The ungated cycle-graph service edges mean a dead entry re-export can conservatively veto a fold that would have been acyclic — a missed optimization taken in exchange for immunity to post-fold liveness growth; no fixture currently quantifies that cost. And the base prediction's ambiguous branch still filters side-effectful dependencies by decision-time statement inclusion, which the post-fold replays can outgrow — a narrower, pre-existing skew of the same shape, inherited from the original prediction.
-
-Entry reachability follows this graph from the entry's own atom. Under `strictExecutionOrder` no exact prediction is attempted: order lowering can turn linked import records back into `init_*` imports, so the atom edges keep using `dependencies` — an over-approximation that is safe for the cycle check but not for reachability, where extra edges would claim atoms as already loaded that the entry never imports. Entry reachability therefore falls back to the dependent-entry bits (i.e. `load_dependencies` reachability) in that mode, preserving the pre-prediction behavior.
-
-When the reduced bitset would put an atom into a single purely dynamic-imported entry chunk, the reduction is not restricted by `preserveEntrySignatures`. If every dynamic importer only reads a statically-known subset of exports from the namespace (`DynamicImportExportsUsage::Partial`), the extra exports are unobservable and the atom is merged as-is, with no extra intermediate namespace. Otherwise, since we control all dynamic importers of the chunk, we generate a synthetic namespace inside the chunk, and use it as the "imported namespace" in the importer code (`import("./chunk.js").then((n) => n.<ns>)`). We bail out in case of a `then` export, or of a dynamic/external `export * from`. The rewrite also requires bundler-controlled export naming, so it is disabled under `preserveModules` and when `minifyInternalExports` is off.
-
-A namespace member call or tagged template passes the namespace to the callee as `this`. In module code, a callee can see that receiver only through `this` (including in nested arrow functions) or a direct `eval`. The scanner records each member name called on a dynamic import's namespace, and marks a binding `NeverReadsThis` when all of these hold: it is a `function` declaration, a binding initialized with a function or arrow expression, or the binding of an anonymous default-exported function or arrow; its top-level statement reads no `this` inside a function or class; it is never written or redeclared; and its module has no direct `eval`. The link stage keeps the whole namespace (`Complete`) unless every called member resolves to a binding with that flag. Dynamic imports whose target may export `then` also use `Complete`, and remain effectful even when their result is unused, because Promise resolution can call `then` with the namespace as its receiver.
+When the reduced bitset would put an atom into a single dynamic-entry chunk, the pass preserves that dynamic entry's observable namespace. The reduction is accepted only if the atom has no extra exports, its exports are already part of the dynamic entry's signature, it is runtime-only, or it is the removed dynamic-entry module itself. Otherwise the atom stays separate so `import("./entry.js")` does not expose helper exports needed only by other chunks.
 
 Every accepted reduction must also keep the regrouped static atom graph acyclic. "Already loaded" does not always mean "already initialized": if a reduced atom is moved into a chunk that statically imports one of its consumers, an ES module cycle can expose uninitialized bindings, including CJS wrapper functions.
-
-When `experimentalInlineCommonChunks` is enabled, module groups below its size threshold that pass its module-level checks keep their common placement instead of being reduced or merged into a single entry. The final inline selector still validates the completed graph. This lets a shared module be copied into its main and lazy consumers instead of forcing an entry-trigger facade; see `../inline-common-chunks/design.md#keeping-shared-code-available-for-inlining`.
 
 Runtime may participate in this bit reduction, but only as placement metadata. It is extracted into a standalone runtime chunk before manual and normal chunk materialization, so this pass does not assign runtime code to user chunks and does not need runtime-specific cycle handling.
 
@@ -208,16 +111,6 @@ Top-level-await refinements are intentionally not modeled here yet. The existing
 ## Reachability Propagation
 
 `determine_reachable_modules_for_entry()` runs BFS from each entry module, setting `splitting_info[module].bits.set_bit(entry_index)` on every reachable module. External modules are skipped during traversal (they're not `Module::Normal`).
-
-Strict builds first construct a discovery-only wrap-all `OrderWrapState`, including the frozen re-export usage and import overlays real lowering computes. `pre_chunk_init_dependencies()` collects each included module's initialization targets before placement. Included records use the Register gate and `collect_wrapped_esm_init_targets_for_import_record`; excluded records use `transitive_esm_init_targets`, the same retention and path collector that produces the final metadata. This includes modules that keep monolithic initialization. The targets supplement ordinary `load_dependencies`: tree shaking can resolve a binding to its defining module while strict lowering still imports the initializer of an intervening module. If that initializer's targets receive only a lazy entry's bits, importing the initializer also loads unrelated code sharing the lazy entry's output file. Giving those targets the consuming entry's bits keeps the required initialization code shared. The additional target lists are computed once per module, deduplicated, and reused by each entry's BFS. Strict-disabled builds skip this pass.
-
-Before chunks exist, target reachability means that the declaration is included, and same-chunk delegation is unavailable. The excluded-hop walker takes those two predicates from its caller; final metadata and cycle projection supply their existing live-chunk and same-chunk predicates. Namespace inclusion before placement uses the same predicate as `finalized_module_namespace_ref_usage`, without writing the derived namespace flag. Excluded interop routing remains post-chunk because its targets are confined to the importer's own chunk. The pre-chunk collector returns target identities; `FinalEsmInitMetadata` is still computed and sealed after final placement.
-
-Transparent wrappers and excluded pure re-exports with no retained statement, path, execution dependency, or namespace demand contribute no initialization edge. An excluded ordinary import requires importer-local binding demand or a re-exported binding. The broader Project gate is retained only for the existing consumer-local placement routes; it is not used to predict monolithic initialization. This preserves late pure initialization in forwarding cycles while accounting for generated cross-chunk init imports.
-
-A consumer-local barrel's ordinary `load_dependencies` is a bundle-wide union, so using it would give an eager entry the leaves that only a dynamic entry consumes. Incoming consumer records use the same resolver to select only their leaf modules and CJS carrier importees. Processing a non-entry consumer-local barrel marks the waypoint reachable, queues any directly nested consumer-local waypoints, skips its module-wide dependency union, and recursively queues only effectful carriers. A user or dynamic entry whose module is itself such a barrel keeps full traversal because importing that entry observes its complete namespace.
-
-The resulting entry bits place each carrier in the same chunk as its CJS importee. Later order lowering assigns the carrier's synthetic statement to that chunk, while the carrier symbol still belongs to the re-exporting module for binding identity. Symbol assignment and deconfliction therefore use the synthetic statement's explicit chunk rather than assuming that every declared symbol is hosted by its owner module. CJS namespace merging and lazy-init transfer skip these carrier records because moving or coalescing their require sites would destroy the per-record route boundary.
 
 After all entries are processed, each module's `bits` encodes which entries can reach it:
 
@@ -251,7 +144,7 @@ The chunk optimizer reduces chunk count by merging common chunks back into entry
 For each common chunk, translates its `bits` to chunk indices (bit positions directly map to `ChunkIdx`), then tries to merge it into one of those entry chunks. Merging is skipped if it would:
 
 - **Create a circular dependency between chunks** — checked via BFS in `would_create_circular_dependency()`. This is stricter than Rollup (which warns but allows cycles) and matches esbuild's enforcement of acyclic static chunk graphs.
-- **Change an entry's export signature** — when `preserveEntrySignatures: 'strict'`, adding modules to an entry chunk would expose symbols that the original entry didn't export. Only an export whose _canonical_ symbol is owned by one of the merged modules counts: a chunk exports the symbols it declares, so a re-export barrel resolving its names to symbols living elsewhere is served by whichever chunk holds those owners, and folding the barrel in adds nothing.
+- **Change an entry's export signature** — when `preserveEntrySignatures: 'strict'`, adding modules to an entry chunk would expose symbols that the original entry didn't export.
 - **Pollute dynamic-import namespaces** — dynamic entries that form static cycles are not merged asymmetrically when a non-target pending entry module has observable exports. The check uses linked export metadata, so re-export-only entries (`export * from ...`) are treated the same as direct named exports.
 
 The trade-off of merging: entry chunks may include modules that not all consumers of that entry need. This adds a small amount of unnecessary code loading but significantly reduces chunk count and HTTP requests.
@@ -264,10 +157,6 @@ Dynamic/emitted entries can become empty facades when all their modules are pull
 
 - Merges the facade into its target chunk
 - Marks it as `Removed` in `post_chunk_optimization_operations`
-
-For a removed dynamic facade whose namespace is only observed through known dynamic-import reads, dependency inclusion and the module finalizer both select names with `LinkingMetadata::dynamically_read_export_names`. They borrow the link-stage dynamic-import usage map, which is immutable during generation. Full-namespace consumers disable this filter; an interface recorded by strict-order lowering takes precedence. Global symbol liveness also includes static importers' reads and cannot determine the dynamic namespace's interface.
-
-A **user-defined** entry can likewise become an empty facade when manual code splitting (a `codeSplitting` group, possibly via `entriesAware` subgroup merging) places its module into a common chunk. Folding that common chunk back into the entry chunk is only safe when the chunk does not also hold **another user-defined entry's module**. Otherwise the sibling entry would be forced to import this entry chunk just to reach its own module, and loading it would eagerly run this entry's top-level `init_*` — leaking its side effects into the sibling (visible under `strictExecutionOrder`). In that case the facade is kept so each entry imports the shared (wrapped) chunk and runs only its own `init_*`. See [#9463](https://github.com/rolldown/rolldown/issues/9463).
 
 ### Runtime Module Placement
 
@@ -290,60 +179,26 @@ consumer_chunks = (non-removed chunks with non-empty depended_runtime_helper)
                 ∪ chunks whose included statements reference runtime-owned symbols
                 ∪ chunks containing modules that depend on the runtime module
                 ∪ chunks containing wrapped modules or side-effectful runtime dependencies
-                ∪ caller-supplied additional consumers
+                ∪ facade-elimination consumers added during the current pass
 ```
-
-The additional-consumers channel carries demand that only the caller can see: facade-elimination consumers during chunk optimization, and order-introduced consumers during the post-order-lowering fold below.
 
 Most runtime-helper dependencies are known at link time, before chunking, so this consumer set is usually complete as soon as chunks exist. Facade elimination is the exception: collapsing a facade into its target chunk can add a helper edge that did not exist during early chunking, through one of two `wrap_kind`-gated paths in `optimize_facade_entry_chunks`:
 
-- **`WrapKind::Esm` / `WrapKind::None`** — the dynamic `import()` site still expects a namespace object, so the eliminated module's simulated namespace is materialized (`include_symbol(namespace_object_ref)`) and `__exportAll` (`RuntimeHelper::ExportAll`) is inserted into the target chunk's `depended_runtime_helper`. A module without module syntax (`ExportsKind::None`) also has a namespace statement (`create_exports_for_ecma_modules`). Without it, `include_symbol` includes no declaration, and the renamer does not deconflict the printed namespace (#11255).
+- **`WrapKind::Esm` / `WrapKind::None`** — the dynamic `import()` site still expects a namespace object, so the eliminated module's simulated namespace is materialized (`include_symbol(namespace_object_ref)`) and `__exportAll` (`RuntimeHelper::ExportAll`) is inserted into the target chunk's `depended_runtime_helper`.
 - **`WrapKind::Cjs` / `WrapKind::Esm`** — the `require_xxx` wrapper (`wrapper_ref`) is included, which transitively pulls whatever helpers the wrapper needs — commonly `__toESM` (`RuntimeHelper::ToEsm`) and `__commonJSMin` (`RuntimeHelper::CommonJsMin`) — via normal inclusion propagation.
 
 A `WrapKind::Esm` facade hits both paths.
 
 A chunk only _consumes_ the runtime once it carries a non-empty `depended_runtime_helper` (or references a runtime-owned symbol). So in a build that needed no helpers at link time, _no_ chunk consumed the runtime — and one of the paths above can create the very first consumer _after_ early chunking has already placed the runtime standalone. To keep that placement decision sound, the pass restores the inclusion metadata it just mutated, (re)materializes the standalone runtime chunk, and re-runs `try_merge_runtime_chunk` with these newly added consumers (the final bullet of the consumer set above).
 
-The merge target must not create a static cycle or force unrelated entry chunks to execute just to access helpers. Candidate targets are tried in compactness-preserving order: a sole runtime consumer, a sole live chunk with the runtime bitset, a live common chunk with the same runtime bitset, then a consumer-set dominator. The caller selects how deep this cascade may go (`RuntimeMergeCascade`): both merge attempts during chunk optimization use the full cascade, while the post-order-lowering fold below stops after the sole-consumer step. Manual code splitting / advanced chunk group chunks may host runtime only when that chunk is the sole runtime consumer; otherwise their contents are user-directed grouping output, and absorbing the runtime would make unrelated chunks load the group for helpers. Safety is checked by following static chunk-loading edges through still-live chunks. Dynamic imports are not followed; static imports and `require()` records are both considered because either can become a static chunk import in generated output. Chunks containing top-level await, or a dependency on top-level await, are runtime hosts only when they are the sole runtime consumer; otherwise a dynamically imported chunk that statically imports its awaiting importer for helpers can produce an unsettled async module cycle.
+The merge target must not create a static cycle or force unrelated entry chunks to execute just to access helpers. Candidate targets are tried in compactness-preserving order: a sole runtime consumer, a sole live chunk with the runtime bitset, a live common chunk with the same runtime bitset, then a consumer-set dominator. Manual code splitting / advanced chunk group chunks may host runtime only when that chunk is the sole runtime consumer; otherwise their contents are user-directed grouping output, and absorbing the runtime would make unrelated chunks load the group for helpers. Safety is checked by following static chunk-loading edges through still-live chunks. Dynamic imports are not followed; static imports and `require()` records are both considered because either can become a static chunk import in generated output. Chunks containing top-level await, or a dependency on top-level await, are runtime hosts only when they are the sole runtime consumer; otherwise a dynamically imported chunk that statically imports its awaiting importer for helpers can produce an unsettled async module cycle.
 
 - **Safe target found** → runtime moves into that chunk, and the empty standalone runtime chunk is marked removed.
 - **No safe target** → keep the standalone runtime chunk. Runtime imports that resolve only to externals are ignored for chunk-cycle checks; live internal runtime imports keep the runtime standalone instead.
 
-With `experimentalInlineCommonChunks` enabled (`maxSize > 0`), `try_merge_runtime_chunk` returns before any of this: the registry demand that feature registers on every reading file (`insert_runtime_helper_demand`) appears after every merge proof has run, so the standalone runtime placed above is final, and the post-order-lowering fold below is skipped for the same reason. See `internal-docs/inline-common-chunks/implementation.md`.
-
-### Post-Order-Lowering Runtime Fold (`ensure_runtime_module_for_order_wraps`)
-
-Order lowering can invalidate the placement the merge above decided. Synthetic wrappers and importer overlays add helper demand that lives only in `OrderWrapState`, never in link-stage metadata, so a chunk with no pre-lowering demand can become a consumer — and that new consumer may sit in a static cycle with the runtime's current host. `ensure_runtime_module_for_order_wraps` therefore restores the standalone-first baseline when code splitting is enabled: a runtime co-hosted in a user chunk is evicted into a fresh standalone chunk, and a runtime that was never placed is materialized standalone. (With code splitting disabled, the single-chunk placement above stands.) Both paths re-derive every live chunk's `exec_order` from its current lead module (`assign_chunk_exec_orders`). A fresh runtime chunk otherwise keeps its default `u32::MAX` order. After eviction, the former host would retain the order derived from the runtime module (`exec_order` 0), placing it and its external imports ahead of chunks that execute before it. These (re)minted chunks carry synthetic all-live-union bits so they sort and name as a universal source; the bits are not reachability facts.
-
-Eviction changes chunk order and helper-import edges, so on-demand analysis must observe the standalone runtime before selecting wrappers. The entry-facade edge query also needs the runtime placed so it can resolve helper symbols to their chunk.
-
-The caller folds the runtime after lowering and facade creation, when `OrderWrapState` contains the complete helper demand and the runtime's consumer set is final.
-
-Evicting unconditionally would permanently split layouts the pre-lowering merge had already proven safe (#10294). So every exit of the pass — standalone runtime kept, co-hosted runtime evicted, runtime newly materialized — re-runs `try_merge_runtime_chunk` against the post-lowering consumer set (`fold_runtime_chunk_after_order_lowering`). The order-introduced consumers come from `OrderWrapState::runtime_helper_consumer_chunks`: a synthetic `init_*` declaration consumes helpers in its assigned chunk, and an importer overlay consumes them in the importer's chunk, where its lowered import glue renders. They are passed through the additional-consumers channel; pre-lowering demand is re-scanned by the merge itself, so the proof sees the full post-lowering consumer set. The standalone-kept exit re-runs the proof too, because entry-facade restoration during lowering can tombstone chunks the pre-lowering merge counted as consumers — a sole consumer may exist only now.
-
-The fold is deliberately narrower than the optimization-time merge:
-
-- **Sole-consumer host only (`RuntimeMergeCascade::SingleConsumerOnly`).** Exec order and the order-wrap plan are already fixed. Any other host would create or reorder chunk-evaluation edges the order analysis never modeled: a dominator merge turns transitive reachability into a direct helper import whose exec-order sort position can hoist the host past sibling imports, and a bitset host can gain a brand-new consumer edge. Merging into the sole consumer only removes that consumer's edge to a runtime-only chunk — no new edges, no reordering.
-- **ESM output only.** Under CJS output, `compute_cross_chunk_links` later gives every ESM-exports entry chunk — including zero-module facades minted during lowering — a speculative `__toCommonJS` demand that is invisible at fold time, so a chunk with no visible demand could be handed a brand-new require edge into a user chunk. Other formats keep the standalone or evicted layout.
-- **No bits union.** The full cascade unions the runtime chunk's bits into the host so bits stay an exact reachability record. Here the runtime chunk's bits are the synthetic all-live union above; folding them in would widen the host's bits, which is user-visible through bits-derived chunk names. The sole-consumer host keeps its own bits.
-
-**Regression coverage:** `crates/rolldown/tests/rolldown/issues/9463/` and `issues/9463_plain_group/` — the runtime folds into the sole consumer `common~a~b~shared` instead of shipping as a helper-only chunk, in both config cells; `issues/10265/` and `optimization/chunk_merging/dynamic_entry_merged_in_user_defined_entry/` — the only demand is order-introduced (synthetic `init_*` wrappers), and the runtime folds into the chunk hosting them, while the latter's cjs cells pin the ESM-only gate by keeping the standalone `rolldown-runtime.js`; the `function/experimental/strict_execution_order/` snapshots pin the folded layouts under wrap-all and on-demand wrapping (`top_level_await_syntax` pins the TLA sole-consumer case).
-
-### Unused-Runtime Sweep (`sweep_unused_runtime_module`)
-
-Tree-shaking includes runtime helpers at link time, before chunks exist, and some of its reasons are pessimistic: a star re-export chain ending at an external module registers `__reExport`/`__exportAll` demand that only chunking can invalidate. `find_entry_level_external_module` performs that walk-back (flattening the chain to chunk-level `export * from '<external>'` statements and re-propagating `has_dynamic_exports` to `false` through transitive star importers), and `finalized_module_namespace_ref_usage` then drops the namespace objects that only served the chain. The finalizer consequently emits no helper call — but the runtime module was already included and placed, so it used to ship as a dead chunk plus bare imports (#9374, #7233).
-
-`sweep_unused_runtime_module` (in `runtime_module_sweep.rs`) closes that gap. In `finalize_chunk_plan()`, it runs after order lowering and namespace/external finalization, before deriving entry-signature exports and final cross-chunk links. It re-derives runtime demand from the same post-walk-back facts the module finalizer renders from, through four source-module channels: per-module `depended_runtime_helper` flags (with `ReExport` discounted unless some included `export * from './normal'` importee still has `has_dynamic_exports` — the exact condition the finalizer checks; CommonJS importees always keep it), the namespace-object channel gated on `namespace_included` (sharing `LinkingMetadata::ns_star_external_re_export_emitted` with the finalizer so the prediction cannot diverge from the emission), runtime-owned symbols referenced by included statements, and `referenced_symbols_by_entry_point_chunk`. If `OrderWrapState` reports synthetic runtime-helper demand, the sweep is skipped conservatively because that demand does not live in link-stage metadata. `experimentalInlineCommonChunks` registers its `__share`/`__share_require`/`__share_export` demand through that same channel, but only after the sweep, inside the cross-chunk link step (`select_inline_common_chunks`); it never needs to keep the runtime alive itself, because every candidate's members already demand `__esmMin`/`__esm` (order-wrapped) or `__commonJS` (CommonJS), so the runtime survives the sweep whenever a record can be selected.
-
-The sweep is **all-or-nothing and conservative**: any remaining demand — or any bail-out condition (tree-shaking disabled, runtime not included, runtime has side effects as in dev/HMR mode) — leaves everything exactly as tree-shaking decided. Only a runtime with zero demand is un-included: its statement/module inclusion is cleared, its symbols are purged from `used_symbol_refs` via `remove_owned_by`, it is removed from its chunk, and a now-empty chunk is tombstoned with `PostChunkOptimizationOperation::Removed`.
-
-**Liveness invariants the sweep relies on.** Stale references to runtime symbols survive the sweep by design — namespace statements that will not render keep their `__exportAll` reference, chunk-level `depended_runtime_helper` bits keep their flags, and `compute_cross_chunk_links` speculatively inserts `__toCommonJS` for CJS-format ESM entries. All of these are filtered against `used_symbol_refs` before becoming imports or exports, so purging the runtime's symbols is what actually severs every cross-chunk edge. Every bare-import emitter tolerates `module_to_chunk == None`, and naming/rendering already skip tombstoned chunks (the same lifecycle the chunk optimizer's removals use). If the sweep removes the runtime after the provisional execution-order assignment, `finalize_chunk_plan()` re-derives chunk `exec_order`s and then rebuilds the live sorted-chunk list. Re-sorting the existing values is not enough when the runtime merely co-hosted a still-live `Common` chunk: a `Common` chunk keys on `modules[0]`, which the runtime occupied, so that chunk would otherwise keep an `exec_order` derived from the module it just lost and sort ahead of chunks it should follow. An entry chunk keys on its entry module instead, so losing the runtime does not move it. The sweep remains the **last writer** of `used_symbol_refs`: `generate()` seals the builder immediately after `finalize_chunk_plan()` returns.
-
-**Regression coverage:** `crates/rolldown/tests/rolldown/issues/9374/` (snapshot-asserted: no runtime chunk for a multi-entry star-to-external chain, `minify: false` so vestigial namespace declarations would also surface); issues `6992`, `7115`, `7233`, `7233_chain` cover the same class under `preserveModules` for both ESM and CJS output; `crates/rolldown/tests/rolldown/topics/runtime/sweep_shared_chunk_exec_order/` pins the exec-order re-derivation above (the order of the two imports emitted at the top of `entry_a.js` in `artifacts.snap` is the whole assertion — swapping them means the regression is back).
-
 **Why this shape**
 
-Runtime used to be placed by normal bitset grouping and later peeled out when a cycle was detected. That made every optimizer responsible for understanding runtime-host edge cases. Standalone-first flips the default: the initial layout is always cycle-safe, and runtime-specific processing is confined to three final passes — the optional merge into a proven host after chunk optimization, the re-placement and sole-consumer fold, then the unused-runtime sweep once the entry-level-external walk-back has settled what the finalizer will actually emit.
+Runtime used to be placed by normal bitset grouping and later peeled out when a cycle was detected. That made every optimizer responsible for understanding runtime-host edge cases. Standalone-first flips the default: the initial layout is always cycle-safe, and the only runtime-specific optimization is a final, optional merge into a proven dominator.
 
 **Regression coverage**
 
@@ -396,11 +251,13 @@ Since `lib.js` appears before `main.js` in the bundle, `require_leaflet_toolbar(
 
 ```js
 // ❌ Wrong output: require_leaflet_toolbar() runs before require_leaflet()
-// lib.js
+//#region lib.js
 require_leaflet_toolbar(); // 💥 global.L is undefined here
-// main.js
+//#endregion
+//#region main.js
 var import_leaflet = require_leaflet(); // too late — toolbar already failed
 assert.equal(bar, 'foo');
+//#endregion
 ```
 
 Note: if `main.js` imported `leaflet-toolbar.js` directly (without `lib.js` as intermediary), both init calls would land in the same module region and rolldown would order them correctly. The problem only arises when init calls are split across different unwrapped modules.
@@ -409,16 +266,18 @@ Note: if `main.js` imported `leaflet-toolbar.js` directly (without `lib.js` as i
 
 ```js
 // ✅ Correct output: require_leaflet() runs before require_leaflet_toolbar()
-// lib.js
+//#region lib.js
 require_leaflet(); // ← transferred here by insert_map
 require_leaflet_toolbar();
-// main.js
+//#endregion
+//#region main.js
 assert.equal(bar, 'foo'); // require_leaflet() removed from here by remove_map
+//#endregion
 ```
 
 The function builds `insert_map` and `remove_map` on each chunk to move init calls from their default position to the correct one. `remove_map` suppresses the init call at the original location; `insert_map` prepends it before the module that needs it.
 
-When `strict_execution_order` **is** enabled, the order plan wraps the eager carriers that need scheduling and closes over their dependent readers/importers. The plan owns lazy-init ordering for that output, so this pass is skipped entirely.
+When `strict_execution_order` **is** enabled, all modules are already wrapped and execute in the correct order, so this pass is skipped entirely.
 
 ### Algorithm
 
@@ -431,11 +290,9 @@ The function iterates over every chunk in the `ChunkGraph` and performs six step
 **Step 3 — Classify modules via DFS (`js_import_order`).** Runs iterative DFS from roots, following only `ImportKind::Import` edges (skipping `require()` and `import()` since those are inherently lazy). Each visited module is classified:
 
 - `WrapKind::Cjs` or `WrapKind::Esm` → pushed onto a `wrapped_modules` list
-- `WrapKind::None` → records how many wrapped modules appeared before it in DFS order (its "wrapped dependency count"), except for a JSON module. An unwrapped JSON module declares only data, so it needs no other module to initialize first and is never a target. A wrapped JSON module stays in `wrapped_modules`, because its data exists only after its wrapper runs.
+- `WrapKind::None` → records how many wrapped modules appeared before it in DFS order (its "wrapped dependency count")
 
-Uses the immutable link-stage `wrap_kind()` from `LinkingMetadata`.
-
-`generate_lazy_export` removes the wrapper of every ESM JSON module, even when a wrapped module imports it. Thus, an ESM JSON module is the only unwrapped module that a wrapped module can import. The wrapped modules before such a module in DFS order can include its importers, which must run after it. Without the skip, the pass can move an init call in front of the JSON module. Through an import cycle, that call can reach an importer's wrapper before the chunk assigns it. The bundle then throws `init_* is not a function` (#10999, `crates/rolldown/tests/rolldown/issues/10999*`).
+Uses `original_wrap_kind()` from `LinkingMetadata`, which preserves the pre-`strictExecutionOrder` wrap kind.
 
 **Step 4 — Determine modules to check.** Collects all unwrapped modules that have wrapped dependencies, plus the wrapped modules they depend on (up to the maximum dependency count). If this set is empty, no reordering is needed and the function returns early.
 

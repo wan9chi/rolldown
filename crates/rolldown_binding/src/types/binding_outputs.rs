@@ -1,5 +1,5 @@
 use std::{
-  collections::{BTreeMap, HashMap, HashSet},
+  collections::{HashMap, HashSet},
   sync::Arc,
 };
 
@@ -17,15 +17,10 @@ use rustc_hash::FxBuildHasher;
 pub struct BindingOutputs {
   pub chunks: Vec<BindingOutputChunk>,
   pub assets: Vec<BindingOutputAsset>,
-  #[napi(ts_type = "Record<string, string | false>")]
-  pub mangle_cache: Option<BTreeMap<String, Either<String, bool>>>,
 }
 
-impl BindingOutputs {
-  fn new(
-    outputs: Vec<rolldown_common::Output>,
-    mangle_cache: Option<BTreeMap<String, Option<String>>>,
-  ) -> Self {
+impl From<Vec<rolldown_common::Output>> for BindingOutputs {
+  fn from(outputs: Vec<rolldown_common::Output>) -> Self {
     let mut chunks = vec![];
     let mut assets = vec![];
     outputs.into_iter().for_each(|o| match o {
@@ -36,28 +31,7 @@ impl BindingOutputs {
         assets.push(BindingOutputAsset::new(asset));
       }
     });
-    let mangle_cache = mangle_cache.map(|cache| {
-      cache
-        .into_iter()
-        .map(|(original, target)| {
-          let target = target.map_or(Either::B(false), Either::A);
-          (original, target)
-        })
-        .collect()
-    });
-    Self { chunks, assets, mangle_cache }
-  }
-}
-
-impl From<Vec<rolldown_common::Output>> for BindingOutputs {
-  fn from(outputs: Vec<rolldown_common::Output>) -> Self {
-    Self::new(outputs, None)
-  }
-}
-
-impl From<rolldown::BundleOutput> for BindingOutputs {
-  fn from(output: rolldown::BundleOutput) -> Self {
-    Self::new(output.assets, output.mangle_cache)
+    Self { chunks, assets }
   }
 }
 
@@ -131,13 +105,12 @@ pub fn to_binding_error(diagnostic: &BuildDiagnostic, cwd: std::path::PathBuf) -
         clippy::cast_possible_truncation,
         reason = "line/column/position values are unlikely to exceed u32::MAX in practical use"
       )]
-      let (loc, pos) = if let Some((_file, line, column, position)) = diag.get_primary_location() {
+      let (loc, pos) = if let Some((file, line, column, position)) = diag.get_primary_location() {
         (
           Some(super::binding_log::BindingLogLocation {
             line: line as u32,
             column: column as u32,
-            // Use error.id() for the file path since the diagnostic may only store the filename.
-            file: error.id(),
+            file: error.id().or(Some(file)),
           }),
           Some(position as u32),
         )
@@ -149,6 +122,8 @@ pub fn to_binding_error(diagnostic: &BuildDiagnostic, cwd: std::path::PathBuf) -
         kind: error.kind().to_string(),
         message: diag.to_color_string(),
         id: error.id(),
+        plugin: error.plugin(),
+        frame: diag.frame(),
         exporter: error.exporter(),
         loc,
         pos,

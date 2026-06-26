@@ -64,36 +64,21 @@ impl From<&ConstantValue> for constant_evaluation::ConstantValue<'_> {
 }
 
 impl ConstantValue {
-  /// Returns the JavaScript type of the value, for oxc's `value_type_for_reference_id` hook.
-  pub fn value_type(&self) -> oxc_ecmascript::ValueType {
-    match self {
-      ConstantValue::Number(_) => oxc_ecmascript::ValueType::Number,
-      ConstantValue::BigInt(_) => oxc_ecmascript::ValueType::BigInt,
-      ConstantValue::String(_) => oxc_ecmascript::ValueType::String,
-      ConstantValue::Boolean(_) => oxc_ecmascript::ValueType::Boolean,
-      ConstantValue::Undefined => oxc_ecmascript::ValueType::Undefined,
-      ConstantValue::Null => oxc_ecmascript::ValueType::Null,
-    }
-  }
-
-  pub fn to_expression<'ast>(&self, ast: &oxc::ast::builder::AstBuilder<'ast>) -> Expression<'ast> {
+  pub fn to_expression<'ast>(&self, ast: oxc::ast::AstBuilder<'ast>) -> Expression<'ast> {
     match self {
       ConstantValue::Number(n) => {
-        Expression::new_numeric_literal(SPAN, *n, None, oxc::ast::ast::NumberBase::Decimal, ast)
+        ast.expression_numeric_literal(SPAN, *n, None, oxc::ast::ast::NumberBase::Decimal)
       }
-      ConstantValue::BigInt(b) => Expression::new_big_int_literal(
+      ConstantValue::BigInt(b) => ast.expression_big_int_literal(
         SPAN,
-        oxc::ast::ast::Str::from_str_in(&b.to_string(), ast),
+        ast.str(&b.to_string()),
         None,
         oxc::ast::ast::BigintBase::Decimal,
-        ast,
       ),
-      ConstantValue::String(s) => {
-        Expression::new_string_literal(SPAN, oxc::ast::ast::Str::from_str_in(s, ast), None, ast)
-      }
-      ConstantValue::Boolean(b) => Expression::new_boolean_literal(SPAN, *b, ast),
-      ConstantValue::Undefined => Expression::new_void_0(SPAN, ast),
-      ConstantValue::Null => Expression::new_null_literal(SPAN, ast),
+      ConstantValue::String(s) => ast.expression_string_literal(SPAN, ast.str(s), None),
+      ConstantValue::Boolean(b) => ast.expression_boolean_literal(SPAN, *b),
+      ConstantValue::Undefined => ast.void_0(SPAN),
+      ConstantValue::Null => ast.expression_null_literal(SPAN),
     }
   }
 }

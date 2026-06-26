@@ -1,9 +1,7 @@
 use indexmap::map::Entry;
-use oxc::allocator::GetAllocator;
-use oxc::ast::builder::AstBuilder;
 use oxc::{
-  allocator::{ReplaceWith, TakeIn},
-  ast::ast::{self, Expression, Statement},
+  allocator::{Allocator, TakeIn},
+  ast::ast::{self, Expression},
   semantic::{SemanticBuilder, Stats},
   span::SPAN,
 };
@@ -14,7 +12,7 @@ use rolldown_common::{
   SymbolRefDbForModule, TaggedSymbolRef, WrapKind,
 };
 use rolldown_ecmascript::EcmaAst;
-use rolldown_ecmascript_utils::{ExpressionFactoryExt as _, StatementFactoryExt as _};
+use rolldown_ecmascript_utils::AstFactory;
 use rolldown_utils::ecmascript::legitimize_json_local_binding_name;
 #[cfg(not(target_family = "wasm"))]
 use rolldown_utils::rayon::IndexedParallelIterator;
@@ -22,7 +20,6 @@ use rolldown_utils::{
   indexmap::FxIndexMap,
   rayon::{IntoParallelRefMutIterator, ParallelIterator},
 };
-use smallvec::smallvec;
 
 use super::LinkStage;
 
@@ -61,7 +58,7 @@ impl LinkStage<'_> {
         // generate `module.exports = expr`
         if module.exports_kind == ExportsKind::CommonJs {
           // since the wrap arguments are generate on demand, we need to insert the module ref usage here.
-          stmt_infos.infos[FIRST_TOP_LEVEL_STMT_IDX].eval_flags = true.into();
+          stmt_infos.infos[FIRST_TOP_LEVEL_STMT_IDX].side_effect = true.into();
           module.ecma_view.ast_usage.insert(EcmaModuleAstUsage::ModuleRef);
         }
       });
@@ -74,7 +71,6 @@ impl LinkStage<'_> {
       }
       // ExportsKind == Esm && ModuleType == Json
       if is_json {
-        unwrap_json_module(self, module_idx);
         if json_object_expr_to_esm(self, module_idx) {
           continue;
         }
@@ -109,25 +105,30 @@ enum LazyExportWrap {
 /// and replaces the statement with either `module.exports = expr` or `export default expr`.
 fn replace_first_expr_stmt(ecma_ast: &mut EcmaAst, kind: LazyExportWrap) {
   ecma_ast.program.with_mut(|fields| {
-    let ast_builder = AstBuilder::new(fields.allocator);
+    let ast_factory = AstFactory::new(fields.allocator);
     let Some(stmt) = fields.program.body.first_mut() else { unreachable!() };
-    stmt.replace_with(|old| {
-      let ast::Statement::ExpressionStatement(expr_stmt) = old else { unreachable!() };
-      let expr = expr_stmt.unbox().expression;
-      match kind {
-        LazyExportWrap::CjsExport => Statement::new_module_exports_stmt(expr, &ast_builder),
-        LazyExportWrap::EsmDefault => Statement::new_export_default_stmt(expr, &ast_builder),
-      }
-    });
+    let expr = match stmt {
+      ast::Statement::ExpressionStatement(stmt) => stmt.expression.take_in(ast_factory.allocator),
+      _ => unreachable!(),
+    };
+    *stmt = match kind {
+      LazyExportWrap::CjsExport => ast_factory.make_module_exports_stmt(expr),
+      LazyExportWrap::EsmDefault => ast_factory.make_export_default_stmt(expr),
+    };
   });
 }
 
-/// Returns the owned expression with any wrapping `(...)` parentheses removed.
-fn into_without_parentheses(mut expr: Expression<'_>) -> Expression<'_> {
-  while let Expression::ParenthesizedExpression(paren_expr) = expr {
-    expr = paren_expr.unbox().expression;
+/// Takes `expr` (leaving a dummy in its place) and returns the owned inner
+/// expression with any wrapping `(...)` parentheses removed.
+fn take_without_parentheses<'ast>(
+  expr: &mut Expression<'ast>,
+  allocator: &'ast Allocator,
+) -> Expression<'ast> {
+  let mut inner_expr = expr.take_in(allocator);
+  while let Expression::ParenthesizedExpression(mut paren_expr) = inner_expr {
+    inner_expr = paren_expr.expression.take_in(allocator);
   }
-  expr
+  inner_expr
 }
 
 fn update_module_default_export_info(
@@ -140,7 +141,7 @@ fn update_module_default_export_info(
     LocalExport { span: SPAN, referenced: default_symbol_ref, came_from_commonjs: false },
   );
   stmt_infos
-    .declare_symbol_for_stmt(FIRST_TOP_LEVEL_STMT_IDX, TaggedSymbolRef::normal(default_symbol_ref));
+    .declare_symbol_for_stmt(FIRST_TOP_LEVEL_STMT_IDX, TaggedSymbolRef::Normal(default_symbol_ref));
 }
 
 /// return true if the json is a ObjectExpression
@@ -156,25 +157,25 @@ fn json_object_expr_to_esm(link_staged: &mut LinkStage, module_idx: ModuleIdx) -
     FxIndexMap::default();
   let transformed = ecma_ast.program.with_mut(|fields| {
     let mut index_map = FxIndexMap::default();
-    let ast_builder = AstBuilder::new(fields.allocator);
+    let ast_factory = AstFactory::new(fields.allocator);
     let program = fields.program;
-    let Some(ast::Statement::ExpressionStatement(stmt)) = program.body.first() else {
-      unreachable!()
+    let Some(stmts) = program.body.first_mut() else { unreachable!() };
+    let expr = match stmts {
+      ast::Statement::ExpressionStatement(stmt) => &mut stmt.expression,
+      _ => {
+        unreachable!()
+      }
     };
-    if !matches!(stmt.expression.without_parentheses(), Expression::ObjectExpression(_)) {
+    if !matches!(expr.without_parentheses(), Expression::ObjectExpression(_)) {
       return false;
     }
-    // Take the single-statement body by value; this leaves `program.body` empty.
-    let Some(ast::Statement::ExpressionStatement(stmt)) =
-      program.body.take_in(&ast_builder.allocator()).into_iter().next()
-    else {
-      unreachable!();
-    };
     let Expression::ObjectExpression(mut obj_expr) =
-      into_without_parentheses(stmt.unbox().expression)
+      take_without_parentheses(expr, ast_factory.allocator)
     else {
       unreachable!();
     };
+    // clean program body, since we already take it and left a dummy expr
+    program.body.clear();
 
     // convert {"a": "b", "c": "d"} to
     // {"a": b, "c": d}
@@ -183,11 +184,6 @@ fn json_object_expr_to_esm(link_staged: &mut LinkStage, module_idx: ModuleIdx) -
       match property {
         ast::ObjectPropertyKind::ObjectProperty(property) => {
           let key = property.key.static_name().expect("should be static name");
-          // Only a `transform_ast` hook can add a key with a lone surrogate. An export name can't
-          // contain one, so such a key stays only on the default export.
-          let Some(key) = key.into_cow_str() else {
-            continue;
-          };
           if key.is_empty() {
             continue;
           }
@@ -201,17 +197,15 @@ fn json_object_expr_to_esm(link_staged: &mut LinkStage, module_idx: ModuleIdx) -
 
           let value = std::mem::replace(
             &mut property.value,
-            Expression::new_id_ref_expr(SPAN, legitimized_ident.as_str(), &ast_builder),
+            ast_factory.make_id_ref_expr(SPAN, legitimized_ident.as_str()),
           );
           // TODO(shulaoda): Waiting for oxc transform to support the ES feature `ShorthandProperties`.
           if key == "__proto__" {
             property.computed = true;
           } else if is_legal_ident {
             property.shorthand = is_legal_ident;
-            property.key = ast::PropertyKey::new_static_identifier(
-              SPAN,
-              oxc::ast::ast::Str::from_str_in(legitimized_ident.as_ref(), &ast_builder),
-              &ast_builder,
+            property.key = ast::PropertyKey::StaticIdentifier(
+              ast_factory.alloc_identifier_name(SPAN, ast_factory.str(legitimized_ident.as_ref())),
             );
           }
           match index_map.entry(legitimized_ident) {
@@ -230,17 +224,15 @@ fn json_object_expr_to_esm(link_staged: &mut LinkStage, module_idx: ModuleIdx) -
     let stmts = index_map
       .into_iter()
       // declaration
-      .map(|(local, v)| Statement::new_var_decl(local.as_str(), v, &ast_builder))
+      .map(|(local, v)| ast_factory.make_var_decl(local.as_str(), v))
       // export default json module
-      .chain(std::iter::once(Statement::new_export_default_stmt(
-        Expression::ObjectExpression(obj_expr),
-        &ast_builder,
-      )))
+      .chain(std::iter::once(
+        ast_factory.make_export_default_stmt(Expression::ObjectExpression(obj_expr)),
+      ))
       // export all declaration
-      .chain(std::iter::once(Statement::new_export_named_stmt(
-        declaration_binding_names.iter(),
-        &ast_builder,
-      )));
+      .chain(std::iter::once(
+        ast_factory.make_export_named_stmt(None, declaration_binding_names.iter()),
+      ));
     program.body.extend(stmts);
     true
   });
@@ -290,7 +282,7 @@ fn json_object_expr_to_esm(link_staged: &mut LinkStage, module_idx: ModuleIdx) -
     let symbol_ref: SymbolRef = (module_idx, symbol_id).into();
     all_declared_symbols.push(SymbolOrMemberExprRef::from(symbol_ref));
     let stmt_info =
-      StmtInfo::default().with_declared_symbols(smallvec![TaggedSymbolRef::normal(symbol_ref)]);
+      StmtInfo::default().with_declared_symbols(vec![TaggedSymbolRef::Normal(symbol_ref)]);
     stmt_infos.add_stmt_info(stmt_info);
     module.named_exports.insert(
       exported.clone(),
@@ -299,7 +291,7 @@ fn json_object_expr_to_esm(link_staged: &mut LinkStage, module_idx: ModuleIdx) -
   }
   // declare default export statement
   let stmt_info = StmtInfo::default()
-    .with_declared_symbols(smallvec![TaggedSymbolRef::normal(default_export_ref)])
+    .with_declared_symbols(vec![TaggedSymbolRef::Normal(default_export_ref)])
     .with_referenced_symbols(all_declared_symbols.clone());
 
   stmt_infos.add_stmt_info(stmt_info);
@@ -312,23 +304,14 @@ fn json_object_expr_to_esm(link_staged: &mut LinkStage, module_idx: ModuleIdx) -
   module.exports_kind = ExportsKind::Esm;
   stmt_infos.replace_namespace_stmt_info(
     StmtInfo::default()
-      .with_declared_symbols(smallvec![TaggedSymbolRef::normal(namespace_object_ref)])
+      .with_declared_symbols(vec![TaggedSymbolRef::Normal(namespace_object_ref)])
       .with_referenced_symbols(all_declared_symbols),
   );
+  // for a es json module it did not needs to be wrapped anyway.
+  link_staged.metas[module_idx].wrapper_stmt_info = None;
+  link_staged.metas[module_idx].wrapper_ref = None;
+  link_staged.metas[module_idx].sync_wrap_kind(WrapKind::None);
 
   link_staged.symbols.store_local_db(module_idx, symbol_ref_db);
   true
-}
-
-/// Removes the wrapper that `wrap_modules` created for an ESM JSON module, for any JSON root. A
-/// JSON module declares only data, so no code can see a difference if it runs at load time. Call
-/// this function before the JSON transform, which can replace the statement infos.
-fn unwrap_json_module(link_staged: &mut LinkStage, module_idx: ModuleIdx) {
-  let meta = &mut link_staged.metas[module_idx];
-  if let Some(wrapper_stmt_idx) = meta.wrapper_stmt_info.take() {
-    // The wrapper statement has no AST node, so an empty statement info removes it.
-    *link_staged.stmt_infos[module_idx].get_mut(wrapper_stmt_idx) = StmtInfo::default();
-  }
-  meta.wrapper_ref = None;
-  meta.set_wrap_kind(WrapKind::None);
 }

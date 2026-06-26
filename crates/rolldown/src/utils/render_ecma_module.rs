@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use rolldown_common::{
-  AttachDebugInfo, ModuleRenderOutput, NormalModule, NormalizedBundlerOptions,
-  SourcemapChainElement,
+  ModuleRenderOutput, NormalModule, NormalizedBundlerOptions, SourcemapChainElement,
 };
 use rolldown_error::BuildDiagnostic;
 use rolldown_sourcemap::{
@@ -24,12 +23,8 @@ pub fn render_ecma_module(
     return RenderEcmaModuleOutput { sources: None, warnings: vec![] };
   }
   let mut sources: Vec<Box<dyn rolldown_sourcemap::Source + Send + Sync>> = Vec::with_capacity(6);
-  // Mark only where a module starts, like esbuild and bun.
-  if matches!(
-    options.experimental.attach_debug_info,
-    Some(AttachDebugInfo::Simple | AttachDebugInfo::Full)
-  ) {
-    sources.push(Box::new(concat_string!("// ", module.debug_id)));
+  if options.experimental.is_attach_debug_info_enabled() {
+    sources.push(Box::new(concat_string!("//#region ", module.debug_id)));
   }
 
   let enable_sourcemap = options.sourcemap.is_some() && !module.is_virtual();
@@ -57,6 +52,10 @@ pub fn render_ecma_module(
     sources.push(Box::new(render_output.code));
   }
 
+  if options.experimental.is_attach_debug_info_enabled() {
+    sources.push(Box::new("//#endregion"));
+  }
+
   RenderEcmaModuleOutput { sources: Some(Arc::from(sources.into_boxed_slice())), warnings }
 }
 
@@ -66,7 +65,7 @@ pub fn render_ecma_module(
 ///
 /// A `SOURCEMAP_BROKEN` warning is pushed onto `warnings` for every plugin that
 /// omitted its sourcemap, since that breaks the mapping chain for `module_id`.
-pub fn collapse_module_sourcemap(
+fn collapse_module_sourcemap(
   sourcemap_chain: &[SourcemapChainElement],
   codegen_map: Option<SourceMap>,
   module_id: &str,

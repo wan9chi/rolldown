@@ -26,16 +26,19 @@ source: crates/rolldown_testing/src/integration_test.rs
 	// HIDDEN [\0rolldown/runtime.js]
 	process = __toESM(process);
 	node_assert_strict = __toESM(node_assert_strict);
-	// shims.js
+	//#region shims.js
 	var init_shims = __esmMin((() => {}));
-	// cjs.js
+	//#endregion
+	//#region cjs.js
 	var require_cjs = /* @__PURE__ */ __commonJSMin(((exports) => {
 		init_shims();
 		exports.foo = process.default;
 	}));
-	// entry.js
+	//#endregion
+	//#region entry.js
 	init_shims();
 	node_assert_strict.default.deepEqual(require_cjs(), { foo: process.default });
+	//#endregion
 })(process, node_assert_strict);
 
 ```

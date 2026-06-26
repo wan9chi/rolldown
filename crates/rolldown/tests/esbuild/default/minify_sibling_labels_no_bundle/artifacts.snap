@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 foo: bar: {
 	if (x) break bar;
 	break foo;
@@ -19,5 +19,6 @@ foo: bar: {
 	if (x) break bar;
 	break foo;
 }
+//#endregion
 
 ```

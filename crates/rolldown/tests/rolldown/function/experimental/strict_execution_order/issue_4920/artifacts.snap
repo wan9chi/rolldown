@@ -7,18 +7,25 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import nodeAssert from "node:assert";
-// dep.js
+// HIDDEN [\0rolldown/runtime.js]
+//#region dep.js
 function foo() {
 	globalThis.value = 1;
 }
-var dep_default = /*#__PURE__*/ foo();
-// main.js
-nodeAssert.strictEqual(globalThis.value, 1);
+var dep_default;
+var init_dep = __esmMin((() => {
+	dep_default = /*#__PURE__*/ foo();
+}));
+//#endregion
+__esmMin((() => {
+	init_dep();
+	nodeAssert.strictEqual(globalThis.value, 1);
+}))();
 export { dep_default as dep };
 
 ```
 
-# Variant: wrap-all: [on_demand_wrapping: false]
+# Variant: [on_demand_wrapping: true]
 
 ## Assets
 
@@ -27,24 +34,19 @@ export { dep_default as dep };
 ```js
 import nodeAssert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// dep.js
+//#region dep.js
 function foo() {
 	globalThis.value = 1;
 }
 var dep_default;
-function init_dep() {
-	return (init_dep = __esmMin((() => {
-		dep_default = /*#__PURE__*/ foo();
-	})))();
-}
-// main.js
-function init_main() {
-	return (init_main = __esmMin((() => {
-		init_dep();
-		nodeAssert.strictEqual(globalThis.value, 1);
-	})))();
-}
-init_main();
+var init_dep = __esmMin((() => {
+	dep_default = /*#__PURE__*/ foo();
+}));
+//#endregion
+__esmMin((() => {
+	init_dep();
+	nodeAssert.strictEqual(globalThis.value, 1);
+}))();
 export { dep_default as dep };
 
 ```

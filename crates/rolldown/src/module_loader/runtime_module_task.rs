@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use arcstr::ArcStr;
-use oxc::ast_visit::VisitJsMut;
+use oxc::ast_visit::VisitMut;
 use oxc::span::SourceType;
 use oxc_index::IndexVec;
 use rolldown_common::{
   EcmaView, ExportsKind, FlatOptions, ModuleDefFormat, ModuleIdx, ModuleType, NormalModule,
-  StableModuleId, StmtEvalFlags, side_effects::DeterminedSideEffects,
+  SideEffectDetail, StableModuleId, side_effects::DeterminedSideEffects,
   side_effects::HookSideEffects,
 };
 use rolldown_common::{
@@ -119,7 +119,6 @@ impl<Fs: FileSystem + Clone + 'static> RuntimeModuleTask<Fs> {
       ast_usage,
       symbol_ref_db,
       new_url_references,
-      rolldown_file_url_references,
       dummy_record_set,
       ecma_view_meta,
       ..
@@ -131,7 +130,7 @@ impl<Fs: FileSystem + Clone + 'static> RuntimeModuleTask<Fs> {
       Some(HookSideEffects::True) | None => {
         let has_side_effects = stmt_infos
           .iter()
-          .any(|stmt_info| stmt_info.eval_flags.contains(StmtEvalFlags::UnknownSideEffect));
+          .any(|stmt_info| stmt_info.side_effect.contains(SideEffectDetail::Unknown));
         DeterminedSideEffects::Analyzed(has_side_effects)
       }
     };
@@ -170,7 +169,6 @@ impl<Fs: FileSystem + Clone + 'static> RuntimeModuleTask<Fs> {
         importers: FxIndexSet::default(),
         importers_idx: FxIndexSet::default(),
         dynamic_importers: FxIndexSet::default(),
-        dynamic_importers_idx: FxIndexSet::default(),
         imported_ids: FxIndexSet::default(),
         dynamically_imported_ids: FxIndexSet::default(),
         side_effects: determined_side_effects,
@@ -187,9 +185,7 @@ impl<Fs: FileSystem + Clone + 'static> RuntimeModuleTask<Fs> {
         meta: ecma_view_meta,
         mutations: vec![],
         new_url_references,
-        rolldown_file_url_references,
         this_expr_replace_map: FxHashMap::default(),
-        cjs_this_ref: None,
         hmr_info: scan_result.hmr_info,
         hmr_hot_ref: None,
         directive_range: vec![],
@@ -199,7 +195,6 @@ impl<Fs: FileSystem + Clone + 'static> RuntimeModuleTask<Fs> {
         import_attribute_map: FxHashMap::default(),
         json_module_none_self_reference_included_symbol: None,
         cjs_reexport_import_record_ids: Vec::new(),
-        dynamic_import_called_names: FxHashMap::default(),
       },
       // TODO(hyf0/hmr): We might need to find a better way to handle this.
       originative_resolved_id: resolved_id,

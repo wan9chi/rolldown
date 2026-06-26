@@ -10,8 +10,9 @@ Object.defineProperties(exports, {
 	__esModule: { value: true },
 	[Symbol.toStringTag]: { value: "Module" }
 });
-// foo.js
+//#region foo.js
 function foo() {}
+//#endregion
 exports.default = foo;
 
 ```
@@ -23,8 +24,9 @@ Object.defineProperties(exports, {
 	__esModule: { value: true },
 	[Symbol.toStringTag]: { value: "Module" }
 });
-// main.js
+//#region main.js
 var Main = class {};
+//#endregion
 exports.default = Main;
 
 ```

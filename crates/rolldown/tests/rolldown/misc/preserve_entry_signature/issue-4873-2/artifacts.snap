@@ -6,9 +6,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## bar.js
 
 ```js
-// bar.js
+//#region bar.js
 console.log("bar1");
 const msg = "Bar view";
+//#endregion
 export { msg };
 
 ```
@@ -16,9 +17,10 @@ export { msg };
 ## foo.js
 
 ```js
-// foo.js
+//#region foo.js
 console.log("foo1");
 const msg = "Foo view";
+//#endregion
 export { msg };
 
 ```
@@ -26,7 +28,7 @@ export { msg };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 function dy(path) {
 	switch (path) {
 		case "./foo.js": return import("./foo.js");
@@ -38,5 +40,6 @@ console.log(msg);
 import(`https://localhost`).catch((mod) => {
 	console.log(mod);
 });
+//#endregion
 
 ```

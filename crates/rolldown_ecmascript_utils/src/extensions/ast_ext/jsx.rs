@@ -1,8 +1,8 @@
 use oxc::allocator::Box;
+use oxc::ast::AstBuilder;
 use oxc::ast::ast::{
-  Expression, JSXIdentifier, JSXMemberExpression, JSXMemberExpressionObject, StaticMemberExpression,
+  Expression, JSXMemberExpression, JSXMemberExpressionObject, StaticMemberExpression,
 };
-use oxc::ast::builder::AstBuilder;
 
 pub trait JsxExt<'ast> {
   type AstKind;
@@ -48,7 +48,7 @@ impl<'ast> JsxExt<'ast> for JSXMemberExpressionObject<'ast> {
       Expression::StaticMemberExpression(member_expr) => {
         Some(JSXMemberExpressionObject::MemberExpression(Box::new_in(
           JSXMemberExpression::from_ast(member_expr.unbox(), allocator)?,
-          &allocator,
+          allocator,
         )))
       }
       Expression::ThisExpression(expr) => Some(JSXMemberExpressionObject::ThisExpression(expr)),
@@ -68,11 +68,10 @@ impl<'ast> JsxExt<'ast> for JSXMemberExpression<'ast> {
     Self: Sized,
   {
     let builder = AstBuilder::new(allocator);
-    Some(JSXMemberExpression::new(
+    Some(builder.jsx_member_expression(
       member_expr.span,
       JSXMemberExpressionObject::from_ast(member_expr.object, allocator)?,
-      JSXIdentifier::new(member_expr.span, member_expr.property.name, &builder),
-      &builder,
+      builder.jsx_identifier(member_expr.span, member_expr.property.name),
     ))
   }
 }

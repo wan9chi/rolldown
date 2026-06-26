@@ -7,11 +7,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// foo.js
+//#region foo.js
 function applyExtends(config) {
 	__require(config.extends);
 }
-// main.mjs
+//#endregion
+//#region main.mjs
 console.log(`a: `, applyExtends);
+//#endregion
 
 ```

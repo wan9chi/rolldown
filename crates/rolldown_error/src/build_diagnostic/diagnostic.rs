@@ -26,6 +26,12 @@ impl From<ArcStr> for DiagnosticFileId {
 #[derive(Debug, Clone)]
 pub struct RolldownLabelSpan(DiagnosticFileId, Range<usize>);
 
+impl From<(DiagnosticFileId, Range<usize>)> for RolldownLabelSpan {
+  fn from((id, range): (DiagnosticFileId, Range<usize>)) -> Self {
+    Self(id, range)
+  }
+}
+
 impl ariadne::Span for RolldownLabelSpan {
   type SourceId = DiagnosticFileId;
 
@@ -122,13 +128,14 @@ impl Diagnostic {
     for label in self.labels.clone() {
       if is_context_too_long(&label, &self.files) {
         let span = label.span();
-        let _ = write!(
+        write!(
           message,
           "\n - {} in {} at {:?}",
           label.display_info().msg().unwrap_or_default(),
           span.source(),
           span.start()..span.end()
-        );
+        )
+        .ok();
       } else {
         builder = builder.with_label(label);
       }
@@ -179,19 +186,38 @@ impl Diagnostic {
     self.convert_to_string(true)
   }
 
+  #[must_use]
+  pub fn with_kind(mut self, kind: String) -> Self {
+    self.kind = kind;
+    self
+  }
+
   /// Get the primary location information from the first label if available
   /// Returns (file_path, line, column, utf16_position)
   pub fn get_primary_location(&self) -> Option<(String, usize, usize, usize)> {
     let first_label = self.labels.first()?;
     let span = first_label.span();
+    let start = span.start();
     let source = self.files.get(span.source())?;
 
-    // A start inside a char counts that whole char, and a start past the end counts the file.
-    let prefix = &source[..source.ceil_char_boundary(span.start())];
-    let line_start = prefix.rfind('\n').map_or(0, |i| i + 1);
-    let line = 1 + memchr::memchr_iter(b'\n', &prefix.as_bytes()[..line_start]).count(); // 1-based
-    let column = simd_utf16_len::utf16_len(&prefix[line_start..]); // 0-based
-    let utf16_pos = simd_utf16_len::utf16_len(&prefix[..line_start]) + column;
+    let mut line = 1; // 1-based
+    let mut column = 0; // 0-based
+    let mut utf16_pos = 0;
+    let mut byte_count = 0;
+
+    for ch in source.chars() {
+      if byte_count >= start {
+        break;
+      }
+      if ch == '\n' {
+        line += 1;
+        column = 0;
+      } else {
+        column += ch.len_utf16();
+      }
+      utf16_pos += ch.len_utf16();
+      byte_count += ch.len_utf8();
+    }
 
     let file = span.source().to_string();
     Some((file, line, column, utf16_pos))
@@ -199,6 +225,14 @@ impl Diagnostic {
 
   pub fn kind(&self) -> String {
     self.kind.clone()
+  }
+
+  /// Code frame around the error's first label.
+  pub fn frame(&self) -> Option<String> {
+    let span = self.labels.first()?.span();
+    let source = self.files.get(span.source())?;
+    let frame = render_code_frame(source, span.start());
+    (!frame.is_empty()).then_some(frame)
   }
 
   /// Render many diagnostics at once, sharing per-source work across all of them.
@@ -256,6 +290,67 @@ impl Diagnostic {
   }
 }
 
+const LINE_TRUNCATE_LENGTH: usize = 120;
+const MIN_CHARACTERS_SHOWN_AFTER_LOCATION: usize = 10;
+const ELLIPSIS: &str = "...";
+
+// Only leading tabs are expanded, each to two spaces.
+fn tabs_to_spaces(value: &str) -> String {
+  let leading_tabs = value.bytes().take_while(|&byte| byte == b'\t').count();
+  if leading_tabs == 0 {
+    return value.to_string();
+  }
+  let mut expanded = "  ".repeat(leading_tabs);
+  expanded.push_str(&value[leading_tabs..]);
+  expanded
+}
+
+fn render_code_frame(source: &str, byte_offset: usize) -> String {
+  let offset = byte_offset.min(source.len());
+  let before = source.get(..offset).unwrap_or(source);
+  let line = before.bytes().filter(|&byte| byte == b'\n').count() + 1;
+  let byte_column = offset - before.rfind('\n').map_or(0, |index| index + 1);
+
+  let all: Vec<&str> = source.split('\n').collect();
+  if line > all.len() {
+    return String::new();
+  }
+  let error_line = all[line - 1];
+  let location_width =
+    tabs_to_spaces(error_line.get(..byte_column).unwrap_or(error_line)).chars().count();
+  let max_line_length = (location_width + MIN_CHARACTERS_SHOWN_AFTER_LOCATION + ELLIPSIS.len())
+    .max(LINE_TRUNCATE_LENGTH);
+
+  let frame_start = line.saturating_sub(3);
+  let mut frame_end = (line + 2).min(all.len());
+  let mut lines: Vec<&str> = all[frame_start..frame_end].to_vec();
+  while lines.last().is_some_and(|last| last.trim().is_empty()) {
+    lines.pop();
+    frame_end -= 1;
+  }
+
+  let digits = frame_end.to_string().len();
+  lines
+    .iter()
+    .enumerate()
+    .map(|(index, source_line)| {
+      let line_no = frame_start + index + 1;
+      let mut displayed = tabs_to_spaces(source_line);
+      if displayed.chars().count() > max_line_length {
+        displayed = displayed.chars().take(max_line_length - ELLIPSIS.len()).collect();
+        displayed.push_str(ELLIPSIS);
+      }
+      if line_no == line {
+        let indent = digits + 2 + location_width;
+        format!("{line_no:>digits$}: {displayed}\n{:indent$}^", "")
+      } else {
+        format!("{line_no:>digits$}: {displayed}")
+      }
+    })
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
 /// Primary source location of a diagnostic's first label.
 #[derive(Debug, Clone)]
 pub struct DiagnosticPrimaryLocation {
@@ -281,45 +376,34 @@ impl Display for Diagnostic {
 }
 
 #[cfg(test)]
-mod test_primary_location {
-  use super::{Diagnostic, Severity};
+mod tests {
+  use super::{Severity, render_code_frame};
 
-  /// Char-by-char reference for [`Diagnostic::get_primary_location`]. Returns
-  /// `(line, column, utf16_position)`.
-  fn reference_location(source: &str, start: usize) -> (usize, usize, usize) {
-    let (mut line, mut column, mut utf16_pos, mut byte_count) = (1, 0, 0, 0);
-    for ch in source.chars() {
-      if byte_count >= start {
-        break;
-      }
-      if ch == '\n' {
-        line += 1;
-        column = 0;
-      } else {
-        column += ch.len_utf16();
-      }
-      utf16_pos += ch.len_utf16();
-      byte_count += ch.len_utf8();
-    }
-    (line, column, utf16_pos)
+  #[test]
+  fn code_frame_points_at_offset() {
+    assert_eq!(render_code_frame("a\nbcd\nef", 3), "1: a\n2: bcd\n    ^\n3: ef");
   }
 
   #[test]
-  fn get_primary_location_matches_reference() {
-    for source in ["", "a\nbc\n\ndef", "café\n😀xy\nz", "\n\n日本語\n💣"] {
-      // Every offset, including ones inside a char, plus out-of-range ones.
-      #[expect(clippy::cast_possible_truncation)]
-      for start in 0..=source.len() as u32 + 2 {
-        let mut diagnostic = Diagnostic::new("TEST".into(), String::new(), Severity::Error);
-        let file_id = diagnostic.add_file("test.js", source);
-        diagnostic.add_label(&file_id, start..start, String::new());
-        let (_, line, column, utf16_pos) = diagnostic.get_primary_location().unwrap();
-        assert_eq!(
-          (line, column, utf16_pos),
-          reference_location(source, start as usize),
-          "mismatch at start {start} of {source:?}"
-        );
-      }
-    }
+  fn code_frame_expands_tabs_and_aligns_caret() {
+    assert_eq!(render_code_frame("\tfoo", 1), "1:   foo\n     ^");
+  }
+
+  #[test]
+  fn code_frame_preserves_non_leading_tabs() {
+    assert_eq!(render_code_frame("ab\tcd", 3), "1: ab\tcd\n      ^");
+  }
+
+  #[test]
+  fn code_frame_truncates_long_lines() {
+    let frame = render_code_frame(&"x".repeat(200), 0);
+    let first_line = frame.lines().next().unwrap();
+    assert_eq!(first_line, format!("1: {}...", "x".repeat(117)));
+  }
+
+  #[test]
+  fn frame_returns_none_without_labels() {
+    let diagnostic = super::Diagnostic::new("X".to_string(), "title".to_string(), Severity::Error);
+    assert_eq!(diagnostic.frame(), None);
   }
 }

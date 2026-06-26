@@ -10,15 +10,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import assert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// file.txt
+//#region file.txt
 var require_file = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = "./assets/file-Cc5MjxNb.txt";
 }));
-// main.js
+//#endregion
+//#region main.js
 var import_file = /* @__PURE__ */ __toESM(require_file());
 const requiredAsset = require_file();
 assert.strictEqual(typeof requiredAsset, "string");
 assert.strictEqual(typeof import_file.default, "string");
 assert.strictEqual(import_file.default, requiredAsset);
+//#endregion
 
 ```

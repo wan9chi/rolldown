@@ -7,12 +7,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 const window = {};
-// main.js
+//#region main.js
 window.a = 2;
 assert(window.a, 2);
 function a() {
 	this.b = 3;
 }
 a();
+//#endregion
 
 ```

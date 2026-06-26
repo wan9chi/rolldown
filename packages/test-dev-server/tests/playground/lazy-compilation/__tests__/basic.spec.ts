@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { page, serverUrl, waitForBuildStable } from '~utils';
+import { page, serverUrl } from '~utils';
 
 describe('lazy-compilation: basic', () => {
   test('should load lazy module on demand', async () => {
@@ -14,7 +14,6 @@ describe('lazy-compilation: basic', () => {
     });
 
     await page.goto(serverUrl, { waitUntil: 'domcontentloaded' });
-    await waitForBuildStable();
 
     // 1. The entry ran.
     await expect.poll(() => page.textContent('#basic-status')).toBe('main loaded');

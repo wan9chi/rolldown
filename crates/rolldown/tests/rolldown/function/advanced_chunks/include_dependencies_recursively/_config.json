@@ -1,5 +1,4 @@
 {
-  "configName": "on-demand",
   "config": {
     "strictExecutionOrder": true,
     "codeSplitting": {
@@ -9,15 +8,6 @@
           "name": "vendor"
         }
       ]
-    },
-    "experimental": {
-      "onDemandWrapping": true
     }
-  },
-  "configVariants": [
-    {
-      "_configName": "wrap-all",
-      "onDemandWrapping": false
-    }
-  ]
+  }
 }
