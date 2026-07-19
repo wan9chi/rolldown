@@ -61,18 +61,13 @@ impl MagicString<'_> {
       .get_or_init(|| guess_indentor(&self.source).unwrap_or_else(|| "\t".to_string()))
   }
 
-  /// # Errors
-  /// Propagates the split error from [`Self::prepend_right`]. Indentation only splits chunks
-  /// that have not been edited, so this is not reachable in practice.
-  pub fn indent(&mut self) -> Result<&mut Self, String> {
+  pub fn indent(&mut self) -> &mut Self {
     self.indent_with(IndentOptions { indentor: None, ..Default::default() })
   }
 
-  /// # Errors
-  /// See [`Self::indent`].
-  pub fn indent_with(&mut self, opts: IndentOptions) -> Result<&mut Self, String> {
+  pub fn indent_with(&mut self, opts: IndentOptions) -> &mut Self {
     if opts.indentor.is_some_and(|s| s.is_empty()) {
-      return Ok(self);
+      return self;
     }
     struct IndentReplacer {
       should_indent_next_char: bool,
@@ -132,7 +127,7 @@ impl MagicString<'_> {
           char_index += char.len_utf8() as u32;
         }
         for line_start in line_starts {
-          self.prepend_right(line_start, indent_replacer.indentor.clone())?;
+          self.prepend_right(line_start, indent_replacer.indentor.clone());
         }
       }
     }
@@ -141,6 +136,6 @@ impl MagicString<'_> {
       indent_frag(frag, &mut indent_replacer)
     }
 
-    Ok(self)
+    self
   }
 }

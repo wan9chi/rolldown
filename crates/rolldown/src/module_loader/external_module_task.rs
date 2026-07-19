@@ -35,7 +35,7 @@ impl<Fs: FileSystem> ExternalModuleTask<Fs> {
     Self { ctx, module_idx: idx, resolved_id, user_defined_entries }
   }
 
-  #[tracing::instrument(name="ExternalModuleTask::run", level = "trace", skip_all, fields(module_id = %self.resolved_id.id))]
+  #[tracing::instrument(name="ExternalModuleTask::run", level = "trace", skip_all, fields(module_id = ?self.resolved_id.id))]
   pub async fn run(self) {
     if let Err(errs) = self.run_inner().await {
       self
@@ -76,14 +76,17 @@ impl<Fs: FileSystem> ExternalModuleTask<Fs> {
       )
       .expect("should have common dir for entries");
       let relative_path = Path::new(resolved_id.id.as_str()).relative(&entries_common_dir);
-      ArcStr::from(relative_path.to_slash())
+      relative_path.to_slash_lossy().into()
     } else {
       resolved_id.id.as_arc_str().clone()
     };
 
     let identifier_name: ArcStr = if need_renormalize_render_path {
-      let relative_path = Path::new(resolved_id.id.as_str()).relative(&self.ctx.options.cwd);
-      ArcStr::from(relative_path.to_slash())
+      Path::new(resolved_id.id.as_str())
+        .relative(&self.ctx.options.cwd)
+        .normalize()
+        .to_slash_lossy()
+        .into()
     } else {
       resolved_id.id.as_arc_str().clone()
     };

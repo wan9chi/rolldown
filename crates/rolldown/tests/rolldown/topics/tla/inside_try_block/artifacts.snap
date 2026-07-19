@@ -6,16 +6,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// lib.js
+//#region lib.js
 let foo;
 try {
 	foo = await Promise.resolve("foo");
 } catch (_e) {}
+//#endregion
 export { foo };
 
 ```
 
-# Variant: wrap-all: [strict_execution_order: true]
+# Variant: [strict_execution_order: true]
 
 ## Assets
 
@@ -23,38 +24,17 @@ export { foo };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// lib.js
+//#region lib.js
 var foo;
-function init_lib() {
-	return (init_lib = __esmMin((async () => {
-		try {
-			foo = await Promise.resolve("foo");
-		} catch (_e) {}
-	})))();
-}
-// main.js
-function init_main() {
-	return (init_main = __esmMin((async () => {
-		await init_lib();
-	})))();
-}
-await init_main();
-export { foo };
-
-```
-
-# Variant: on-demand: [on_demand_wrapping: true] [strict_execution_order: true]
-
-## Assets
-
-### main.js
-
-```js
-// lib.js
-let foo;
-try {
-	foo = await Promise.resolve("foo");
-} catch (_e) {}
+var init_lib = __esmMin((async () => {
+	try {
+		foo = await Promise.resolve("foo");
+	} catch (_e) {}
+}));
+//#endregion
+await __esmMin((async () => {
+	await init_lib();
+}))();
 export { foo };
 
 ```

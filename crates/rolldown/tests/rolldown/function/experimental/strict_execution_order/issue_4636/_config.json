@@ -1,17 +1,9 @@
 {
-  "configName": "on-demand",
   "config": {
     "external": ["node:assert"],
     "strictExecutionOrder": true,
     "experimental": {
-      "devMode": {},
-      "onDemandWrapping": true
+      "devMode": {}
     }
-  },
-  "configVariants": [
-    {
-      "_configName": "wrap-all",
-      "onDemandWrapping": false
-    }
-  ]
+  }
 }

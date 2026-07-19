@@ -66,14 +66,12 @@ impl Fixture {
       description: None,
       snapshot: None,
       config_name: None,
-      expect_execution_failure: meta.expect_execution_failure.clone(),
     })
     .chain(config_variants.into_iter().map(|variant| NamedBundlerOptions {
       options: variant.apply(&options),
       description: Some(variant.description()),
       snapshot: variant.snapshot,
       config_name: variant.config_name,
-      expect_execution_failure: variant.expect_execution_failure,
     }))
     .collect::<Vec<_>>();
 
@@ -104,7 +102,6 @@ impl Fixture {
         config_name: Some("extended-minify-internal-exports".to_string()),
         minify_internal_exports: Some(test_value),
         snapshot: Some(false),
-        expect_execution_failure: meta.expect_execution_failure.clone(),
         ..Default::default()
       });
     }
@@ -116,7 +113,6 @@ impl Fixture {
         config_name: Some("extended-preserve-entry-signatures-strict".to_string()),
         preserve_entry_signatures: Some(PreserveEntrySignatures::Strict),
         snapshot: Some(false),
-        expect_execution_failure: meta.expect_execution_failure.clone(),
         ..Default::default()
       });
     }
@@ -128,7 +124,6 @@ impl Fixture {
         config_name: Some("extended-preserve-entry-signatures-allow-extension".to_string()),
         preserve_entry_signatures: Some(PreserveEntrySignatures::AllowExtension),
         snapshot: Some(false),
-        expect_execution_failure: meta.expect_execution_failure.clone(),
         ..Default::default()
       });
     }

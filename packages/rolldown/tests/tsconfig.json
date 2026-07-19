@@ -1,21 +1,17 @@
 {
   "extends": "../../../tsconfig.json",
-  "include": [
-    "src/*",
-    "src/**/*",
-    "**/_config.ts",
-    "**/*.test.ts",
-    "**/*.test-d.ts",
-    "../src/types.d.ts"
-  ],
+  "include": ["src/*", "src/**/*", "**/_config.ts", "**/*.test.ts", "**/*.test-d.ts"],
   "compilerOptions": {
     "types": ["node", "vite/client"],
-    // `../` rather than `./` so a test may unit-test the package's own internals, which
-    // are not on its public entry points. The project is `noEmit`, so this only widens
-    // which files may be referenced.
+    // The `@src/*` alias below pulls files from `../src` into this program,
+    // so the root directory must cover the whole package.
     "rootDir": "../",
     "allowJs": true,
     "isolatedDeclarations": false,
-    "experimentalDecorators": true
+    // Mirrors the `@src` alias in vitest.config.mts so type checking (and
+    // knip's import resolution) can follow `@src/*` imports.
+    "paths": {
+      "@src/*": ["../src/*"]
+    }
   }
 }

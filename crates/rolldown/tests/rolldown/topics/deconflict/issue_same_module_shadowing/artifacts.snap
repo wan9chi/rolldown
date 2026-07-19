@@ -17,10 +17,12 @@ function getA(x) {
 function getB() {
 	return 3;
 }
-// main.js
+//#endregion
+//#region main.js
 assert.equal(1, 1);
 assert.equal(3, 3);
 assert.equal(getA(1), 2);
 assert.equal(getB(), 3);
+//#endregion
 
 ```

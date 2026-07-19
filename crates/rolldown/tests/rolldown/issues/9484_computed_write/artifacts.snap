@@ -7,11 +7,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import assert from "node:assert";
-// data.json
+//#region data.json
 var data_default = { search: "hello" };
-// main.js
+//#endregion
+//#region main.js
 const key = "search";
 data_default[key] = "overridden";
 assert.strictEqual(data_default.search, "overridden");
+//#endregion
 
 ```

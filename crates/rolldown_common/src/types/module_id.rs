@@ -141,7 +141,7 @@ impl ModuleId {
   }
 
   pub fn relative_path(&self, root: impl AsRef<Path>) -> PathBuf {
-    Path::new(self.as_str()).relative(root).into_owned()
+    Path::new(self.as_str()).relative(root)
   }
 
   pub fn stabilize(&self, cwd: &Path) -> StableModuleId {

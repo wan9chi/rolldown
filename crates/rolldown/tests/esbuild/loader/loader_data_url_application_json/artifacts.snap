@@ -6,12 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#endregion
+//#region entry.js
 console.log([
 	"123",
 	{ works: true },
 	123,
 	{ works: true }
 ]);
+//#endregion
 
 ```

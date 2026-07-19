@@ -93,7 +93,6 @@ module.exports = [
     "rollup@hooks@caches asset emission in transform hook",
     "rollup@form@comment-before-import: preserves comments before imports@generates es",
     "rollup@form@paths-function: external paths (#754)@generates es",
-    "rollup@form@export-globals: Supports reexports of globals with namespace access@generates es",
     // Passed. convert reexport to import and export
     "rollup@form@reexport-external-default-and-name: reexports a an external default as a name and imports another name from that dependency@generates es",
     "rollup@form@reexport-external-default-and-namespace: reexports a default external import as default export (when using named exports)@generates es",
@@ -109,7 +108,6 @@ module.exports = [
     "rollup@form@top-level-await: top-level await support@generates system",
     "rollup@form@undefined-default-export: handles default exporting undefined",
     "rollup@form@unmodified-default-exports-function-argument: passing unbound default export to function cannot rebind it",
-    "rollup@form@switch-cases@missing-space: Inserts space when simplifying switch cases without space",
     "rollup@form@yield-expression@missing-space: Inserts space when simplifying yield expression without space",
     "rollup@form@arbitrary-module-namespace-identifiers: renders exports that are not identifiers@generates es",
     "rollup@form@arbitrary-module-namespace-identifiers2: renders exports that are not identifiers@generates es",
@@ -128,9 +126,6 @@ module.exports = [
     "rollup@form@remove-whitespace-of-logical-expression: remove the white space of the removed part of LogicalExpression",
     "rollup@form@pure-comment-scenarios-complex: correctly handles various advanced pure comment scenarios",
     "rollup@form@non-empty-block-statement: do not remove non an empty block statement@generates es", // https://github.com/rolldown/rolldown/pull/3541#issuecomment-2649731213
-    "rollup@form@try-statement-deoptimization@reassigned-helper-without-try-nesting: does not take exponential time to include nested callbacks of reassigned helpers without try statements (#6564)",
-    "rollup@form@preserves-comments-after-imports: preserves comments between imports and first statement@generates es",
-    "rollup@form@reexport-self: handles recursions when a module reexports its own namespace",
     // Passed. different code due to better optimization
     "rollup@form@nested-pure-comments: correctly associates pure comments before sequence expressions etc.",
     "rollup@form@unary-expressions-preserve-constants: Preserves constant identifiers in unary expressions when constants are used elsewhere",
@@ -155,7 +150,6 @@ module.exports = [
     // Passed. `undefined` -> `void 0`
     "rollup@form@proper-this-context: make sure \"this\" respects the context for arrow functions",
     "rollup@form@this-is-undefined: top-level `this` expression is rewritten as `undefined`@generates es",
-    "rollup@form@unresolved-property-call-arguments: keeps the arguments side effects of calls to unresolvable properties",
 
     // Passed, but sourcemap/code is different from rollup
     "rollup@function@sourcemap-true-generatebundle: emits sourcemaps before generateBundle hook",

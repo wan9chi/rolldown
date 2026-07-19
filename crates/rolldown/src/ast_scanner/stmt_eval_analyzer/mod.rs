@@ -1,27 +1,19 @@
-use std::cell::Cell;
 use std::ops::{BitOr, BitOrAssign};
 
 use bitflags::bitflags;
 use oxc::ast::ast::{
   self, Argument, AssignmentTarget, BindingPattern, CallExpression, ChainElement, Expression,
-  IdentifierReference, SpreadElement, UnaryOperator, VariableDeclarationKind,
+  IdentifierReference, UnaryOperator, VariableDeclarationKind,
 };
 use oxc::ast::match_member_expression;
-use oxc::ast_visit::{VisitJs, walk_js};
-use oxc::semantic::{NodeId, ReferenceId, ScopeFlags, SymbolId};
-use oxc::transformer::EngineTargets;
+use oxc::semantic::{NodeId, SymbolId};
+use oxc_ecmascript::GlobalContext;
 use oxc_ecmascript::side_effects::{
   MayHaveSideEffects, MayHaveSideEffectsContext, PropertyReadSideEffects,
 };
-use oxc_ecmascript::{DetermineValueType, GlobalContext, ValueType};
-use rolldown_common::{
-  AstScopes, ConstExportMeta, ConstantValue, FlatOptions, SharedNormalizedBundlerOptions,
-  StmtEvalFlags,
-};
+use rolldown_common::{AstScopes, FlatOptions, SharedNormalizedBundlerOptions, StmtEvalFlags};
 use rolldown_ecmascript_utils::ExpressionExt;
-use rustc_hash::{FxHashMap, FxHashSet};
-
-use crate::utils;
+use rustc_hash::FxHashSet;
 
 bitflags! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
@@ -29,10 +21,7 @@ bitflags! {
     struct StmtOrderSensitiveReasons: u8 {
         /// Reads from an unresolved global or a member chain rooted at one.
         const GlobalVarAccess = 1;
-        /// A call/new/tagged-template expression was treated as pure by an annotation or
-        /// cross-module analysis. Only the strict top-level statement walk additionally sets it
-        /// for `manualPureFunctions` forms; the regular analyzer and the class-mode collector
-        /// deliberately do not.
+        /// A call/new expression was marked pure by an annotation or cross-module analysis.
         const PureAnnotation = 1 << 1;
     }
 }
@@ -117,27 +106,6 @@ impl BitOrAssign for StmtEvalFacts {
   }
 }
 
-/// The constant value behind a symbol, for oxc's value and type hooks.
-///
-/// Without it, oxc treats every identifier as `Undetermined`, so `60 * SECOND` and `` `${NAME}` ``
-/// stay possible `valueOf()` or `toString()` calls even when `SECOND` and `NAME` are constants
-/// (#10817).
-///
-/// The value must hold when the analyzed statement runs. The analyzer asks only for `const` and
-/// import bindings: direct `eval` can change a `let` or `var`, and a hoisted `var` initializer does
-/// not always run. An implementation must also refuse a `const` that is still in its TDZ.
-pub trait ConstantSymbolLookup {
-  fn constant_value(&self, symbol_id: SymbolId) -> Option<&ConstantValue>;
-}
-
-/// The scanner adds its module-local constants in statement order, so a statement sees only the
-/// constants declared before it.
-impl ConstantSymbolLookup for FxHashMap<SymbolId, ConstExportMeta> {
-  fn constant_value(&self, symbol_id: SymbolId) -> Option<&ConstantValue> {
-    self.get(&symbol_id).map(|meta| &meta.value)
-  }
-}
-
 /// Collect facts about evaluating a statement.
 ///
 /// The returned facts keep tree-shaking side effects separate from order-sensitive reasons.
@@ -151,12 +119,6 @@ pub struct StmtEvalAnalyzer<'a> {
   /// Property reads on ES module namespace objects are guaranteed side-effect-free
   /// because namespace objects are frozen/sealed by spec with no getters.
   namespace_object_symbol_ids: Option<&'a FxHashSet<SymbolId>>,
-  /// The constant values of bindings. See [`ConstantSymbolLookup`].
-  constant_symbols: Option<&'a dyn ConstantSymbolLookup>,
-  /// Whether the analysis of the current statement read a value from `constant_symbols`.
-  read_constant: Cell<bool>,
-  /// `false` while [`Self::analyze_stmt`] analyzes a statement again without constants.
-  use_constants: Cell<bool>,
 }
 
 impl<'a> StmtEvalAnalyzer<'a> {
@@ -166,7 +128,6 @@ impl<'a> StmtEvalAnalyzer<'a> {
     options: &'a SharedNormalizedBundlerOptions,
     side_effect_free_call_expr_node_ids: Option<&'a FxHashSet<NodeId>>,
     namespace_object_symbol_ids: Option<&'a FxHashSet<SymbolId>>,
-    constant_symbols: Option<&'a dyn ConstantSymbolLookup>,
   ) -> Self {
     Self {
       scope,
@@ -174,28 +135,7 @@ impl<'a> StmtEvalAnalyzer<'a> {
       flat_options,
       side_effect_free_call_expr_node_ids,
       namespace_object_symbol_ids,
-      constant_symbols,
-      read_constant: Cell::new(false),
-      use_constants: Cell::new(true),
     }
-  }
-
-  fn constant_value_for_reference_id(&self, reference_id: ReferenceId) -> Option<&ConstantValue> {
-    if !self.use_constants.get() {
-      return None;
-    }
-    let symbol_id = self.scope.symbol_id_for(reference_id)?;
-    // Only a `const` cannot change behind the static analysis. The lookup checks the canonical
-    // declaration of an import.
-    let flags = self.scope.scoping().symbol_flags(symbol_id);
-    if !(flags.is_const_variable() || flags.is_import()) {
-      return None;
-    }
-    let value = self.constant_symbols?.constant_value(symbol_id);
-    if value.is_some() {
-      self.read_constant.set(true);
-    }
-    value
   }
 
   /// Check if a call expression has been marked pure by cross-module optimization.
@@ -221,17 +161,6 @@ impl<'a> StmtEvalAnalyzer<'a> {
     }
   }
 
-  /// Whether `callee` is a global or a member of one, such as `Uint8Array` or `String.raw`.
-  fn is_global_callee(&self, callee: &Expression) -> bool {
-    match callee.get_inner_expression() {
-      Expression::Identifier(ident) => self.is_unresolved_reference(ident),
-      expr @ match_member_expression!(Expression) => {
-        self.is_member_expr_root_global(expr.to_member_expression())
-      }
-      _ => false,
-    }
-  }
-
   /// Check if the member expression's direct object is an ES module namespace import.
   /// ES module namespace objects are frozen/sealed by spec — property reads on them
   /// can never have side effects (no getters possible).
@@ -244,24 +173,25 @@ impl<'a> StmtEvalAnalyzer<'a> {
   }
 
   /// `import.meta.url` is a spec-defined side-effect-free property read, and
-  /// `import.meta.ROLLDOWN_FILE_URL_<referenceId>` is a placeholder the finalizer rewrites into a
+  /// `import.meta.ROLLUP_FILE_URL_<referenceId>` is a placeholder the finalizer rewrites into a
   /// `new URL(...)` expression. Other accesses like `import.meta.hot.accept()` may have side effects.
   fn is_side_effect_free_import_meta_access(member_expr: &ast::MemberExpression) -> bool {
-    let Expression::ImportMeta(_) = member_expr.object() else {
+    let ast::MemberExpression::StaticMemberExpression(static_expr) = member_expr else {
       return false;
     };
-    member_expr.static_property_name().is_some_and(|name| {
-      name == "url" || name.as_str().is_some_and(utils::file_url::starts_with_file_url_prefix)
-    })
+    let Expression::MetaProperty(meta_property) = &static_expr.object else {
+      return false;
+    };
+    if meta_property.meta.name != "import" || meta_property.property.name != "meta" {
+      return false;
+    }
+    let property_name = static_expr.property.name.as_str();
+    property_name == "url" || property_name.starts_with("ROLLUP_FILE_URL_")
   }
 
   fn analyze_member_expr(&self, member_expr: &ast::MemberExpression) -> StmtEvalFacts {
     if self.is_expr_manual_pure_functions(member_expr.object()) {
-      let mut facts = self.analyze_eager_chain_children(member_expr.object());
-      if let ast::MemberExpression::ComputedMemberExpression(expr) = member_expr {
-        facts |= self.analyze_expr(&expr.expression);
-      }
-      return facts;
+      return StmtEvalFacts::default();
     }
     // ES module namespace objects are frozen/sealed by spec — property reads
     // on them are guaranteed side-effect-free. A computed key is still evaluated,
@@ -280,32 +210,6 @@ impl<'a> StmtEvalAnalyzer<'a> {
     let mut facts = StmtEvalFacts::from_tree_shaking_side_effect(has_side_effect);
     facts.set_order_sensitive_reason(StmtOrderSensitiveReasons::GlobalVarAccess, is_global);
     facts
-  }
-
-  fn analyze_eager_chain_children(&self, expr: &Expression) -> StmtEvalFacts {
-    let mut facts = StmtEvalFacts::default();
-    for_each_eager_chain_child(expr, |child| {
-      facts |= match child {
-        EagerChild::Expr(expr) => self.analyze_expr(expr),
-        EagerChild::Spread(spread) => self.analyze_spread_argument(spread),
-      };
-    });
-    facts
-  }
-
-  /// Analyze a `...operand` spread argument with its runtime semantics: `operand` is evaluated and
-  /// then iterated. Iterating an array, string, or template literal runs only built-in iterators,
-  /// so the only effects are those of evaluating `operand` — which [`Self::analyze_expr`], gated on
-  /// oxc, already captures (including a nested spread such as `...[...x]`). Any other operand may
-  /// run a user-defined `Symbol.iterator` when spread, so it stays conservatively unknown. Mirrors
-  /// oxc's `Argument::may_have_side_effects` spread handling.
-  fn analyze_spread_argument(&self, spread: &SpreadElement) -> StmtEvalFacts {
-    match &spread.argument {
-      Expression::ArrayExpression(_)
-      | Expression::StringLiteral(_)
-      | Expression::TemplateLiteral(_) => self.analyze_expr(&spread.argument),
-      _ => StmtEvalFacts::from_unknown_side_effect(),
-    }
   }
 
   /// Analyze a member-like write target after Oxc has determined the full write is side-effect-free.
@@ -384,7 +288,8 @@ impl<'a> StmtEvalAnalyzer<'a> {
       return false;
     }
     let manual_pure_functions = self.options.treeshake.manual_pure_functions().unwrap();
-    chain_root_ident(expr).is_some_and(|first| manual_pure_functions.contains(first))
+    extract_first_part_of_member_expr_like(expr)
+      .is_some_and(|first| manual_pure_functions.contains(first))
   }
 
   fn analyze_expr(&self, expr: &Expression) -> StmtEvalFacts {
@@ -493,15 +398,8 @@ impl<'a> StmtEvalAnalyzer<'a> {
       Expression::BinaryExpression(e) => self.fold_compound(expr, [&e.left, &e.right]),
       Expression::UnaryExpression(e) => self.fold_compound(expr, [&e.argument]),
 
-      // Class expressions: same definition-time order-sensitivity as class declarations (heritage,
-      // computed keys, static initializers, static blocks, decorators). Method/instance bodies are
-      // not evaluated here.
-      Expression::ClassExpression(class) => {
-        self.analyze_class_definition(expr.may_have_side_effects(self), class)
-      }
-
       // Everything else: delegate entirely to Oxc.
-      // Covers literals, function/arrow expressions (bodies not evaluated
+      // Covers literals, function/arrow/class expressions (bodies not evaluated
       // here), await/import/yield (inherently side-effectful), tagged-template
       // (handled like a call by oxc; no `pure` flag), JSX, V8 intrinsics, etc.
       _ => StmtEvalFacts::from_tree_shaking_side_effect(expr.may_have_side_effects(self)),
@@ -563,48 +461,9 @@ impl<'a> StmtEvalAnalyzer<'a> {
     }
   }
 
-  /// Base facts for a `class` declaration/expression, plus its definition-time order-sensitive
-  /// reasons. `has_side_effect` must be the caller's existing whole-class
-  /// `may_have_side_effects` judgment so the tree-shaking channel stays byte-identical to what the
-  /// delegate arms produced before; only when oxc certified the class side-effect-free do we look
-  /// deeper, and then only to grow `order_sensitive_reasons`.
-  fn analyze_class_definition(&self, has_side_effect: bool, class: &ast::Class) -> StmtEvalFacts {
-    let mut facts = StmtEvalFacts::from_tree_shaking_side_effect(has_side_effect);
-    if !has_side_effect {
-      facts.order_sensitive_reasons |=
-        EagerEvaluationOrderReasonCollector::collect_class(self, class);
-    }
-    facts
-  }
-
-  /// Add order-only facts from every expression that may run while evaluating this top-level
-  /// statement. This deliberately does not reuse the tree-shaking walk: that walk may stop as soon
-  /// as Oxc proves a surrounding call/member/binding operation pure, while strict order analysis
-  /// still needs reads hidden behind that operation.
-  ///
-  /// The scanner only calls this for strict builds whose regular facts are not already
-  /// order-sensitive. Keeping the entry point separate leaves the non-strict hot path,
-  /// cross-module tree-shaking re-analysis, and `tree_shaking_flags` unchanged.
-  pub(crate) fn add_top_level_eager_order_reasons(
-    &self,
-    stmt: &ast::Statement,
-    facts: &mut StmtEvalFacts,
-  ) {
-    debug_assert!(!facts.is_order_sensitive());
-    facts.order_sensitive_reasons |=
-      EagerEvaluationOrderReasonCollector::collect_statement(self, stmt);
-  }
-
   fn analyze_decl(&self, decl: &ast::Declaration) -> StmtEvalFacts {
     match decl {
       ast::Declaration::VariableDeclaration(var_decl) => self.analyze_var_decl(var_decl),
-      // Class definition-time positions (heritage, computed keys, static initializers, static
-      // blocks, decorators) can read a whitelisted global or carry a pure annotation, which makes
-      // the class order-sensitive even when oxc reports no tree-shaking side effect. The delegate
-      // catch-all below drops those reasons.
-      ast::Declaration::ClassDeclaration(class) => {
-        self.analyze_class_definition(decl.may_have_side_effects(self), class)
-      }
       _ => StmtEvalFacts::from_tree_shaking_side_effect(decl.may_have_side_effects(self)),
     }
   }
@@ -652,8 +511,6 @@ impl<'a> StmtEvalAnalyzer<'a> {
   fn analyze_module_declaration(&self, decl: &ast::ModuleDeclaration) -> StmtEvalFacts {
     match decl {
       ast::ModuleDeclaration::ExportAllDeclaration(_)
-      | ast::ModuleDeclaration::ExportFromDeclaration(_)
-      | ast::ModuleDeclaration::ExportNamedDeclaration(_)
       | ast::ModuleDeclaration::ImportDeclaration(_) => {
         // We consider `import ...` has no side effect. However, `import ...` might be rewritten to other statements by the bundler.
         // In that case, we will mark the statement as having side effect in link stage.
@@ -666,17 +523,20 @@ impl<'a> StmtEvalAnalyzer<'a> {
             self.analyze_expr(decl.to_expression())
           }
           ast::ExportDefaultDeclarationKind::FunctionDeclaration(_) => StmtEvalFacts::default(),
-          ast::ExportDefaultDeclarationKind::ClassDeclaration(class) => {
-            // Same definition-time order-sensitivity as a plain class declaration.
-            self.analyze_class_definition(class.may_have_side_effects(self), class)
+          ast::ExportDefaultDeclarationKind::ClassDeclaration(decl) => {
+            StmtEvalFacts::from_tree_shaking_side_effect(decl.may_have_side_effects(self))
           }
           ast::ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) => {
             StmtEvalFacts::from_unknown_side_effect()
           }
         }
       }
-      ast::ModuleDeclaration::ExportDeclaration(export_decl) => {
-        self.analyze_decl(&export_decl.declaration)
+      ast::ModuleDeclaration::ExportNamedDeclaration(named_decl) => {
+        if named_decl.source.is_some() {
+          StmtEvalFacts::default()
+        } else {
+          named_decl.declaration.as_ref().map(|decl| self.analyze_decl(decl)).unwrap_or_default()
+        }
       }
       ast::ModuleDeclaration::TSExportAssignment(_)
       | ast::ModuleDeclaration::TSNamespaceExportDeclaration(_) => {
@@ -685,27 +545,7 @@ impl<'a> StmtEvalAnalyzer<'a> {
     }
   }
 
-  /// Collect facts about evaluating `stmt`.
-  ///
-  /// Some oxc rules trust a known type further than a coercion (see [`ConstantTrustFinder`]). If a
-  /// constant made `stmt` side-effect free and `stmt` has such a construct, the facts come from a
-  /// second analysis without constants.
   pub fn analyze_stmt(&self, stmt: &ast::Statement) -> StmtEvalFacts {
-    self.read_constant.set(false);
-    let facts = self.analyze_stmt_inner(stmt);
-    if !self.read_constant.get()
-      || facts.has_side_effect_for_tree_shaking()
-      || !ConstantTrustFinder::find(self, stmt)
-    {
-      return facts;
-    }
-    self.use_constants.set(false);
-    let facts = self.analyze_stmt_inner(stmt);
-    self.use_constants.set(true);
-    facts
-  }
-
-  fn analyze_stmt_inner(&self, stmt: &ast::Statement) -> StmtEvalFacts {
     use oxc::ast::ast::Statement;
     match stmt {
       // Bundler-specific: module declarations
@@ -717,20 +557,20 @@ impl<'a> StmtEvalAnalyzer<'a> {
       Statement::ExpressionStatement(expr) => self.analyze_expr(&expr.expression),
       Statement::BlockStatement(block) => self.analyze_block(block),
       Statement::DoWhileStatement(do_while) => {
-        self.analyze_stmt_inner(&do_while.body) | self.analyze_expr(&do_while.test)
+        self.analyze_stmt(&do_while.body) | self.analyze_expr(&do_while.test)
       }
       Statement::WhileStatement(while_stmt) => {
-        self.analyze_expr(&while_stmt.test) | self.analyze_stmt_inner(&while_stmt.body)
+        self.analyze_expr(&while_stmt.test) | self.analyze_stmt(&while_stmt.body)
       }
       Statement::IfStatement(if_stmt) => {
         self.analyze_expr(&if_stmt.test)
-          | self.analyze_stmt_inner(&if_stmt.consequent)
-          | if_stmt.alternate.as_ref().map(|s| self.analyze_stmt_inner(s)).unwrap_or_default()
+          | self.analyze_stmt(&if_stmt.consequent)
+          | if_stmt.alternate.as_ref().map(|s| self.analyze_stmt(s)).unwrap_or_default()
       }
       Statement::ReturnStatement(ret_stmt) => {
         ret_stmt.argument.as_ref().map(|expr| self.analyze_expr(expr)).unwrap_or_default()
       }
-      Statement::LabeledStatement(labeled_stmt) => self.analyze_stmt_inner(&labeled_stmt.body),
+      Statement::LabeledStatement(labeled_stmt) => self.analyze_stmt(&labeled_stmt.body),
       Statement::TryStatement(try_stmt) => {
         let mut facts = self.analyze_block(&try_stmt.block);
         facts |= try_stmt
@@ -753,7 +593,7 @@ impl<'a> StmtEvalAnalyzer<'a> {
         'outer: for case in &switch_stmt.cases {
           facts |= case.test.as_ref().map(|expr| self.analyze_expr(expr)).unwrap_or_default();
           for stmt in &case.consequent {
-            facts |= self.analyze_stmt_inner(stmt);
+            facts |= self.analyze_stmt(stmt);
             if facts.has_side_effect_for_tree_shaking() {
               break 'outer;
             }
@@ -770,254 +610,12 @@ impl<'a> StmtEvalAnalyzer<'a> {
   fn analyze_block(&self, block: &ast::BlockStatement) -> StmtEvalFacts {
     let mut facts = StmtEvalFacts::default();
     for stmt in &block.body {
-      facts |= self.analyze_stmt_inner(stmt);
+      facts |= self.analyze_stmt(stmt);
       if facts.has_side_effect_for_tree_shaking() {
         break;
       }
     }
     facts
-  }
-}
-
-/// Collects order-sensitive reasons from expressions that run while a top-level statement is
-/// evaluated. This is intentionally independent from `StmtEvalAnalyzer`'s tree-shaking walk: a
-/// tree-shaking flag is enough for that walk to stop, but it must not hide a later global read or
-/// pure call from order analysis. Function/method bodies and instance initializers remain deferred;
-/// a directly invoked function literal is entered explicitly below.
-struct EagerEvaluationOrderReasonCollector<'analyzer, 'ctx> {
-  analyzer: &'analyzer StmtEvalAnalyzer<'ctx>,
-  reasons: StmtOrderSensitiveReasons,
-  extended_top_level_reasons: bool,
-}
-
-impl<'analyzer, 'ctx> EagerEvaluationOrderReasonCollector<'analyzer, 'ctx> {
-  fn new(analyzer: &'analyzer StmtEvalAnalyzer<'ctx>, extended_top_level_reasons: bool) -> Self {
-    Self { analyzer, reasons: StmtOrderSensitiveReasons::empty(), extended_top_level_reasons }
-  }
-
-  fn collect_statement(
-    analyzer: &'analyzer StmtEvalAnalyzer<'ctx>,
-    stmt: &ast::Statement,
-  ) -> StmtOrderSensitiveReasons {
-    let mut collector = Self::new(analyzer, true);
-    collector.visit_statement(stmt);
-    collector.reasons
-  }
-
-  fn collect_class(
-    analyzer: &'analyzer StmtEvalAnalyzer<'ctx>,
-    class: &ast::Class,
-  ) -> StmtOrderSensitiveReasons {
-    // Preserve the original class-definition collector outside the strict top-level statement
-    // walk. The extended statement-level cases below are order metadata for strict builds only and
-    // must not perturb non-strict analysis.
-    let mut collector = Self::new(analyzer, false);
-    collector.visit_class(class);
-    collector.reasons
-  }
-
-  fn add_reason_if(&mut self, reason: StmtOrderSensitiveReasons, value: bool) {
-    if value {
-      self.reasons.insert(reason);
-    }
-  }
-
-  /// Function and arrow bodies are normally deferred until call time. A directly invoked function
-  /// literal is different: its parameters and non-generator body run immediately.
-  fn visit_immediately_invoked_function(&mut self, callee: &Expression<'_>) {
-    match callee.get_inner_expression() {
-      Expression::FunctionExpression(function) => {
-        self.visit_formal_parameters(&function.params);
-        if !function.generator
-          && let Some(body) = &function.body
-        {
-          self.visit_function_body(body);
-        }
-      }
-      Expression::ArrowFunctionExpression(arrow) => {
-        self.visit_formal_parameters(&arrow.params);
-        self.visit_arrow_function_body(&arrow.body);
-      }
-      Expression::SequenceExpression(sequence) => {
-        if let Some(last) = sequence.expressions.last() {
-          self.visit_immediately_invoked_function(last);
-        }
-      }
-      Expression::ConditionalExpression(conditional) if self.extended_top_level_reasons => {
-        self.visit_immediately_invoked_function(&conditional.consequent);
-        self.visit_immediately_invoked_function(&conditional.alternate);
-      }
-      Expression::LogicalExpression(logical) if self.extended_top_level_reasons => {
-        self.visit_immediately_invoked_function(&logical.left);
-        self.visit_immediately_invoked_function(&logical.right);
-      }
-      Expression::AssignmentExpression(assignment) if self.extended_top_level_reasons => {
-        // `(x = fn)()` and `(x ??= fn)()` evaluate to a value that may be the RHS, which the
-        // surrounding call/new/tag then runs.
-        self.visit_immediately_invoked_function(&assignment.right);
-      }
-      Expression::ClassExpression(class) if self.extended_top_level_reasons => {
-        // `new class { ... }()` runs the construction-time positions immediately. The
-        // definition-time positions were already collected by the ordinary class walk.
-        self.visit_constructed_class_positions(class);
-      }
-      _ => {}
-    }
-  }
-
-  /// Construction-time positions of a directly `new`ed class literal: constructor parameters and
-  /// body, plus non-static field and accessor initializers. Static positions and computed keys
-  /// run at definition time and are covered by `visit_class_definition`.
-  fn visit_constructed_class_positions(&mut self, class: &ast::Class<'_>) {
-    for element in &class.body.body {
-      match element {
-        ast::ClassElement::MethodDefinition(method)
-          if matches!(method.kind, ast::MethodDefinitionKind::Constructor) =>
-        {
-          self.visit_formal_parameters(&method.value.params);
-          if let Some(body) = &method.value.body {
-            self.visit_function_body(body);
-          }
-        }
-        ast::ClassElement::PropertyDefinition(property) if !property.r#static => {
-          if let Some(value) = &property.value {
-            self.visit_expression(value);
-          }
-        }
-        ast::ClassElement::AccessorProperty(accessor) if !accessor.r#static => {
-          if let Some(value) = &accessor.value {
-            self.visit_expression(value);
-          }
-        }
-        _ => {}
-      }
-    }
-  }
-
-  fn visit_class_definition(&mut self, class: &ast::Class<'_>) {
-    // Decorator expressions and the heritage expression are evaluated when the class is defined.
-    for decorator in &class.decorators {
-      self.visit_expression(&decorator.expression);
-    }
-    if let Some(super_class) = class.heritage_expression() {
-      self.visit_expression(super_class);
-    }
-
-    for element in &class.body.body {
-      match element {
-        ast::ClassElement::StaticBlock(block) => {
-          for stmt in &block.body {
-            self.visit_statement(stmt);
-          }
-        }
-        ast::ClassElement::MethodDefinition(method) => {
-          for decorator in &method.decorators {
-            self.visit_expression(&decorator.expression);
-          }
-          if method.computed {
-            self.visit_expression(method.key.to_expression());
-          }
-          // Method/getter/setter bodies run when invoked, not at definition time.
-        }
-        ast::ClassElement::PropertyDefinition(property) => {
-          for decorator in &property.decorators {
-            self.visit_expression(&decorator.expression);
-          }
-          if property.computed {
-            self.visit_expression(property.key.to_expression());
-          }
-          // Instance initializers run during construction; static initializers run now.
-          if property.r#static
-            && let Some(value) = &property.value
-          {
-            self.visit_expression(value);
-          }
-        }
-        ast::ClassElement::AccessorProperty(accessor) => {
-          for decorator in &accessor.decorators {
-            self.visit_expression(&decorator.expression);
-          }
-          if accessor.computed {
-            self.visit_expression(accessor.key.to_expression());
-          }
-          if accessor.r#static
-            && let Some(value) = &accessor.value
-          {
-            self.visit_expression(value);
-          }
-        }
-        // Type-level construct, no runtime evaluation.
-        ast::ClassElement::TSIndexSignature(_) => {}
-      }
-    }
-  }
-}
-
-impl<'ast> VisitJs<'ast> for EagerEvaluationOrderReasonCollector<'_, '_> {
-  fn visit_identifier_reference(&mut self, ident: &IdentifierReference<'ast>) {
-    let is_global_read = ident.reference_id.get().is_some_and(|reference_id| {
-      let reference = self.analyzer.scope.scoping().get_reference(reference_id);
-      reference.symbol_id().is_none() && reference.is_read()
-    });
-    self.add_reason_if(StmtOrderSensitiveReasons::GlobalVarAccess, is_global_read);
-  }
-
-  fn visit_assignment_expression(&mut self, assignment: &ast::AssignmentExpression<'ast>) {
-    // A plain CJS export write is tree-shaking-only. Its target must not become a global-read
-    // reason, but its RHS still runs and may contain one.
-    if check_pure_cjs_export(self.analyzer.scope, &assignment.left).is_some() {
-      self.visit_expression(&assignment.right);
-    } else {
-      walk_js::walk_assignment_expression(self, assignment);
-    }
-  }
-
-  fn visit_call_expression(&mut self, call: &CallExpression<'ast>) {
-    let is_pure_annotated = !self.analyzer.flat_options.ignore_annotations()
-      && (call.pure || self.analyzer.is_call_expr_marked_pure(call));
-    let is_manual_pure =
-      self.extended_top_level_reasons && self.analyzer.is_expr_manual_pure_functions(&call.callee);
-    self.add_reason_if(
-      StmtOrderSensitiveReasons::PureAnnotation,
-      is_pure_annotated || is_manual_pure,
-    );
-
-    walk_js::walk_call_expression(self, call);
-    self.visit_immediately_invoked_function(&call.callee);
-  }
-
-  fn visit_new_expression(&mut self, new_expr: &ast::NewExpression<'ast>) {
-    self.add_reason_if(
-      StmtOrderSensitiveReasons::PureAnnotation,
-      (!self.analyzer.flat_options.ignore_annotations() && new_expr.pure)
-        || (self.extended_top_level_reasons
-          && self.analyzer.is_expr_manual_pure_functions(&new_expr.callee)),
-    );
-    walk_js::walk_new_expression(self, new_expr);
-    self.visit_immediately_invoked_function(&new_expr.callee);
-  }
-
-  fn visit_tagged_template_expression(&mut self, tagged: &ast::TaggedTemplateExpression<'ast>) {
-    self.add_reason_if(
-      StmtOrderSensitiveReasons::PureAnnotation,
-      self.extended_top_level_reasons && self.analyzer.is_expr_manual_pure_functions(&tagged.tag),
-    );
-    walk_js::walk_tagged_template_expression(self, tagged);
-    // Evaluating the template calls a literal tag immediately. Gated so the legacy class-mode
-    // collector, which never entered tag bodies, stays byte-identical for ordinary builds.
-    if self.extended_top_level_reasons {
-      self.visit_immediately_invoked_function(&tagged.tag);
-    }
-  }
-
-  // Merely creating a function does not run its parameters or body.
-  fn visit_function(&mut self, _function: &ast::Function<'ast>, _flags: ScopeFlags) {}
-
-  fn visit_arrow_function_expression(&mut self, _arrow: &ast::ArrowFunctionExpression<'ast>) {}
-
-  // A nested class has the same definition-time/deferred split as the outer class.
-  fn visit_class(&mut self, class: &ast::Class<'ast>) {
-    self.visit_class_definition(class);
   }
 }
 
@@ -1041,61 +639,28 @@ fn check_pure_cjs_export(scope: &AstScopes, target: &AssignmentTarget) -> Option
   }
 }
 
-/// An eagerly-evaluated subexpression surfaced by [`chain_root_visiting_eager_children`].
-enum EagerChild<'a> {
-  /// A computed member key or a non-spread call argument — evaluated as a plain expression.
-  Expr(&'a Expression<'a>),
-  /// A spread call argument (`...operand`) — evaluating `operand` and iterating it may both have
-  /// effects, so it needs spread-aware analysis rather than plain expression analysis.
-  Spread(&'a SpreadElement<'a>),
-}
-
-/// Descend a member-expression-like chain to its leftmost identifier, invoking `on_eager_child`
-/// for every eagerly-evaluated subexpression on the way down — computed keys and call arguments
-/// (see [`EagerChild`]). Returns the root identifier's name, or `None` when the chain doesn't
-/// bottom out in a plain identifier.
-///
-/// This is the shared engine behind [`chain_root_ident`] and [`for_each_eager_chain_child`]; call
-/// whichever of those fits instead of reading the return value and driving the visitor from the
-/// same call site.
-fn chain_root_visiting_eager_children<'a>(
-  expr: &'a Expression,
-  mut on_eager_child: impl FnMut(EagerChild<'a>),
-) -> Option<&'a str> {
-  fn visit_call_args<'a>(
-    args: &'a [Argument<'a>],
-    on_eager_child: &mut impl FnMut(EagerChild<'a>),
-  ) {
-    for arg in args {
-      on_eager_child(match arg {
-        Argument::SpreadElement(spread) => EagerChild::Spread(spread),
-        _ => EagerChild::Expr(arg.to_expression()),
-      });
-    }
-  }
-
+/// Extract the first (leftmost) identifier name from a member expression chain.
+/// Used by both `StmtEvalAnalyzer::is_expr_manual_pure_functions` and
+/// `StmtEvalAnalyzer::manual_pure_functions`.
+fn extract_first_part_of_member_expr_like<'a>(expr: &'a Expression) -> Option<&'a str> {
   let mut cur = expr;
   loop {
     match cur {
       Expression::Identifier(ident) => break Some(ident.name.as_str()),
       Expression::ComputedMemberExpression(expr) => {
-        on_eager_child(EagerChild::Expr(&expr.expression));
         cur = &expr.object;
       }
       Expression::StaticMemberExpression(expr) => {
         cur = &expr.object;
       }
       Expression::CallExpression(expr) => {
-        visit_call_args(&expr.arguments, &mut on_eager_child);
         cur = &expr.callee;
       }
       Expression::ChainExpression(expr) => match expr.expression {
         ChainElement::CallExpression(ref call_expression) => {
-          visit_call_args(&call_expression.arguments, &mut on_eager_child);
           cur = &call_expression.callee;
         }
         ChainElement::ComputedMemberExpression(ref computed_member_expression) => {
-          on_eager_child(EagerChild::Expr(&computed_member_expression.expression));
           cur = &computed_member_expression.object;
         }
         ChainElement::StaticMemberExpression(ref static_member_expression) => {
@@ -1110,98 +675,19 @@ fn chain_root_visiting_eager_children<'a>(
   }
 }
 
-/// Finds a construct for which an oxc rule trusts a known operand type further than a coercion.
-///
-/// oxc then ignores the effects of the left operand of `instanceof`, the `RangeError` of a global
-/// function or constructor such as `new Uint8Array(-1)`, and the size of a BigInt shift or power
-/// (#10817). The search also enters function bodies, so it can report a construct that never runs.
-struct ConstantTrustFinder<'s, 'a> {
-  analyzer: &'s StmtEvalAnalyzer<'a>,
-  found: bool,
-}
-
-impl ConstantTrustFinder<'_, '_> {
-  fn find(analyzer: &StmtEvalAnalyzer, stmt: &ast::Statement) -> bool {
-    let mut finder = ConstantTrustFinder { analyzer, found: false };
-    finder.visit_statement(stmt);
-    finder.found
-  }
-}
-
-impl<'ast> VisitJs<'ast> for ConstantTrustFinder<'_, '_> {
-  fn visit_expression(&mut self, it: &Expression<'ast>) {
-    if !self.found {
-      walk_js::walk_expression(self, it);
-    }
-  }
-
-  fn visit_binary_expression(&mut self, it: &ast::BinaryExpression<'ast>) {
-    self.found |= match it.operator {
-      ast::BinaryOperator::Instanceof => true,
-      ast::BinaryOperator::ShiftLeft
-      | ast::BinaryOperator::ShiftRight
-      | ast::BinaryOperator::Exponential => {
-        it.left.value_type(self.analyzer).is_bigint()
-          || it.right.value_type(self.analyzer).is_bigint()
-      }
-      _ => false,
-    };
-    walk_js::walk_binary_expression(self, it);
-  }
-
-  fn visit_call_expression(&mut self, it: &CallExpression<'ast>) {
-    self.found |= self.analyzer.is_global_callee(&it.callee);
-    walk_js::walk_call_expression(self, it);
-  }
-
-  fn visit_new_expression(&mut self, it: &ast::NewExpression<'ast>) {
-    self.found |= self.analyzer.is_global_callee(&it.callee);
-    walk_js::walk_new_expression(self, it);
-  }
-}
-
-/// The leftmost identifier a member-expression-like chain reads from (`a` in `a.b().c[d]`), or
-/// `None` when the chain doesn't bottom out in a plain identifier. Used by
-/// `StmtEvalAnalyzer::is_expr_manual_pure_functions` and `StmtEvalAnalyzer::manual_pure_functions`.
-fn chain_root_ident<'a>(expr: &'a Expression) -> Option<&'a str> {
-  chain_root_visiting_eager_children(expr, |_| {})
-}
-
-/// Invoke `visit` on every eagerly-evaluated subexpression of a member-expression-like chain —
-/// computed keys and call arguments (see [`EagerChild`]).
-fn for_each_eager_chain_child<'a>(expr: &'a Expression, visit: impl FnMut(EagerChild<'a>)) {
-  let _ = chain_root_visiting_eager_children(expr, visit);
-}
-
-impl<'ast> GlobalContext<'ast> for StmtEvalAnalyzer<'_> {
-  fn is_global_reference(&self, reference: &IdentifierReference<'ast>) -> bool {
+impl GlobalContext<'_> for StmtEvalAnalyzer<'_> {
+  fn is_global_reference(&self, reference: &IdentifierReference<'_>) -> bool {
     self.is_unresolved_reference(reference)
-  }
-
-  fn get_constant_value_for_reference_id(
-    &self,
-    reference_id: ReferenceId,
-  ) -> Option<oxc_ecmascript::ConstantValue<'ast>> {
-    self.constant_value_for_reference_id(reference_id).map(oxc_ecmascript::ConstantValue::from)
-  }
-
-  fn value_type_for_reference_id(&self, reference_id: ReferenceId) -> Option<ValueType> {
-    self.constant_value_for_reference_id(reference_id).map(ConstantValue::value_type)
   }
 }
 
 impl MayHaveSideEffectsContext<'_> for StmtEvalAnalyzer<'_> {
-  fn engine_targets(&self) -> Option<&EngineTargets> {
-    Some(&self.options.transform_options.target)
-  }
-
   fn annotations(&self) -> bool {
     !self.flat_options.ignore_annotations()
   }
 
   fn manual_pure_functions(&self, callee: &Expression) -> bool {
     self.is_expr_manual_pure_functions(callee)
-      && !self.analyze_eager_chain_children(callee).has_side_effect_for_tree_shaking()
   }
 
   fn property_read_side_effects(&self) -> PropertyReadSideEffects {
@@ -1227,12 +713,8 @@ mod test {
 
   use itertools::Itertools;
   use oxc::{parser::Parser, span::SourceType};
-  use rolldown_common::{
-    AstScopes, ConstExportMeta, ConstantValue, ExperimentalOptions, InnerOptions,
-    NormalizedBundlerOptions, PropertyReadSideEffects, PropertyWriteSideEffects, StmtEvalFlags,
-  };
+  use rolldown_common::{AstScopes, NormalizedBundlerOptions, StmtEvalFlags};
   use rolldown_ecmascript::{EcmaAst, EcmaCompiler};
-  use rustc_hash::FxHashMap;
 
   use super::StmtEvalAnalyzer;
   use rolldown_common::FlatOptions;
@@ -1247,26 +729,7 @@ mod test {
     let options = Arc::new(NormalizedBundlerOptions::default());
     let flags = FlatOptions::from_shared_options(&options);
     ast.program().body.iter().any(|stmt| {
-      StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None, None)
-        .analyze_stmt(stmt)
-        .has_side_effect_for_tree_shaking()
-    })
-  }
-
-  fn has_side_effect_for_tree_shaking_with_target(code: &str, target: &str) -> bool {
-    let source_type = SourceType::tsx();
-    let ast = EcmaCompiler::parse("<Noop>", code, source_type).unwrap();
-    let semantic = EcmaAst::make_semantic(ast.program());
-    let scoping = semantic.into_scoping();
-    let ast_scopes = AstScopes::new(scoping);
-
-    let mut options = NormalizedBundlerOptions::default();
-    options.transform_options.target =
-      oxc::transformer::EngineTargets::from_target(target).expect("valid target");
-    let options = Arc::new(options);
-    let flags = FlatOptions::from_shared_options(&options);
-    ast.program().body.iter().any(|stmt| {
-      StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None, None)
+      StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None)
         .analyze_stmt(stmt)
         .has_side_effect_for_tree_shaking()
     })
@@ -1286,42 +749,7 @@ mod test {
       .body
       .iter()
       .map(|stmt| {
-        StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None, None)
-          .analyze_stmt(stmt)
-          .tree_shaking_flags()
-      })
-      .collect_vec()
-  }
-
-  /// Like `get_stmt_eval_flags`, but the named root bindings hold `constants`.
-  fn get_stmt_eval_flags_with_constants(
-    code: &str,
-    constants: &[(&str, ConstantValue)],
-  ) -> Vec<StmtEvalFlags> {
-    let source_type = SourceType::tsx();
-    let ast = EcmaCompiler::parse("<Noop>", code, source_type).unwrap();
-    let semantic = EcmaAst::make_semantic(ast.program());
-    let scoping = semantic.into_scoping();
-    let ast_scopes = AstScopes::new(scoping);
-    let constant_map: FxHashMap<_, _> = constants
-      .iter()
-      .map(|(name, value)| {
-        let symbol_id = ast_scopes
-          .scoping()
-          .get_root_binding((*name).into())
-          .unwrap_or_else(|| panic!("`{name}` should be a root binding of {code:?}"));
-        (symbol_id, ConstExportMeta::new(value.clone(), false))
-      })
-      .collect();
-
-    let options = Arc::new(NormalizedBundlerOptions::default());
-    let flags = FlatOptions::from_shared_options(&options);
-    ast
-      .program()
-      .body
-      .iter()
-      .map(|stmt| {
-        StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None, Some(&constant_map))
+        StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None)
           .analyze_stmt(stmt)
           .tree_shaking_flags()
       })
@@ -1342,175 +770,11 @@ mod test {
       .body
       .iter()
       .map(|stmt| {
-        StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None, None)
+        StmtEvalAnalyzer::new(&ast_scopes, flags, &options, None, None)
           .analyze_stmt(stmt)
           .is_order_sensitive()
       })
       .collect_vec()
-  }
-
-  fn get_stmt_eval_with_options(
-    code: &str,
-    options: &Arc<NormalizedBundlerOptions>,
-  ) -> Vec<(StmtEvalFlags, bool)> {
-    let source_type = SourceType::tsx();
-    let ast = EcmaCompiler::parse("<Noop>", code, source_type).unwrap();
-    let semantic = EcmaAst::make_semantic(ast.program());
-    let scoping = semantic.into_scoping();
-    let ast_scopes = AstScopes::new(scoping);
-
-    let flags = FlatOptions::from_shared_options(options);
-    ast
-      .program()
-      .body
-      .iter()
-      .map(|stmt| {
-        let facts =
-          StmtEvalAnalyzer::new(&ast_scopes, flags, options, None, None, None).analyze_stmt(stmt);
-        (facts.tree_shaking_flags(), facts.is_order_sensitive())
-      })
-      .collect_vec()
-  }
-
-  fn get_stmt_eval_with_top_level_eager_order_reasons(
-    code: &str,
-    options: &Arc<NormalizedBundlerOptions>,
-  ) -> Vec<(StmtEvalFlags, bool)> {
-    let source_type = SourceType::tsx();
-    let ast = EcmaCompiler::parse("<Noop>", code, source_type).unwrap();
-    let semantic = EcmaAst::make_semantic(ast.program());
-    let scoping = semantic.into_scoping();
-    let ast_scopes = AstScopes::new(scoping);
-
-    let flags = FlatOptions::from_shared_options(options);
-    ast
-      .program()
-      .body
-      .iter()
-      .map(|stmt| {
-        let analyzer = StmtEvalAnalyzer::new(&ast_scopes, flags, options, None, None, None);
-        let mut facts = analyzer.analyze_stmt(stmt);
-        if options.is_strict_execution_order_enabled() && !facts.is_order_sensitive() {
-          analyzer.add_top_level_eager_order_reasons(stmt, &mut facts);
-        }
-        (facts.tree_shaking_flags(), facts.is_order_sensitive())
-      })
-      .collect_vec()
-  }
-
-  fn strict_on_demand_options(treeshake: InnerOptions) -> Arc<NormalizedBundlerOptions> {
-    Arc::new(NormalizedBundlerOptions {
-      treeshake: treeshake.into(),
-      experimental: ExperimentalOptions {
-        on_demand_wrapping: Some(true),
-        ..ExperimentalOptions::default()
-      },
-      strict_execution_order: true,
-      ..NormalizedBundlerOptions::default()
-    })
-  }
-
-  fn assert_eager_reason_only(
-    code: &str,
-    options: &Arc<NormalizedBundlerOptions>,
-    expected_flags: StmtEvalFlags,
-  ) {
-    let regular = get_stmt_eval_with_options(code, options);
-    let eager = get_stmt_eval_with_top_level_eager_order_reasons(code, options);
-    assert_eq!(regular, vec![(expected_flags, false)], "regular facts for {code}");
-    assert_eq!(eager, vec![(expected_flags, true)], "eager facts for {code}");
-  }
-
-  fn assert_last_statement_gets_eager_reason_only(
-    code: &str,
-    options: &Arc<NormalizedBundlerOptions>,
-    expected_flags: StmtEvalFlags,
-  ) {
-    let regular = get_stmt_eval_with_options(code, options);
-    let eager = get_stmt_eval_with_top_level_eager_order_reasons(code, options);
-    assert_eq!(
-      regular.iter().map(|(flags, _)| *flags).collect_vec(),
-      eager.iter().map(|(flags, _)| *flags).collect_vec(),
-      "tree-shaking flags for {code}"
-    );
-    assert_eq!(regular.last(), Some(&(expected_flags, false)), "regular facts for {code}");
-    assert_eq!(eager.last(), Some(&(expected_flags, true)), "eager facts for {code}");
-    assert!(
-      eager[..eager.len() - 1].iter().all(|(_, is_order_sensitive)| !is_order_sensitive),
-      "deferred declarations for {code}"
-    );
-  }
-
-  /// A coercion of a known constant cannot call user code or throw (#10817).
-  #[test]
-  fn test_coercion_of_known_constant_is_side_effect_free() {
-    let pure = StmtEvalFlags::empty();
-    let unknown = StmtEvalFlags::UnknownSideEffect;
-    let second = [("SECOND", ConstantValue::Number(1000.0))];
-    let name = [("NAME", ConstantValue::String("rolldown".to_string()))];
-
-    // Without the constant, the operand type is undetermined, so the coercion can throw.
-    assert_eq!(get_stmt_eval_flags("const SECOND = 1000; 60 * SECOND;"), [pure, unknown]);
-    assert_eq!(get_stmt_eval_flags("const NAME = 'rolldown'; `${NAME}`;"), [pure, unknown]);
-
-    for code in [
-      "const SECOND = 1000; 60 * SECOND;",
-      "const SECOND = 1000; const MINUTE = 60 * SECOND;",
-      "const SECOND = 1000; export const MINUTE = 60 * SECOND;",
-      "const SECOND = 1000; -SECOND;",
-      "const SECOND = 1000; SECOND + 1;",
-      "const SECOND = 1000; `${SECOND}ms`;",
-    ] {
-      assert_eq!(get_stmt_eval_flags_with_constants(code, &second), [pure, pure], "{code}");
-    }
-    for code in [
-      "const NAME = 'rolldown'; `${NAME}!`;",
-      "const NAME = 'rolldown'; NAME + '!';",
-      "const NAME = 'rolldown'; NAME.length;",
-    ] {
-      assert_eq!(get_stmt_eval_flags_with_constants(code, &name), [pure, pure], "{code}");
-    }
-
-    // Direct `eval` can change a `let` or `var`, and a hoisted `var` initializer does not always
-    // run (`while (false) var SECOND = 1000;`).
-    for code in ["let SECOND = 1000; 60 * SECOND;", "while (false) var SECOND = 1000; 60 * SECOND;"]
-    {
-      assert_eq!(get_stmt_eval_flags_with_constants(code, &second), [pure, unknown], "{code}");
-    }
-
-    // Operations that throw regardless of the operand's primitive type stay side effects.
-    for code in [
-      "const SECOND = 1000; SECOND in {};",
-      "const SECOND = 1000; SECOND();",
-      "const SECOND = 1000; SECOND.a.b;",
-    ] {
-      assert_eq!(get_stmt_eval_flags_with_constants(code, &second), [pure, unknown], "{code}");
-    }
-    // A number constant coerced with a `BigInt` throws a `TypeError`.
-    assert_eq!(
-      get_stmt_eval_flags_with_constants("const SECOND = 1000; 1n * SECOND;", &second),
-      [pure, unknown]
-    );
-
-    // oxc trusts a known type further than a coercion: `instanceof` skips the effects of its left
-    // operand, and a typed array accepts any number. The constant must not make these pure.
-    let length = [("LENGTH", ConstantValue::Number(-1.0))];
-    assert_eq!(
-      get_stmt_eval_flags_with_constants(
-        "const SECOND = 1000; (globalThis.a(), SECOND) instanceof Object;",
-        &second
-      ),
-      [pure, unknown]
-    );
-    assert_eq!(
-      get_stmt_eval_flags_with_constants("const LENGTH = -1; new Uint8Array(LENGTH);", &length),
-      [pure, unknown]
-    );
-    // A number shift cannot throw, so the constant still makes it pure.
-    assert_eq!(
-      get_stmt_eval_flags_with_constants("const SECOND = 1000; 60 << SECOND;", &second),
-      [pure, pure]
-    );
   }
 
   #[test]
@@ -1744,24 +1008,8 @@ mod test {
     assert!(!has_side_effect_for_tree_shaking("import.meta"));
     assert!(!has_side_effect_for_tree_shaking("const meta = import.meta"));
     assert!(!has_side_effect_for_tree_shaking("import.meta.url"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta?.url"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta['url']"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta?.['url']"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta.ROLLDOWN_FILE_URL_abc123"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta?.ROLLDOWN_FILE_URL_abc123"));
-    assert!(!has_side_effect_for_tree_shaking(
-      "import.meta.ROLLDOWN_FILE_URL_aaaaaaaaaaaaaaaaaaaaaa_myUrlId"
-    ));
-    assert!(!has_side_effect_for_tree_shaking("import.meta['ROLLDOWN_FILE_URL_abc123']"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta?.['ROLLDOWN_FILE_URL_abc123']"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta.ROLLUP_FILE_URL_abc123"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta?.ROLLUP_FILE_URL_abc123"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta['ROLLUP_FILE_URL_abc123']"));
-    assert!(!has_side_effect_for_tree_shaking("import.meta?.['ROLLUP_FILE_URL_abc123']"));
-    assert!(has_side_effect_for_tree_shaking("import.meta[foo()]"));
     // Other import.meta properties are not spec-defined as side-effect-free
     assert!(has_side_effect_for_tree_shaking("import.meta.hot"));
-    assert!(has_side_effect_for_tree_shaking("import.meta['hot']"));
     // Deeper chains may throw (e.g. import.meta.nonExisting is undefined, .foo throws TypeError)
     assert!(has_side_effect_for_tree_shaking("import.meta.nonExisting.foo"));
     assert!(has_side_effect_for_tree_shaking("const { url } = import.meta"));
@@ -1973,9 +1221,7 @@ mod test {
     assert!(!has_side_effect_for_tree_shaking("RegExp('abc', 'g')"));
     assert!(!has_side_effect_for_tree_shaking("new RegExp('abc', 'g')"));
     assert!(!has_side_effect_for_tree_shaking("RegExp('abc', 'gi')"));
-    // Flags newer than ES5 (`s`/`u`/`y`) are may-throw without an explicit target;
-    // see `test_regexp_constructor_with_engine_targets`.
-    assert!(has_side_effect_for_tree_shaking("new RegExp('abc', 'gimsuy')"));
+    assert!(!has_side_effect_for_tree_shaking("new RegExp('abc', 'gimsuy')"));
     // RegExp with a RegExp literal argument is valid
     assert!(!has_side_effect_for_tree_shaking("RegExp(/foo/)"));
     assert!(!has_side_effect_for_tree_shaking("new RegExp(/foo/)"));
@@ -2001,20 +1247,6 @@ mod test {
     // RegExp literals are side-effect-free (they're validated at parse time)
     assert!(!has_side_effect_for_tree_shaking("/abc/"));
     assert!(!has_side_effect_for_tree_shaking("/abc/g"));
-  }
-
-  #[test]
-  fn test_regexp_constructor_with_engine_targets() {
-    // Without an explicit target, runtime support for post-ES5 RegExp features is
-    // unknown: constructor calls using them are commonly feature-detection probes
-    // that throw on unsupporting engines, so they must stay in the output
-    // (https://github.com/oxc-project/oxc/issues/18050).
-    assert!(has_side_effect_for_tree_shaking("new RegExp('abc', 'gimsuy')"));
-    // An explicit target new enough for every used feature opts into
-    // feature-aware analysis (`s` is ES2018; `u`/`y` are ES2015).
-    assert!(!has_side_effect_for_tree_shaking_with_target("new RegExp('abc', 'gimsuy')", "es2018"));
-    // A target older than a used feature stays conservative.
-    assert!(has_side_effect_for_tree_shaking_with_target("new RegExp('abc', 'gimsuy')", "es2015"));
   }
 
   #[test]
@@ -2253,345 +1485,6 @@ mod test {
     assert!(has_side_effect_for_tree_shaking("let a = true ? globalCall() : null"));
   }
 
-  // Strict on-demand order analysis needs a complete walk of the expressions that execute while a
-  // top-level statement is evaluated. Each case below is one witness for one collector branch or
-  // one regular-analyzer certification route that hides an eager read; the full syntax matrix
-  // (60 forms) is maintained by the external order-fuzzer release gate, which deliberately keeps
-  // syntax spellings that exercise an already-witnessed branch out of maintained suites.
-  #[test]
-  fn test_top_level_eager_order_reasons_cover_iife_and_member_wrappers() {
-    let options = strict_on_demand_options(InnerOptions::default());
-    for code in [
-      // Arrow-callee arm of `visit_immediately_invoked_function`.
-      "const value = (() => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5))();",
-      // Function-expression arm, block body.
-      "const value = (function () { return (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); })();",
-      // Formal-parameter walk of a directly invoked function.
-      "const value = ((unused) => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5))(0);",
-      // Class-definition walk reached from inside an eagerly evaluated body.
-      "const value = (() => class { static value = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); })();",
-    ] {
-      assert_eager_reason_only(code, &options, StmtEvalFlags::empty());
-    }
-
-    let property_read_options = strict_on_demand_options(InnerOptions {
-      property_read_side_effects: Some(PropertyReadSideEffects::False),
-      ..InnerOptions::default()
-    });
-    for code in [
-      // Member child hidden by the `propertyReadSideEffects: false` certification: array element,
-      // object property value, computed member key, and computed data-property key.
-      "const value = [(/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)][0];",
-      "const value = ({ value: (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5) }).value;",
-      "const value = ({ 5: 5, 9: 9 })[(/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)];",
-      "const value = ({ [(/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)]: 9 })[9] ?? 5;",
-      // Pure-annotated call whose result is consumed through a member wrapper.
-      "const value = (/* @__PURE__ */ make()).value;",
-    ] {
-      assert_eager_reason_only(code, &property_read_options, StmtEvalFlags::empty());
-    }
-  }
-
-  #[test]
-  fn test_top_level_eager_order_reasons_cover_bindings_assignments_and_pure_cjs_rhs() {
-    let property_read_options = strict_on_demand_options(InnerOptions {
-      property_read_side_effects: Some(PropertyReadSideEffects::False),
-      ..InnerOptions::default()
-    });
-    for code in [
-      "const { value = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5) } = {};",
-      "const { [(/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)]: value } = { 5: 5 };",
-    ] {
-      assert_eager_reason_only(code, &property_read_options, StmtEvalFlags::empty());
-    }
-
-    let property_write_options = strict_on_demand_options(InnerOptions {
-      property_write_side_effects: Some(PropertyWriteSideEffects::False),
-      ..InnerOptions::default()
-    });
-    assert_eager_reason_only(
-      "const value = (({}).value = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5));",
-      &property_write_options,
-      StmtEvalFlags::empty(),
-    );
-
-    let pure_cjs_options = strict_on_demand_options(InnerOptions {
-      unknown_global_side_effects: Some(false),
-      property_write_side_effects: Some(PropertyWriteSideEffects::False),
-      ..InnerOptions::default()
-    });
-    assert_eager_reason_only(
-      "exports.value = [(/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)][0];",
-      &pure_cjs_options,
-      StmtEvalFlags::PureCjs,
-    );
-  }
-
-  #[test]
-  fn test_top_level_eager_order_reasons_cover_manual_pure_call_new_and_tagged_template() {
-    let make_options = strict_on_demand_options(InnerOptions {
-      manual_pure_functions: Some(std::iter::once("make".to_string()).collect()),
-      ..InnerOptions::default()
-    });
-    assert_last_statement_gets_eager_reason_only(
-      "function make() { return { value: (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5) }; } const value = make().value;",
-      &make_options,
-      StmtEvalFlags::empty(),
-    );
-    assert_eager_reason_only("const value = make`value`;", &make_options, StmtEvalFlags::empty());
-
-    let box_options = strict_on_demand_options(InnerOptions {
-      manual_pure_functions: Some(std::iter::once("Box".to_string()).collect()),
-      ..InnerOptions::default()
-    });
-    assert_last_statement_gets_eager_reason_only(
-      "class Box { value = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); } const value = new Box();",
-      &box_options,
-      StmtEvalFlags::empty(),
-    );
-  }
-
-  #[test]
-  fn test_manual_pure_chains_keep_eager_child_side_effects() {
-    let options = Arc::new(NormalizedBundlerOptions {
-      treeshake: InnerOptions {
-        manual_pure_functions: Some(std::iter::once("make".to_string()).collect()),
-        ..InnerOptions::default()
-      }
-      .into(),
-      ..NormalizedBundlerOptions::default()
-    });
-    for code in [
-      "make()[effect()];",
-      "make(effect()).value;",
-      "new (make()[effect()].Box)();",
-      "make(effect());",
-    ] {
-      assert_eq!(
-        get_stmt_eval_with_options(code, &options),
-        vec![(StmtEvalFlags::UnknownSideEffect, true)],
-        "{code}"
-      );
-    }
-  }
-
-  #[test]
-  fn test_manual_pure_chains_drop_side_effect_free_spreads() {
-    let options = Arc::new(NormalizedBundlerOptions {
-      treeshake: InnerOptions {
-        manual_pure_functions: Some(std::iter::once("make".to_string()).collect()),
-        ..InnerOptions::default()
-      }
-      .into(),
-      ..NormalizedBundlerOptions::default()
-    });
-    // Spreading an array/string/template literal iterates only built-in iterators, so a matched
-    // manual-pure chain wrapping one stays removable (Rollup drops these too).
-    for code in [
-      "make(...[]).value;",
-      "make(...'').value;",
-      "make(...`literal`).value;",
-      "make(...[1, 2]).value;",
-    ] {
-      assert_eq!(
-        get_stmt_eval_with_options(code, &options),
-        vec![(StmtEvalFlags::empty(), false)],
-        "{code}"
-      );
-    }
-    // The call-position form is likewise side-effect-free; reading the unresolved `make` global
-    // only makes it order-sensitive.
-    assert_eq!(
-      get_stmt_eval_with_options("make(...[])();", &options),
-      vec![(StmtEvalFlags::empty(), true)],
-      "make(...[])();"
-    );
-    // A side-effectful spread element, or a non-literal (possibly user-iterable) operand, keeps the
-    // statement — evaluating or iterating the operand may run arbitrary code.
-    for code in [
-      "make(...[effect()]).value;",
-      "make(...effect()).value;",
-      "make(...spreadable).value;",
-      "make(...[...spreadable]).value;",
-    ] {
-      assert_eq!(
-        get_stmt_eval_with_options(code, &options),
-        vec![(StmtEvalFlags::UnknownSideEffect, true)],
-        "{code}"
-      );
-    }
-  }
-
-  #[test]
-  fn test_manual_pure_chains_without_eager_children_are_side_effect_free() {
-    let options = Arc::new(NormalizedBundlerOptions {
-      treeshake: InnerOptions {
-        manual_pure_functions: Some(std::iter::once("make".to_string()).collect()),
-        ..InnerOptions::default()
-      }
-      .into(),
-      ..NormalizedBundlerOptions::default()
-    });
-    // A manual-pure root with no eagerly-evaluated child is side-effect-free (removable), across
-    // bare calls, member reads, repeated/optional/chained calls, and tagged templates. `make` is
-    // declared so it resolves locally and its read contributes no global-access order reason.
-    for code in [
-      "function make() {} make();",
-      "function make() {} make.div;",
-      "function make() {} make.div`x`;",
-      "function make() {} make?.div();",
-      "function make() {} make()();",
-      "function make() {} make().div();",
-    ] {
-      assert_eq!(
-        get_stmt_eval_with_options(code, &options).last(),
-        Some(&(StmtEvalFlags::empty(), false)),
-        "{code}"
-      );
-    }
-    // Scoping: `manualPureFunctions` only touches listed names, so a call to an unlisted function
-    // keeps its side effects.
-    assert_eq!(
-      get_stmt_eval_with_options("other();", &options).first().map(|(flags, _)| *flags),
-      Some(StmtEvalFlags::UnknownSideEffect),
-      "unlisted call must not be treated as pure"
-    );
-  }
-
-  #[test]
-  fn test_conditional_and_logical_iife_callees_behind_manual_pure_member() {
-    // A bare conditional/logical-callee IIFE needs no collector arm: oxc's IIFE certification
-    // recognizes only direct function/arrow callees, so the statement keeps `UnknownSideEffect`
-    // and is order-sensitive through the regular analyzer alone.
-    let options = strict_on_demand_options(InnerOptions::default());
-    let direct_spelling =
-      "const value = (true && (() => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)))();";
-    assert_eq!(
-      get_stmt_eval_with_options(direct_spelling, &options),
-      vec![(StmtEvalFlags::UnknownSideEffect, true)]
-    );
-    assert_eq!(
-      get_stmt_eval_with_top_level_eager_order_reasons(direct_spelling, &options),
-      vec![(StmtEvalFlags::UnknownSideEffect, true)]
-    );
-
-    // Computed-key indirect IIFEs stay conservative under both analysis paths.
-    let make_options = strict_on_demand_options(InnerOptions {
-      manual_pure_functions: Some(std::iter::once("make".to_string()).collect()),
-      ..InnerOptions::default()
-    });
-    for code in [
-      "function make() {} const value = make[(true ? (() => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)) : (() => 9))()];",
-      "function make() {} const value = make[(true && (() => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)))()];",
-    ] {
-      let regular = get_stmt_eval_with_options(code, &make_options);
-      assert_eq!(regular.last(), Some(&(StmtEvalFlags::UnknownSideEffect, true)), "{code}");
-      assert_eq!(
-        get_stmt_eval_with_top_level_eager_order_reasons(code, &make_options),
-        regular,
-        "{code}"
-      );
-    }
-  }
-
-  // The same manual-pure member-root route, for the remaining eager-execution forms.
-  #[test]
-  fn test_eager_walk_covers_constructed_classes_literal_tags_and_assignment_callees() {
-    let make_options = strict_on_demand_options(InnerOptions {
-      manual_pure_functions: Some(std::iter::once("make".to_string()).collect()),
-      ..InnerOptions::default()
-    });
-    for code in [
-      // Instance field initializer runs at construction.
-      "function make() {} const value = make[new class { k = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); }().k];",
-      // Constructor body runs at construction.
-      "function make() {} const value = make[new class { constructor() { this.k = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); } }().k];",
-      // Constructor parameter defaults run at construction.
-      "function make() {} const value = make[new class { constructor(k = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5)) { this.k = k; } }().k];",
-      // A conditional callee recurses into the constructed class through the existing arms.
-      "function make() {} const value = make[new (true ? class { k = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); } : class {})().k];",
-      // A literal tag is called when the template evaluates.
-      "function make() {} const value = make[((s) => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5))`x`];",
-      // An assignment-expression callee invokes its RHS.
-      "function make() {} let assigned; const value = make[(assigned = () => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5))()];",
-      // Logical assignments are `AssignmentExpression`s, not `LogicalExpression`s.
-      "function make() {} let assigned; const value = make[(assigned ??= () => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5))()];",
-    ] {
-      let regular = get_stmt_eval_with_options(code, &make_options);
-      assert_eq!(regular.last(), Some(&(StmtEvalFlags::UnknownSideEffect, true)), "{code}");
-      assert_eq!(
-        get_stmt_eval_with_top_level_eager_order_reasons(code, &make_options),
-        regular,
-        "{code}"
-      );
-    }
-  }
-
-  #[test]
-  fn test_extended_top_level_reasons_do_not_leak_to_the_non_strict_default() {
-    let manual_pure_tag = "function tag() { return (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); } class C { static value = tag``; }";
-    let manual_pure_treeshake = || InnerOptions {
-      manual_pure_functions: Some(std::iter::once("tag".to_string()).collect()),
-      ..InnerOptions::default()
-    };
-
-    let default_options = Arc::new(NormalizedBundlerOptions {
-      treeshake: manual_pure_treeshake().into(),
-      ..NormalizedBundlerOptions::default()
-    });
-    let wrap_all_options = Arc::new(NormalizedBundlerOptions {
-      treeshake: manual_pure_treeshake().into(),
-      strict_execution_order: true,
-      ..NormalizedBundlerOptions::default()
-    });
-    assert_eq!(
-      get_stmt_eval_with_top_level_eager_order_reasons(manual_pure_tag, &default_options),
-      vec![(StmtEvalFlags::empty(), false), (StmtEvalFlags::empty(), false)]
-    );
-
-    // Both strict plans read the same signal, so both collect the same reasons.
-    let strict_on_demand = strict_on_demand_options(manual_pure_treeshake());
-    for options in [&wrap_all_options, &strict_on_demand] {
-      assert_last_statement_gets_eager_reason_only(
-        manual_pure_tag,
-        options,
-        StmtEvalFlags::empty(),
-      );
-    }
-  }
-
-  #[test]
-  fn test_top_level_eager_order_reason_walk_keeps_deferred_boundaries() {
-    let options = strict_on_demand_options(InnerOptions::default());
-    for code in [
-      "const deferred = () => (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5);",
-      "function deferred() { return (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); }",
-      "class Deferred { value = (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); }",
-      "class Deferred { method() { return (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); } }",
-    ] {
-      assert_eq!(
-        get_stmt_eval_with_top_level_eager_order_reasons(code, &options),
-        vec![(StmtEvalFlags::empty(), false)],
-        "{code}"
-      );
-    }
-
-    // `propertyReadSideEffects: false` promises that property reads run no observable user code,
-    // so a getter body invoked through a certified read stays invisible here, exactly as it does
-    // for `TopLevelImportReadDetector`. This is the option's documented contract, not a gap.
-    let property_read_options = strict_on_demand_options(InnerOptions {
-      property_read_side_effects: Some(PropertyReadSideEffects::False),
-      ..InnerOptions::default()
-    });
-    assert_eq!(
-      get_stmt_eval_with_top_level_eager_order_reasons(
-        "const value = ({ get value() { return (/* @__PURE__ */ globalThis.__orderRead?.() ?? 5); } }).value;",
-        &property_read_options,
-      ),
-      vec![(StmtEvalFlags::empty(), false)],
-    );
-  }
-
   #[test]
   fn test_cjs_pattern() {
     assert_eq!(
@@ -2663,157 +1556,19 @@ let remove15 = class {
     assert!(has_side_effect_for_tree_shaking("function fn() {} class MyClass { @fn field }"));
   }
 
-  // #10104 follow-up: a class's definition-time-evaluated positions (heritage, computed keys,
-  // static field/accessor initializers, static blocks, decorators) that read a whitelisted global
-  // or carry a pure annotation make the class order-sensitive — the same treatment
-  // `var x = Math.max(1, 2)` already gets. The three oxc-delegate arms (class declaration, class
-  // expression, `export default class`) used to drop those reasons. The tree-shaking channel is
-  // untouched: every side-effect-free class here keeps `StmtEvalFlags::empty()`.
   #[test]
-  fn test_class_definition_time_order_sensitivity() {
-    // Static field initializer reading a whitelisted global -> order-sensitive, and NOT a
-    // tree-shaking side effect (so only the order-sensitive channel grew).
-    assert_eq!(get_stmt_order_sensitivity("class C { static x = Math.max(1, 2) }"), vec![true]);
-    assert_eq!(
-      get_stmt_eval_flags("class C { static x = Math.max(1, 2) }"),
-      vec![StmtEvalFlags::empty()]
-    );
-    // Static field initializer with a pure annotation (mirrors the object-literal case above).
-    assert_eq!(
-      get_stmt_order_sensitivity("class C { static x = /* @__PURE__ */ (() => globalValue)() }"),
-      vec![true]
-    );
-    assert_eq!(
-      get_stmt_eval_flags("class C { static x = /* @__PURE__ */ (() => globalValue)() }"),
-      vec![StmtEvalFlags::empty()]
-    );
-    // Heritage (extends) reading a whitelisted global.
-    assert_eq!(get_stmt_order_sensitivity("class C extends Object {}"), vec![true]);
-    assert_eq!(get_stmt_eval_flags("class C extends Object {}"), vec![StmtEvalFlags::empty()]);
-    // Computed key evaluating a global read.
-    assert_eq!(get_stmt_order_sensitivity("class C { [Math.max(1, 2)]() {} }"), vec![true]);
-    assert_eq!(
-      get_stmt_eval_flags("class C { [Math.max(1, 2)]() {} }"),
-      vec![StmtEvalFlags::empty()]
-    );
-    // Static block reading a global.
-    assert_eq!(get_stmt_order_sensitivity("class C { static { Math.max(1, 2) } }"), vec![true]);
-    // Class expression and `export default class` route through the same machinery.
-    assert_eq!(
-      get_stmt_order_sensitivity("const C = class { static x = Math.max(1, 2) }"),
-      vec![true]
-    );
-    assert_eq!(
-      get_stmt_order_sensitivity("export default class { static x = Math.max(1, 2) }"),
-      vec![true]
-    );
-    assert_eq!(
-      get_stmt_eval_flags("export default class { static x = Math.max(1, 2) }"),
-      vec![StmtEvalFlags::empty()]
-    );
+  fn test_extract_first_part_of_member_expr_like() {
+    assert_eq!(extract_first_part_of_member_expr_like_helper("a.b"), "a");
+    assert_eq!(extract_first_part_of_member_expr_like_helper("styled?.div()"), "styled");
+    assert_eq!(extract_first_part_of_member_expr_like_helper("styled()"), "styled");
+    assert_eq!(extract_first_part_of_member_expr_like_helper("styled().div"), "styled");
+    assert_eq!(extract_first_part_of_member_expr_like_helper("styled()()"), "styled");
   }
 
-  // Positions that run at construction/call time — not class definition time — stay
-  // order-insensitive, so on-demand wrapping is not needlessly triggered.
-  #[test]
-  fn test_class_non_definition_time_stays_order_insensitive() {
-    assert_eq!(get_stmt_order_sensitivity("class C {}"), vec![false]);
-    // Instance (non-static) field initializer runs in the constructor.
-    assert_eq!(get_stmt_order_sensitivity("class C { x = Math.max(1, 2) }"), vec![false]);
-    assert_eq!(get_stmt_eval_flags("class C { x = Math.max(1, 2) }"), vec![StmtEvalFlags::empty()]);
-    assert_eq!(get_stmt_order_sensitivity("const C = class { x = Math.max(1, 2) }"), vec![false]);
-    assert_eq!(
-      get_stmt_order_sensitivity("export default class { x = Math.max(1, 2) }"),
-      vec![false]
-    );
-    // Method body runs when invoked, not at definition time.
-    assert_eq!(
-      get_stmt_order_sensitivity("class C { m() { return Math.max(1, 2) } }"),
-      vec![false]
-    );
-  }
-
-  // The whole-class Oxc gate owns tree-shaking flags. The separate definition-time walk must
-  // collect every order-sensitive reason without being stopped by a nested tree-shaking flag, and
-  // must not turn a tree-shaking-only flag into an order-sensitive reason.
-  #[test]
-  fn test_class_definition_time_reason_walk_is_independent_of_tree_shaking() {
-    let cjs_options = NormalizedBundlerOptions {
-      treeshake: InnerOptions {
-        unknown_global_side_effects: Some(false),
-        property_write_side_effects: Some(PropertyWriteSideEffects::False),
-        ..InnerOptions::default()
-      }
-      .into(),
-      ..NormalizedBundlerOptions::default()
-    };
-    let cjs_options = Arc::new(cjs_options);
-    for (code, expected_order_sensitive) in [
-      ("export class C { static x = [exports.a = 1] }", false),
-      ("export class C { static x = [exports.a = 1, Math.max(1, 2)] }", true),
-      ("export class C { static x = [exports.a = 1, /* @__PURE__ */ (() => 1)()] }", true),
-      ("export class C { static x = [Math.max(1, 2), exports.a = 1] }", true),
-      ("export class C { static { { exports.a = 1; Math.max(1, 2) } } }", true),
-      ("export class C { static { const x = 1; Math.max(x, 2) } }", true),
-      ("export class C { static x = (({}).x = Math.max(1, 2)) }", true),
-    ] {
-      assert_eq!(
-        get_stmt_eval_with_options(code, &cjs_options),
-        vec![(StmtEvalFlags::empty(), expected_order_sensitive)],
-        "{code}"
-      );
-    }
-
-    let property_read_options = NormalizedBundlerOptions {
-      treeshake: InnerOptions {
-        property_read_side_effects: Some(PropertyReadSideEffects::False),
-        ..InnerOptions::default()
-      }
-      .into(),
-      ..NormalizedBundlerOptions::default()
-    };
-    let property_read_options = Arc::new(property_read_options);
-    for (code, expected_order_sensitive) in [
-      ("class C { static { const [x = 1] = [] } }", false),
-      ("class C { static { const [x = Math.max(1, 2)] = [] } }", true),
-      ("class C { static x = ({})[Math.max(1, 2)] }", true),
-    ] {
-      assert_eq!(
-        get_stmt_eval_with_options(code, &property_read_options),
-        vec![(StmtEvalFlags::empty(), expected_order_sensitive)],
-        "{code}"
-      );
-    }
-
-    assert_eq!(
-      get_stmt_eval_with_options(
-        "class C { static x = (() => Math.max(1, 2))() }",
-        &Arc::new(NormalizedBundlerOptions::default()),
-      ),
-      vec![(StmtEvalFlags::empty(), true)]
-    );
-    assert_eq!(
-      get_stmt_eval_with_options(
-        "class C { static x = () => Math.max(1, 2) }",
-        &Arc::new(NormalizedBundlerOptions::default()),
-      ),
-      vec![(StmtEvalFlags::empty(), false)]
-    );
-  }
-
-  #[test]
-  fn test_chain_root_ident() {
-    assert_eq!(chain_root_ident_helper("a.b"), "a");
-    assert_eq!(chain_root_ident_helper("styled?.div()"), "styled");
-    assert_eq!(chain_root_ident_helper("styled()"), "styled");
-    assert_eq!(chain_root_ident_helper("styled().div"), "styled");
-    assert_eq!(chain_root_ident_helper("styled()()"), "styled");
-  }
-
-  fn chain_root_ident_helper(code: &str) -> String {
+  fn extract_first_part_of_member_expr_like_helper(code: &str) -> String {
     let allocator = oxc::allocator::Allocator::default();
     let parser = Parser::new(&allocator, code, SourceType::ts());
     let expr = parser.parse_expression().unwrap();
-    super::chain_root_ident(&expr).unwrap().to_string()
+    super::extract_first_part_of_member_expr_like(&expr).unwrap().to_string()
   }
 }

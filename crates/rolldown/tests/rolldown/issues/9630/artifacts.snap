@@ -7,13 +7,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// isArrayLike.cjs
+//#region isArrayLike.cjs
 var require_isArrayLike = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function isArrayLike(value) {
 		return value != null && typeof value.length === "number";
 	}
 	exports.isArrayLike = isArrayLike;
 }));
+//#endregion
 export { __commonJSMin as n, __toESM as r, require_isArrayLike as t };
 
 ```
@@ -22,7 +23,7 @@ export { __commonJSMin as n, __toESM as r, require_isArrayLike as t };
 
 ```js
 import { n as __commonJSMin, t as require_isArrayLike$1 } from "./isArrayLike.js";
-// last.cjs
+//#region last.cjs
 var require_last = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var require_isArrayLike = require_isArrayLike$1();
 	function last(array) {
@@ -35,6 +36,7 @@ var require_last = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 	exports.last = last;
 }));
+//#endregion
 export default require_last();
 
 ```
@@ -51,6 +53,7 @@ async function lazy() {
 		3
 	]);
 }
+//#endregion
 export { eager, lazy };
 
 ```
@@ -63,13 +66,14 @@ export { eager, lazy };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// isArrayLike.cjs
+//#region isArrayLike.cjs
 var require_isArrayLike = /* @__PURE__ */ __commonJSMin(((exports) => {
 	function isArrayLike(value) {
 		return value != null && typeof value.length === "number";
 	}
 	exports.isArrayLike = isArrayLike;
 }));
+//#endregion
 Object.defineProperty(exports, "__commonJSMin", {
 	enumerable: true,
 	get: function() {
@@ -94,10 +98,10 @@ Object.defineProperty(exports, "require_isArrayLike", {
 ### last.js
 
 ```js
-const require_isArrayLike$3 = require("./isArrayLike.js");
-// last.cjs
-var require_last = /* @__PURE__ */ require_isArrayLike$3.__commonJSMin(((exports) => {
-	var require_isArrayLike = require_isArrayLike$3.require_isArrayLike();
+const require_isArrayLike$1 = require("./isArrayLike.js");
+//#region last.cjs
+var require_last = /* @__PURE__ */ require_isArrayLike$1.__commonJSMin(((exports) => {
+	var require_isArrayLike = require_isArrayLike$1.require_isArrayLike();
 	function last(array) {
 		if (!require_isArrayLike.isArrayLike(array)) return;
 		return array[array.length - 1];
@@ -108,6 +112,7 @@ var require_last = /* @__PURE__ */ require_isArrayLike$3.__commonJSMin(((exports
 	};
 	exports.last = last;
 }));
+//#endregion
 Object.defineProperty(exports, "default", {
 	enumerable: true,
 	get: function() {
@@ -130,6 +135,7 @@ async function lazy() {
 		3
 	]);
 }
+//#endregion
 exports.eager = eager;
 exports.lazy = lazy;
 

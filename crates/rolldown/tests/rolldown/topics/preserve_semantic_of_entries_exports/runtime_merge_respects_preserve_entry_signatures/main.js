@@ -1,7 +1,6 @@
 // Second entry: reads lib's exports (a cross-chunk static edge to `lib`) and
-// independently pulls runtime helpers via interop. `lib` also pulls runtime
-// helpers, making it possible for the runtime to merge into `lib` when entry
-// signature extension is allowed.
+// independently pulls runtime helpers via interop, making `lib` the consumer-set
+// dominator the runtime is a candidate to merge into.
 import assert from 'node:assert';
 import { foo, bar } from './lib.js';
 

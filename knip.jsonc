@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema-jsonc.json",
+  "ignoreBinaries": ["only-allow"],
   "ignoreWorkspaces": ["examples/**"], // no rolldown plugin yet
   "workspaces": {
     ".": {
@@ -9,6 +10,7 @@
         "cjs-module-lexer",
         "playwright-chromium",
         "remove-unused-vars",
+        "rolldown",
       ],
     },
     "crates/rolldown/tests/rolldown/topics/npm_packages": {
@@ -26,11 +28,7 @@
         ".vitepress/scripts/extract-options-plugin.ts", // used as a string path in TypeDoc plugin config
         ".vitepress/scripts/custom-theme-plugin.ts", // used as a string path in TypeDoc plugin config
       ],
-      "ignoreDependencies": [
-        "typedoc-plugin-merge-modules",
-        "typedoc-vitepress-theme",
-        "wrangler", // used by the external Cloudflare Workers Builds deploy command
-      ],
+      "ignoreDependencies": ["typedoc-plugin-merge-modules", "typedoc-vitepress-theme"],
     },
     "packages/bench": {
       "entry": ["vue-entry.js"],
@@ -49,14 +47,16 @@
         "src/api/experimental.ts",
       ],
       "ignore": ["src/binding.cjs", "src/rolldown-binding.wasi.cjs", "src/browser.js"],
-      "ignoreDependencies": ["pathe"],
+      "ignoreDependencies": ["@rollup/plugin-json", "buble", "pathe"],
+    },
+    "packages/rolldown/npm/wasm32-wasi": {
+      "ignoreDependencies": ["@napi-rs/wasm-runtime"],
     },
     "packages/rolldown/tests": {
       "entry": ["*/**"],
       "ignore": ["{cli,fixtures,stability}/**"], // lots of unlisted dependencies
       "ignoreUnresolved": ["./world"],
       "ignoreDependencies": [
-        "@rolldown/test-dual-format", // used in packages/rolldown/tests/builtin-plugin/vite-resolve.test.ts
         "@rolldown/test-side-effects-field", // used in packages/rolldown/tests/fixtures/plugin/context/resolve-side-effects
         "direct-graph-lib", // fixture dependency in packages/rolldown/tests/behaviors/emit-debug-data
         "duplicate-a", // fixture dependency in packages/rolldown/tests/behaviors/emit-debug-data
@@ -68,19 +68,13 @@
     "packages/rollup-tests": {
       "entry": ["src/**/*.js", "test/**/*.{js,ts}"],
       "ignoreDependencies": [
-        "@jridgewell/sourcemap-codec",
-        "@rollup/plugin-commonjs",
-        "@rollup/plugin-json",
-        "@rollup/plugin-node-resolve",
+        "acorn",
         "acorn-import-assertions",
         "acorn-import-phases",
-        "acorn-jsx",
-        "buble",
-        "magic-string",
-        "terser",
-        "requirejs",
-        "weak-napi",
         "locate-character",
+        "requirejs",
+        "terser",
+        "weak-napi",
       ],
       "ignoreUnresolved": ["/types$"],
     },
@@ -94,46 +88,37 @@
         "src/dev-engine-close-child.mjs", // spawned by dev-engine-close.test.ts via execa
       ],
     },
-    "packages/browser-tests": {
-      "ignore": ["tests/fixtures/**"], // mounted into the container and built there, not here
-    },
     "scripts": {
       "entry": ["misc/**", "lint/index.ts"],
     },
     "packages/test-dev-server/tests/fixtures/*": {
       "entry": ["dev.config.mjs", "src/*.js"], // no @rolldown/test-dev-server plugin
     },
-    // Base config for browser playgrounds (the explicitly-listed ones below override it).
-    // Playground modules are entries so exports consumed only through hot updates
-    // (accept callbacks, re-executed factories) don't count as unused.
-    "packages/test-dev-server/tests/playground/*": {
-      "entry": ["dev.config.mjs", "*.js", "__tests__/*.spec.ts"],
-    },
-    "packages/test-dev-server/tests/playground/lazy-overlap-dedup": {
-      "entry": ["dev.config.mjs", "*.js", "__tests__/*.spec.ts", "__tests__/serve.ts"],
-    },
     "packages/test-dev-server/tests/playground/hmr-full-bundle-mode": {
       "entry": [
         "dev.config.mjs",
+        "main.js",
         "hmr.js",
         "*/*.js", // error-scenario sub-folders (hmr-error, rebuild-error), imported by main.js
         "__tests__/*.spec.ts",
-      ], // Playwright test with dev config and source files; main.js is a default entry
+      ], // Playwright test with dev config and source files
     },
     "packages/test-dev-server/tests/playground/initial-build-error": {
       "entry": [
         "dev.config.mjs",
+        "main.js",
         "module.js", // imported by main.js; ships broken so the first build fails
         "__tests__/*.spec.ts",
-      ], // Playwright test with dev config and source files; main.js is a default entry
+      ], // Playwright test with dev config and source files
     },
     "packages/test-dev-server/tests/playground/lazy-compilation": {
       "entry": [
         "dev.config.mjs",
+        "main.js",
         "*/*.js", // each scenario sub-folder's setup.js + lazy modules, imported by main.js
         "__tests__/*.spec.ts",
         "__tests__/serve.ts",
-      ], // One project, one config; each scenario (basic, aliased-import, shared-module, nested-dynamic-import) is a sub-folder imported by main.js (a default entry)
+      ], // One project, one config; each scenario (basic, aliased-import, shared-module, nested-dynamic-import) is a sub-folder imported by main.js
       "ignoreDependencies": ["@lazy"], // aliased-import scenario; alias resolved via dev.config.mjs
     },
   },

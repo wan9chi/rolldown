@@ -8,7 +8,6 @@ export default defineTest({
   config: {
     output: {
       banner: () => '#!/usr/bin/env node',
-      minify: false,
     },
     onLog(level, log) {
       expect(level).toBe('warn');

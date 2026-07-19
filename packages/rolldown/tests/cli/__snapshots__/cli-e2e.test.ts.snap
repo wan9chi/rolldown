@@ -24,8 +24,6 @@ OPTIONS
   --advancedChunks.minSize <advancedChunks.minSize>Minimum size of the chunk.
   --assetFileNames <name>     Name pattern for asset files.
   --banner <banner>           Code to insert the top of the bundled file (outside the wrapper function).
-  --charset <charset>         Character set to use in generated JavaScript.
-  --checks.bundlerTimings     Whether to emit warnings when plugins and option callbacks take significant time during the build process.
   --checks.cannotCallNamespace Whether to emit warnings when a namespace is called as a function.
   --checks.circularDependency Whether to emit warnings when detecting circular dependency.
   --checks.commonJsVariableInEsm Whether to emit warnings when a CommonJS variable is used in an ES module.
@@ -42,11 +40,8 @@ OPTIONS
   --checks.missingGlobalName  Whether to emit warnings when the \`output.globals\` option is missing when needed.
   --checks.missingNameOptionForIifeExport Whether to emit warnings when the \`output.name\` option is missing when needed.
   --checks.mixedExports       Whether to emit warnings when the way to export values is ambiguous.
-  --checks.moduleLevelDirective Whether to emit warnings for module-level directives other than \`use strict\`.
-  --checks.namespaceConflict  Whether to emit warnings when multiple star re-exports provide the same name from different modules.
-  --checks.pluginTimings      Deprecated alias for bundlerTimings. Rolldown uses bundlerTimings if both options have values.
+  --checks.pluginTimings      Whether to emit warnings when plugins take significant time during the build process.
   --checks.preferBuiltinFeature Whether to emit warnings when a plugin that is covered by a built-in feature is used.
-  --checks.shimmedExport      Whether to emit warnings when a missing export is replaced with an undefined binding.
   --checks.sourcemapBroken    Whether to emit warnings when a plugin transforms code without generating a sourcemap.
   --checks.toleratedTransform Whether to emit warnings when detecting tolerated transform.
   --checks.unresolvedEntry    Whether to emit warnings when an entrypoint cannot be resolved.
@@ -99,7 +94,7 @@ OPTIONS
   --sourcemapExcludeSources   Exclude source content from sourcemaps.
   --sourcemapFileNames <sourcemapFileNames>Name pattern for emitted sourcemaps.
   --strict <strict>           Whether to always output \`"use strict"\` directive in non-ES module outputs.
-  --strictExecutionOrder      Preserve source module execution order across generated chunks.
+  --strictExecutionOrder      Lets modules be executed in the order they are declared.
   --topLevelVar               Rewrite top-level declarations to use \`var\`.
   --transform.assumptions.ignoreFunctionLength .
   --transform.assumptions.noDocumentAll .
@@ -178,8 +173,6 @@ OPTIONS
   --advancedChunks.minSize <advancedChunks.minSize>Minimum size of the chunk.
   --assetFileNames <name>     Name pattern for asset files.
   --banner <banner>           Code to insert the top of the bundled file (outside the wrapper function).
-  --charset <charset>         Character set to use in generated JavaScript.
-  --checks.bundlerTimings     Whether to emit warnings when plugins and option callbacks take significant time during the build process.
   --checks.cannotCallNamespace Whether to emit warnings when a namespace is called as a function.
   --checks.circularDependency Whether to emit warnings when detecting circular dependency.
   --checks.commonJsVariableInEsm Whether to emit warnings when a CommonJS variable is used in an ES module.
@@ -196,11 +189,8 @@ OPTIONS
   --checks.missingGlobalName  Whether to emit warnings when the \`output.globals\` option is missing when needed.
   --checks.missingNameOptionForIifeExport Whether to emit warnings when the \`output.name\` option is missing when needed.
   --checks.mixedExports       Whether to emit warnings when the way to export values is ambiguous.
-  --checks.moduleLevelDirective Whether to emit warnings for module-level directives other than \`use strict\`.
-  --checks.namespaceConflict  Whether to emit warnings when multiple star re-exports provide the same name from different modules.
-  --checks.pluginTimings      Deprecated alias for bundlerTimings. Rolldown uses bundlerTimings if both options have values.
+  --checks.pluginTimings      Whether to emit warnings when plugins take significant time during the build process.
   --checks.preferBuiltinFeature Whether to emit warnings when a plugin that is covered by a built-in feature is used.
-  --checks.shimmedExport      Whether to emit warnings when a missing export is replaced with an undefined binding.
   --checks.sourcemapBroken    Whether to emit warnings when a plugin transforms code without generating a sourcemap.
   --checks.toleratedTransform Whether to emit warnings when detecting tolerated transform.
   --checks.unresolvedEntry    Whether to emit warnings when an entrypoint cannot be resolved.
@@ -253,7 +243,7 @@ OPTIONS
   --sourcemapExcludeSources   Exclude source content from sourcemaps.
   --sourcemapFileNames <sourcemapFileNames>Name pattern for emitted sourcemaps.
   --strict <strict>           Whether to always output \`"use strict"\` directive in non-ES module outputs.
-  --strictExecutionOrder      Preserve source module execution order across generated chunks.
+  --strictExecutionOrder      Lets modules be executed in the order they are declared.
   --topLevelVar               Rewrite top-level declarations to use \`var\`.
   --transform.assumptions.ignoreFunctionLength .
   --transform.assumptions.noDocumentAll .
@@ -332,8 +322,6 @@ OPTIONS
   --advancedChunks.minSize <advancedChunks.minSize>Minimum size of the chunk.
   --assetFileNames <name>     Name pattern for asset files.
   --banner <banner>           Code to insert the top of the bundled file (outside the wrapper function).
-  --charset <charset>         Character set to use in generated JavaScript.
-  --checks.bundlerTimings     Whether to emit warnings when plugins and option callbacks take significant time during the build process.
   --checks.cannotCallNamespace Whether to emit warnings when a namespace is called as a function.
   --checks.circularDependency Whether to emit warnings when detecting circular dependency.
   --checks.commonJsVariableInEsm Whether to emit warnings when a CommonJS variable is used in an ES module.
@@ -350,11 +338,8 @@ OPTIONS
   --checks.missingGlobalName  Whether to emit warnings when the \`output.globals\` option is missing when needed.
   --checks.missingNameOptionForIifeExport Whether to emit warnings when the \`output.name\` option is missing when needed.
   --checks.mixedExports       Whether to emit warnings when the way to export values is ambiguous.
-  --checks.moduleLevelDirective Whether to emit warnings for module-level directives other than \`use strict\`.
-  --checks.namespaceConflict  Whether to emit warnings when multiple star re-exports provide the same name from different modules.
-  --checks.pluginTimings      Deprecated alias for bundlerTimings. Rolldown uses bundlerTimings if both options have values.
+  --checks.pluginTimings      Whether to emit warnings when plugins take significant time during the build process.
   --checks.preferBuiltinFeature Whether to emit warnings when a plugin that is covered by a built-in feature is used.
-  --checks.shimmedExport      Whether to emit warnings when a missing export is replaced with an undefined binding.
   --checks.sourcemapBroken    Whether to emit warnings when a plugin transforms code without generating a sourcemap.
   --checks.toleratedTransform Whether to emit warnings when detecting tolerated transform.
   --checks.unresolvedEntry    Whether to emit warnings when an entrypoint cannot be resolved.
@@ -407,7 +392,7 @@ OPTIONS
   --sourcemapExcludeSources   Exclude source content from sourcemaps.
   --sourcemapFileNames <sourcemapFileNames>Name pattern for emitted sourcemaps.
   --strict <strict>           Whether to always output \`"use strict"\` directive in non-ES module outputs.
-  --strictExecutionOrder      Preserve source module execution order across generated chunks.
+  --strictExecutionOrder      Lets modules be executed in the order they are declared.
   --topLevelVar               Rewrite top-level declarations to use \`var\`.
   --transform.assumptions.ignoreFunctionLength .
   --transform.assumptions.noDocumentAll .
@@ -486,8 +471,6 @@ OPTIONS
   --advancedChunks.minSize <advancedChunks.minSize>Minimum size of the chunk.
   --assetFileNames <name>     Name pattern for asset files.
   --banner <banner>           Code to insert the top of the bundled file (outside the wrapper function).
-  --charset <charset>         Character set to use in generated JavaScript.
-  --checks.bundlerTimings     Whether to emit warnings when plugins and option callbacks take significant time during the build process.
   --checks.cannotCallNamespace Whether to emit warnings when a namespace is called as a function.
   --checks.circularDependency Whether to emit warnings when detecting circular dependency.
   --checks.commonJsVariableInEsm Whether to emit warnings when a CommonJS variable is used in an ES module.
@@ -504,11 +487,8 @@ OPTIONS
   --checks.missingGlobalName  Whether to emit warnings when the \`output.globals\` option is missing when needed.
   --checks.missingNameOptionForIifeExport Whether to emit warnings when the \`output.name\` option is missing when needed.
   --checks.mixedExports       Whether to emit warnings when the way to export values is ambiguous.
-  --checks.moduleLevelDirective Whether to emit warnings for module-level directives other than \`use strict\`.
-  --checks.namespaceConflict  Whether to emit warnings when multiple star re-exports provide the same name from different modules.
-  --checks.pluginTimings      Deprecated alias for bundlerTimings. Rolldown uses bundlerTimings if both options have values.
+  --checks.pluginTimings      Whether to emit warnings when plugins take significant time during the build process.
   --checks.preferBuiltinFeature Whether to emit warnings when a plugin that is covered by a built-in feature is used.
-  --checks.shimmedExport      Whether to emit warnings when a missing export is replaced with an undefined binding.
   --checks.sourcemapBroken    Whether to emit warnings when a plugin transforms code without generating a sourcemap.
   --checks.toleratedTransform Whether to emit warnings when detecting tolerated transform.
   --checks.unresolvedEntry    Whether to emit warnings when an entrypoint cannot be resolved.
@@ -561,7 +541,7 @@ OPTIONS
   --sourcemapExcludeSources   Exclude source content from sourcemaps.
   --sourcemapFileNames <sourcemapFileNames>Name pattern for emitted sourcemaps.
   --strict <strict>           Whether to always output \`"use strict"\` directive in non-ES module outputs.
-  --strictExecutionOrder      Preserve source module execution order across generated chunks.
+  --strictExecutionOrder      Lets modules be executed in the order they are declared.
   --topLevelVar               Rewrite top-level declarations to use \`var\`.
   --transform.assumptions.ignoreFunctionLength .
   --transform.assumptions.noDocumentAll .
@@ -628,7 +608,7 @@ exports[`cli options for bundling > cli default options 1`] = `
   ]
 }
 output cli default options {}
-<DIR>/index.js  chunk │ size: 0.11 kB
+<DIR>/index.js  chunk │ size: 0.13 kB
 
 "
 `;
@@ -637,44 +617,46 @@ exports[`cli options for bundling > should handle \`--input\` and positional arg
 "
 |→ 1.js:
 
-// 1.ts
+//#region 1.ts
 console.log("1");
+//#endregion
 
 
 |→ 2.js:
 
-// 2.js
+//#region 2.js
 console.log("2");
+//#endregion
 "
 `;
 
 exports[`cli options for bundling > should handle camelCase options (e.g. --moduleTypes) (#8410) 1`] = `
-"<DIR>/index.js  chunk │ size: 0.06 kB
+"<DIR>/index.js  chunk │ size: 0.09 kB
 
 "
 `;
 
 exports[`cli options for bundling > should handle comma-separated object options 1`] = `
-"<DIR>/index.js  chunk │ size: 0.06 kB
+"<DIR>/index.js  chunk │ size: 0.09 kB
 
 "
 `;
 
 exports[`cli options for bundling > should handle comma-separated object options mixed with single object 1`] = `
-"<DIR>/index.js  chunk │ size: 0.06 kB
+"<DIR>/index.js  chunk │ size: 0.09 kB
 
 "
 `;
 
 exports[`cli options for bundling > should handle deprecated key=value syntax with warning 1`] = `
 "Using \`key=value\` syntax for \`--module-types\` is deprecated. Use \`key:value\` instead.
-<DIR>/index.js  chunk │ size: 0.06 kB
+<DIR>/index.js  chunk │ size: 0.09 kB
 
 "
 `;
 
 exports[`cli options for bundling > should handle multiple define arguments with comma-separated syntax 1`] = `
-"<DIR>/index.js  chunk │ size: 0.08 kB
+"<DIR>/index.js  chunk │ size: 0.10 kB
 
 "
 `;
@@ -682,6 +664,7 @@ exports[`cli options for bundling > should handle multiple define arguments with
 exports[`cli options for bundling > should handle negative boolean options 1`] = `
 "(function(exports, node_fs) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+	//#endregion
 	exports.nonExternal = "nonExternal";
 	exports.read = node_fs.read;
 	exports.readFile = node_fs.readFile;
@@ -693,14 +676,15 @@ exports[`cli options for bundling > should handle negative boolean options 1`] =
 `;
 
 exports[`cli options for bundling > should handle nested options 1`] = `
-"// index.js
+"//#region index.js
 var cli_option_nested_default = defined;
+//#endregion
 export { cli_option_nested_default as default };
 "
 `;
 
 exports[`cli options for bundling > should handle single array options 1`] = `
-"<DIR>/index.js  chunk │ size: 0.12 kB
+"<DIR>/index.js  chunk │ size: 0.14 kB
 
 "
 `;
@@ -718,13 +702,13 @@ exports[`cli options for bundling > should handle single boolean short options 1
 `;
 
 exports[`cli options for bundling > should handle single object options 1`] = `
-"<DIR>/index.js  chunk │ size: 0.06 kB
+"<DIR>/index.js  chunk │ size: 0.09 kB
 
 "
 `;
 
 exports[`cli options for bundling > should handle single string options 1`] = `
-"<DIR>/index.js  chunk │ size: 0.10 kB
+"<DIR>/index.js  chunk │ size: 0.12 kB
 
 "
 `;
@@ -736,44 +720,44 @@ Invalid value for option format: Invalid type: Expected ("es" | "cjs" | "esm" | 
 `;
 
 exports[`config > should allow loading cts config 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should allow loading mts config 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should allow loading ts config 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should allow loading ts config from non-working dir 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should allow loading ts config with oxnode 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should allow loading ts config with tsx 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should allow multiply options 1`] = `
-"<DIR>/esm.js  chunk │ size: 0.12 kB
-<DIR>/cjs.js  chunk │ size: 0.12 kB
+"<DIR>/esm.js  chunk │ size: 0.14 kB
+<DIR>/cjs.js  chunk │ size: 0.14 kB
 
 "
 `;
@@ -782,52 +766,52 @@ exports[`config > should allow multiply output + call options hook once  + call 
 "called options hook
 called output options hook
 called output options hook
-<DIR>/esm.js  chunk │ size: 0.16 kB
-<DIR>/cjs.js  chunk │ size: 0.15 kB
+<DIR>/esm.js  chunk │ size: 0.18 kB
+<DIR>/cjs.js  chunk │ size: 0.17 kB
 
 "
 `;
 
 exports[`config > should allow multiply output 1`] = `
-"<DIR>/esm.js  chunk │ size: 0.12 kB
-<DIR>/cjs.js  chunk │ size: 0.12 kB
+"<DIR>/esm.js  chunk │ size: 0.14 kB
+<DIR>/cjs.js  chunk │ size: 0.14 kB
 
 "
 `;
 
 exports[`config > should bundle in ext-js-syntax-cjs 1`] = `
-"<DIR>/index.js  chunk │ size: 0.11 kB
+"<DIR>/index.js  chunk │ size: 0.13 kB
 
 "
 `;
 
 exports[`config > should load config with --configLoader native (mjs) 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should load ts config with --configLoader native 1`] = `
-"<DIR>/index.js  chunk │ size: 0.09 kB
+"<DIR>/index.js  chunk │ size: 0.11 kB
 
 "
 `;
 
 exports[`config > should resolve rolldown.config.cjs 1`] = `
-"<DIR>/index.js  chunk │ size: 0.11 kB
+"<DIR>/index.js  chunk │ size: 0.13 kB
 
 "
 `;
 
 exports[`config > should support custom cli arguments 1`] = `
 "Option \`customArg\` is unrecognized. We will ignore this option.
-<DIR>/index.js  chunk │ size: 0.12 kB
+<DIR>/index.js  chunk │ size: 0.14 kB
 
 "
 `;
 
 exports[`config > should support environment option 1`] = `
-"<DIR>/index.js  chunk │ size: 0.12 kB
+"<DIR>/index.js  chunk │ size: 0.14 kB
 
 "
 `;
@@ -836,8 +820,8 @@ exports[`watch cli > should allow multiply output + call options hook once + cal
 "called options hook
 called output options hook
 called output options hook
-<DIR>/esm.js  chunk │ size: 0.16 kB
-<DIR>/cjs.js  chunk │ size: 0.15 kB
+<DIR>/esm.js  chunk │ size: 0.18 kB
+<DIR>/cjs.js  chunk │ size: 0.17 kB
 
 "
 `;

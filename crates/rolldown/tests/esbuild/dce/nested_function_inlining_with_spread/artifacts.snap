@@ -15,15 +15,17 @@ function identity2(x) {
 function identity3(x) {
 	return x;
 }
-// entry-outer.js
+//#endregion
+//#region entry-outer.js
 check(void 0, (args, void 0), ([...args], void 0), identity1(), identity2(args), identity3(...args));
+//#endregion
 
 ```
 
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 function identity1(x) {
 	return x;
 }
@@ -34,5 +36,6 @@ function identity3(x) {
 	return x;
 }
 check(void 0, (args, void 0), ([...args], void 0), identity1(), identity2(args), identity3(...args));
+//#endregion
 
 ```

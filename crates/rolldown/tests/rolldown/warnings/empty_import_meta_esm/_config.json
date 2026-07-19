@@ -1,6 +1,0 @@
-{
-  "_comment": "An `esm` output keeps `import.meta` as-is, so nothing is replaced and nothing is warned about.",
-  "config": {
-    "format": "esm"
-  }
-}

@@ -7,12 +7,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import assert from "node:assert";
-// foo.js
+//#region foo.js
 statement();
 statement();
 statement();
 statement();
-// entry.js
+//#endregion
+//#region entry.js
 assert.equal(123, 123);
+//#endregion
 
 ```

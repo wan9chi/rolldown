@@ -43,6 +43,8 @@ export default defineConfig({
 It will yield
 
 ```js
-// example.png
+// #region example.png
 var example_default$12 = 'data:image/png,png';
+
+// #endregion
 ```

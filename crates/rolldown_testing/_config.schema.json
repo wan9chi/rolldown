@@ -22,17 +22,6 @@
       "type": "boolean",
       "default": false
     },
-    "expectExecutionFailure": {
-      "description": "If set, the base configuration must fail while executing its generated output. A successful\nexecution is treated as an unexpected pass so stale markers cannot hide a fix.",
-      "anyOf": [
-        {
-          "$ref": "#/$defs/ExpectedExecutionFailure"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "expectWarning": {
       "description": "If `true`, the fixture are expected to produce warnings. If `false`, the fixture are expected\nto produce no warnings. If not set, no assertion is made on warnings.",
       "type": [
@@ -187,16 +176,6 @@
           "type": [
             "string",
             "null"
-          ]
-        },
-        "charset": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/OutputCharset"
-            },
-            {
-              "type": "null"
-            }
           ]
         },
         "format": {
@@ -648,13 +627,6 @@
         }
       ]
     },
-    "OutputCharset": {
-      "type": "string",
-      "enum": [
-        "ascii",
-        "utf8"
-      ]
-    },
     "OutputFormat": {
       "type": "string",
       "enum": [
@@ -1098,22 +1070,8 @@
             "null"
           ]
         },
-        "skipCommonRuntimeInjection": {
-          "description": "Do not inject the common dev runtime before the custom implementation.\n\nDeprecated: common runtime injection will be disabled by default in the future.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "lazy": {
           "description": "Enable lazy compilation for dynamic imports.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "hotUpdate": {
-          "description": "Call the `hotUpdate` plugin hook. Off by default. The `hotUpdate` dev option also turns it on.",
           "type": [
             "boolean",
             "null"
@@ -1308,17 +1266,6 @@
           "items": {
             "$ref": "#/$defs/MatchGroup"
           }
-        },
-        "experimentalInlineCommonChunks": {
-          "description": "See internal-docs/inline-common-chunks/design.md. Experimental.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/InlineCommonChunksOptions"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": false
@@ -1422,21 +1369,6 @@
         "$initial"
       ]
     },
-    "InlineCommonChunksOptions": {
-      "description": "`output.codeSplitting.experimentalInlineCommonChunks`, as the user wrote it.\n\nSee internal-docs/inline-common-chunks/design.md.",
-      "type": "object",
-      "properties": {
-        "maxSize": {
-          "description": "A candidate's pre-render size must be strictly smaller than this. `0` (the default) turns\nthe feature off; positive infinity removes the size limit.",
-          "type": [
-            "number",
-            "null"
-          ],
-          "format": "double"
-        }
-      },
-      "additionalProperties": false
-    },
     "ChecksOptions": {
       "type": "object",
       "properties": {
@@ -1494,12 +1426,6 @@
             "null"
           ]
         },
-        "moduleLevelDirective": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "commonJsVariableInEsm": {
           "type": [
             "boolean",
@@ -1548,14 +1474,7 @@
             "null"
           ]
         },
-        "bundlerTimings": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "pluginTimings": {
-          "description": "Deprecated alias for `bundlerTimings`. Rolldown uses `bundlerTimings` if both options have values.",
           "type": [
             "boolean",
             "null"
@@ -1586,18 +1505,6 @@
           ]
         },
         "sourcemapBroken": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "namespaceConflict": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "shimmedExport": {
           "type": [
             "boolean",
             "null"
@@ -2076,44 +1983,9 @@
             "string",
             "null"
           ]
-        },
-        "_expectExecutionFailure": {
-          "description": "If set, this configuration must fail while executing its generated output. This is not\ninherited from the base configuration so each variant's known failure stays explicit.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ExpectedExecutionFailure"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": false
-    },
-    "ExpectedExecutionFailure": {
-      "type": "object",
-      "properties": {
-        "reason": {
-          "description": "Why this failure is temporarily accepted, normally an issue or PR reference.",
-          "type": "string",
-          "minLength": 1
-        },
-        "outputContains": {
-          "description": "Every string must occur in the spawned process output. This prevents an unrelated runtime\nfailure from satisfying the marker.",
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 1
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "reason",
-        "outputContains"
-      ]
     },
     "ExtendedTests": {
       "description": "Controls which extended test variants are generated.\nCan be `false` to disable all, `true` to enable all (default), or an object to control each individually.",
@@ -2171,16 +2043,6 @@
           "description": "After each HMR step, run a fresh full build of the current file state\nand assert the incremental scan state matches it. Skipped automatically\nfor steps whose state does not build and for steps whose incremental\nbuild failed (a failed scan is reverted, so the state intentionally\nstays at the last good build). Default is `true`.",
           "type": "boolean",
           "default": true
-        },
-        "fullBuildAfterSteps": {
-          "description": "After each listed HMR step (0-based), trigger a full build and wait for it. Vite does\nthis when a page loads after an HMR-stage failure, and then reloads every tab if the build\nsucceeds. The test client reloads too: it runs the new output and only the patches of later\nsteps. A failed build does not reload it.",
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint",
-            "minimum": 0
-          },
-          "default": []
         }
       },
       "additionalProperties": false
@@ -2207,13 +2069,6 @@
               "type": "null"
             }
           ]
-        },
-        "hotUpdate": {
-          "description": "Whether the `hotUpdate` plugin hook is called. Off by default. `DevModeOptions::hot_update`\nalso turns it on.",
-          "type": [
-            "boolean",
-            "null"
-          ]
         }
       },
       "additionalProperties": false
@@ -2226,7 +2081,12 @@
           "const": "always"
         },
         {
-          "description": "Never issue rebuilds after HMR. The server no longer decides full reloads, so\nthere is no `auto` upgrade anymore; consumers that want fresh bundle output pull\nit explicitly (e.g. `ensure_latest_bundle_output`).",
+          "description": "Incremental rebuild will be issued automatically if the hmr updates contains full reload updates.",
+          "type": "string",
+          "const": "auto"
+        },
+        {
+          "description": "Never issue rebuilds after HMR.",
           "type": "string",
           "const": "never"
         }

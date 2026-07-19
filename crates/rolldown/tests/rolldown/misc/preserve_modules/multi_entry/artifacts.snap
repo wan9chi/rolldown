@@ -6,15 +6,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## a.js
 
 ```js
-export { default as B } from "./b.js";
+import b from "./b.js";
+export { b as B };
 
 ```
 
 ## b.js
 
 ```js
-// b.ts
+//#region b.ts
 const b = 100;
+//#endregion
 export { b as default };
 
 ```
@@ -22,6 +24,7 @@ export { b as default };
 ## main.js
 
 ```js
-export { default as B } from "./b.js";
+import b from "./b.js";
+export { b as B };
 
 ```

@@ -30,18 +30,21 @@ module.exports = { value: 'foo' };
 When bundled, it produces:
 
 ```js
-// \0rolldown/runtime.js
+// #region \0rolldown/runtime.js
 // ...runtime code
+// #endregion
 
-// foo.js
+// #region foo.js
 var require_foo = __commonJS({
   'foo.js'(exports, module) {
     module.exports = { value: 'foo' };
   },
 });
 
-// index.js
+// #endregion
+// #region index.js
 const getFooExports = () => require_foo();
+// #endregion
 ```
 
 In this example, the `foo.js` module won't be executed until `getFooExports()` is called, maintaining the lazy-loading behavior of CommonJS.
@@ -65,19 +68,23 @@ module.exports = { value: 'foo' };
 Bundled output:
 
 ```js
-// \0rolldown/runtime.js
+// #region \0rolldown/runtime.js
 // ...runtime code
+// #endregion
 
-// foo.js
+// #region foo.js
 var require_foo = __commonJS({
   'foo.js'(exports, module) {
     module.exports = { value: 'foo' };
   },
 });
 
-// index.js
+// #endregion
+// #region index.js
 var import_foo = __toESM(require_foo());
 console.log(import_foo.value);
+
+// #endregion
 ```
 
 The `__toESM` helper ensures that CommonJS exports are properly converted to ES module format, allowing seamless access to the exported values.
@@ -90,7 +97,7 @@ By default, Rolldown tries to keep the semantics of `require` and does not conve
 
 ::: tip Still want to convert `require` to `import`?
 
-If you want to convert `require` calls to `import` statements, you can use [the built-in `esmExternalRequirePlugin`](/builtin-plugins/esm-external-require). Note that the plugin must own the externals it converts: list them in the plugin's `external` option, not in the top-level `external` option.
+If you want to convert `require` calls to `import` statements, you can use [the built-in `esmExternalRequirePlugin`](/builtin-plugins/esm-external-require).
 
 :::
 
@@ -136,9 +143,6 @@ If it matches one of the conditions below, the `default` import is the `module.e
 - The closest `package.json` for the importer has a `type` field set to `module`
 - (When it's a dynamic import) The closest `package.json` for the importer has a `type` field set to `commonjs`
 - The `module.exports.__esModule` value of the importee CJS module is not set to `true`
-- The `module.exports` value of the importee CJS module has no own `default` property
-
-The last condition handles CJS modules that set `__esModule` without actually shipping a `default` export (for example tslib's UMD build). Without it, the `default` import would be `undefined`. `@rollup/plugin-commonjs` handles this case with the same fallback.
 
 :::: details Behavior in details
 

@@ -13,7 +13,6 @@ use crate::{
 #[derive(Default)]
 pub struct BindingViteTransformPluginConfig {
   pub root: String,
-  pub tsconfig: Option<String>,
 
   pub include: Option<Vec<BindingStringOrRegex>>,
   pub exclude: Option<Vec<BindingStringOrRegex>>,
@@ -49,10 +48,7 @@ impl From<BindingViteTransformPluginConfig> for ViteTransformPlugin {
         .transform_options
         .map(normalize_binding_transform_options)
         .unwrap_or_default(),
-      resolver: ViteTransformPlugin::new_resolver(
-        value.yarn_pnp.unwrap_or_default(),
-        value.tsconfig.map(PathBuf::from),
-      ),
+      resolver: ViteTransformPlugin::new_resolver(value.yarn_pnp.unwrap_or_default()),
     }
   }
 }

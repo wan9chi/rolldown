@@ -147,7 +147,6 @@ impl ScanStageCache {
         modules
       }
     };
-    let rescanned_module_idxs = modules.iter().map(|(idx, _)| *idx).collect::<FxHashSet<_>>();
     // merge module_table, index_ast_scope, index_ecma_ast
     for (new_idx, new_module) in modules {
       let idx = self.module_id_to_idx[new_module.id()].idx();
@@ -156,7 +155,7 @@ impl ScanStageCache {
       if let rolldown_common::Module::Normal(normal_module) = &new_module {
         self
           .module_idx_by_abs_path
-          .insert(ArcStr::from(normal_module.id.as_arc_str().to_slash()), normal_module.idx);
+          .insert(normal_module.id.as_arc_str().to_slash().unwrap().into(), normal_module.idx);
       }
       // Update `module_idx_by_stable_id`
       self.module_idx_by_stable_id.insert(new_module.stable_id().clone(), new_module.idx());
@@ -228,24 +227,23 @@ impl ScanStageCache {
       module.ecma_view.rebuild_importer_sets(&self.importers[*idx]);
     }
 
-    // Deleted or retargeted imports have no incoming row, so clean every cached dynamic entry.
-    // See internal-docs/cache/implementation.md (`ScanStageCache::merge` — the write path).
-    cache.entry_points.retain_mut(|entry_point| {
-      if !entry_point.kind.is_dynamic_import() {
-        return true;
-      }
-      entry_point
-        .related_stmt_infos
-        .retain(|(importer_idx, _, _, _)| !rescanned_module_idxs.contains(importer_idx));
-      !entry_point.related_stmt_infos.is_empty()
-    });
-
+    // merge entries
     for entry_point in scan_stage_output.entry_points {
       if let Some(old_entry_point) = cache
         .entry_points
         .iter_mut()
         .find(|old_entry| old_entry.kind == entry_point.kind && old_entry.idx == entry_point.idx)
       {
+        let removed_module_idxs = entry_point
+          .related_stmt_infos
+          .iter()
+          .map(|(module_idx, _, _, _)| *module_idx)
+          .collect::<FxHashSet<_>>();
+        _ = old_entry_point
+          .related_stmt_infos
+          .extract_if(.., |(module_idx, _stmt_info_idx, _node_id, _)| {
+            removed_module_idxs.contains(module_idx)
+          });
         old_entry_point.related_stmt_infos.extend(entry_point.related_stmt_infos);
       } else {
         cache.entry_points.push(entry_point);
@@ -277,12 +275,9 @@ impl ScanStageCache {
         user_defined_entry_modules.insert(idx);
       }
     }
-    // Entries emitted via `emitFile(type: 'chunk')` may not be re-discovered by a
-    // partial scan. The HMR stage's partial scans bypass `ScanStage`, so `buildStart`
-    // never runs there. `ScanStage` partial scans do run it, but a plugin may emit
-    // from `resolveId`/`load`/`transform`/`moduleParsed`, and those only re-run for
-    // re-scanned modules. Their rows persist in `entry_points`, so keep their
-    // modules flagged as entries too.
+    // Entries emitted via `emitFile(type: 'chunk')` are only discovered by
+    // full scans (partial scans skip `buildStart`); their rows persist in
+    // `entry_points`, so keep their modules flagged as entries too.
     for entry in &cache.entry_points {
       if matches!(entry.kind, rolldown_common::EntryPointKind::EmittedUserDefined) {
         user_defined_entry_modules.insert(entry.idx);
@@ -311,7 +306,7 @@ impl ScanStageCache {
 
     for module in &build_snapshot.module_table.modules {
       if let rolldown_common::Module::Normal(normal_module) = module {
-        let filename = ArcStr::from(normal_module.id.as_arc_str().to_slash());
+        let filename = normal_module.id.as_arc_str().to_slash().unwrap().into();
         let module_idx = normal_module.idx;
         self.module_idx_by_abs_path.insert(filename, module_idx);
       }

@@ -6,8 +6,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## class.js
 
 ```js
-// class.js
+//#region class.js
 var class_default = class {};
+//#endregion
 export { class_default as default };
 
 ```
@@ -15,10 +16,11 @@ export { class_default as default };
 ## function.js
 
 ```js
-// function.js
+//#region function.js
 function func() {
 	console.log("function");
 }
+//#endregion
 export { func as default };
 
 ```
@@ -28,7 +30,8 @@ export { func as default };
 ```js
 import class_default from "./class.js";
 import func from "./function.js";
-// main.js
+//#region main.js
 console.log(class_default, 42, func);
+//#endregion
 
 ```
