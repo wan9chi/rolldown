@@ -1,10 +1,16 @@
-use std::{borrow::Cow, ops::Deref, sync::Arc};
-
+use crate::types::{
+  binding_module_info::BindingModuleInfo,
+  binding_normalized_options::BindingNormalizedOptions,
+  binding_outputs::{JsChangedOutputs, to_binding_error},
+  binding_rendered_chunk::BindingRenderedChunk,
+  js_callback::MaybeAsyncJsCallbackExt,
+};
 use anyhow::Context;
 use napi::bindgen_prelude::FnArgs;
 use rolldown_common::NormalModule;
 use rolldown_plugin::{__inner::SharedPluginable, HookUsage, Plugin, typedmap::TypedMapKey};
 use rolldown_utils::filter_expression::filter_exprs_interpreter;
+use std::{borrow::Cow, ops::Deref, sync::Arc};
 use tracing::{Instrument, debug_span};
 
 use super::{
@@ -12,20 +18,11 @@ use super::{
   binding_load_context::BindingLoadPluginContext,
   binding_transform_context::BindingTransformPluginContext,
   types::{
-    binding_hook_resolve_file_url_args::BindingHookResolveFileUrlArgs,
     binding_hook_resolve_id_extra_args::BindingHookResolveIdExtraArgs,
-    binding_hot_update_args::BindingHotUpdateArgs,
     binding_plugin_transform_extra_args::BindingTransformHookExtraArgs,
     binding_render_chunk_meta_chunks::BindingRenderedChunkMeta,
     binding_shared_string::BindingSharedString,
   },
-};
-use crate::types::{
-  binding_module_info::BindingModuleInfo,
-  binding_normalized_options::BindingNormalizedOptions,
-  binding_outputs::{JsChangedOutputs, to_binding_error},
-  binding_rendered_chunk::BindingRenderedChunk,
-  js_callback::MaybeAsyncJsCallbackExt,
 };
 
 #[derive(Hash, Debug, PartialEq, Eq)]
@@ -72,7 +69,7 @@ impl JsPlugin {
 
   pub(crate) fn new_shared(inner: BindingPluginOptions) -> napi::Result<SharedPluginable> {
     let filter_expr_cache = inner.pre_compile_filter_expr()?;
-    Ok(Plugin::new_shared(Self { inner, filter_expr_cache }))
+    Ok(Arc::new(Self { inner, filter_expr_cache }))
   }
 }
 
@@ -523,42 +520,6 @@ impl Plugin for JsPlugin {
     self.augment_chunk_hash_meta.as_ref().map(Into::into)
   }
 
-  async fn resolve_file_url(
-    &self,
-    ctx: &rolldown_plugin::PluginContext,
-    args: &rolldown_plugin::HookResolveFileUrlArgs<'_>,
-  ) -> rolldown_plugin::HookResolveFileUrlReturn {
-    match &self.resolve_file_url {
-      Some(cb) => Ok(
-        cb.await_call(
-          (
-            ctx.clone().into(),
-            BindingHookResolveFileUrlArgs {
-              chunk_id: args.chunk_id.to_string(),
-              file_name: args.file_name.to_string(),
-              format: args.format.as_str().to_string(),
-              module_id: args.module_id.to_string(),
-              reference_id: args.reference_id.to_string(),
-              relative_path: args.relative_path.to_string(),
-              url_id: args.url_id.map(str::to_string),
-            },
-          )
-            .into(),
-        )
-        .instrument(debug_span!("resolve_file_url_hook", plugin_name = self.name))
-        .await
-        .with_context(|| {
-          format!("resolveFileUrl hook threw an error for referenceId={}", args.reference_id)
-        })?,
-      ),
-      _ => Ok(None),
-    }
-  }
-
-  fn resolve_file_url_meta(&self) -> Option<rolldown_plugin::PluginHookMeta> {
-    self.resolve_file_url_meta.as_ref().map(Into::into)
-  }
-
   async fn render_error(
     &self,
     ctx: &rolldown_plugin::PluginContext,
@@ -691,29 +652,6 @@ impl Plugin for JsPlugin {
 
   fn watch_change_meta(&self) -> Option<rolldown_plugin::PluginHookMeta> {
     self.watch_change_meta.as_ref().map(Into::into)
-  }
-
-  async fn hot_update(
-    &self,
-    ctx: &rolldown_plugin::PluginContext,
-    args: &rolldown_plugin::HookHotUpdateArgs,
-  ) -> rolldown_plugin::HookHotUpdateReturn {
-    let Some(cb) = &self.hot_update else { return Ok(None) };
-    let binding_args = BindingHotUpdateArgs {
-      kind: args.kind.to_string(),
-      file: args.file.to_string(),
-      modules: args.modules.iter().map(ToString::to_string).collect(),
-    };
-    let result = cb
-      .await_call((ctx.clone().into(), binding_args).into())
-      .instrument(debug_span!("hot_update_hook", plugin_name = self.name))
-      .await
-      .with_context(|| format!("hotUpdate hook threw an error for file={}", args.file))?;
-    Ok(result.map(|modules| modules.into_iter().map(arcstr::ArcStr::from).collect()))
-  }
-
-  fn hot_update_meta(&self) -> Option<rolldown_plugin::PluginHookMeta> {
-    self.hot_update_meta.as_ref().map(Into::into)
   }
 
   async fn close_watcher(

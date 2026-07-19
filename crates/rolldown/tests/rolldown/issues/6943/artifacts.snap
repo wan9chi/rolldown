@@ -7,12 +7,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// lib.js
+//#region lib.js
 var lib_exports = /* @__PURE__ */ __exportAll({ tryPatchHandler: () => tryPatchHandler });
 function tryPatchHandler(taskRoot, handlerPath) {
 	__require(taskRoot);
 }
-// main.js
+//#endregion
+//#region main.js
 console.log(lib_exports);
+//#endregion
 
 ```

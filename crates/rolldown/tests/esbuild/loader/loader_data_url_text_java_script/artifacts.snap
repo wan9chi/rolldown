@@ -6,13 +6,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// \0rolldown/data-url:ZkuZVdK78XLI6cN2c0BGHA
+//#region \0rolldown/data-url:ZkuZVdK78XLI6cN2c0BGHA
 console.log("123");
-// \0rolldown/data-url:oDiUunfrO2vRNyOIvD8nnQ
+//#endregion
+//#region \0rolldown/data-url:oDiUunfrO2vRNyOIvD8nnQ
 console.log(234);
-// \0rolldown/data-url:A662MVPSaNNmeB3z2giORg
+//#endregion
+//#region \0rolldown/data-url:A662MVPSaNNmeB3z2giORg
 console.log(123);
-// \0rolldown/data-url:Qp-Cu7zrDBXspSQAeE5jdw
+//#endregion
+//#region \0rolldown/data-url:Qp-Cu7zrDBXspSQAeE5jdw
 console.log(234);
+//#endregion
 
 ```

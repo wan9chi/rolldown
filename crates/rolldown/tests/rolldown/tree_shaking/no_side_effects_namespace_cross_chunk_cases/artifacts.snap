@@ -6,13 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry-a.js
 
 ```js
-// shared.js
+//#region shared.js
 /* @__NO_SIDE_EFFECTS__ */
 function fn() {
 	console.log("fn side effect");
 }
 console.log(/* @__PURE__ */ fn());
 fn.call(null);
+//#endregion
 
 ```
 

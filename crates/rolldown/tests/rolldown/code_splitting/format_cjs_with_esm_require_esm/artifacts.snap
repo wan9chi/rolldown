@@ -14,6 +14,7 @@ require("./rolldown-runtime.js");
 
 ```js
 require("./rolldown-runtime.js").__esmMin((() => {}));
+//#endregion
 
 ```
 

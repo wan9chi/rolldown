@@ -35,15 +35,12 @@ use crate::{
 };
 
 const FS_PREFIX: &str = "/@fs/";
-const CJS_EXTERNAL_BUILTIN_FACADE_PREFIX: &str = "\0vite:esm-external-builtin-require:";
 
 #[derive(Debug)]
 pub struct ViteResolveOptions {
   pub resolve_options: ViteResolveResolveOptions,
-  pub tsconfig: Option<String>,
   pub environment_consumer: String,
   pub environment_name: String,
-  pub convert_external_require: bool,
   pub builtins: Vec<StringOrRegex>,
   pub external: external::ResolveOptionsExternal,
   pub no_external: external::ResolveOptionsNoExternal,
@@ -92,8 +89,6 @@ pub type OnLogCallback =
 #[derive(Debug)]
 pub struct ViteResolveResolveOptions {
   pub is_build: bool,
-  /// Rolldown bundles this environment's output: true in build and in bundled dev.
-  pub is_bundled: bool,
   pub is_production: bool,
   pub as_src: bool,
   pub prefer_relative: bool,
@@ -128,7 +123,6 @@ pub struct ViteResolvePlugin {
   legacy_inconsistent_cjs_interop: bool,
   environment_consumer: String,
   environment_name: String,
-  convert_external_require: bool,
   #[debug(skip)]
   finalize_bare_specifier: Option<Arc<FinalizeBareSpecifierCallback>>,
   #[debug(skip)]
@@ -159,7 +153,6 @@ impl ViteResolvePlugin {
       root: PathBuf::from(&options.resolve_options.root),
       preserve_symlinks: options.resolve_options.preserve_symlinks,
       tsconfig_paths: options.resolve_options.tsconfig_paths,
-      tsconfig: options.tsconfig.map(PathBuf::from),
       yarn_pnp: options.yarn_pnp,
     };
     let builtin_checker = Arc::new(BuiltinChecker::new(options.builtins));
@@ -179,7 +172,6 @@ impl ViteResolvePlugin {
       legacy_inconsistent_cjs_interop: options.legacy_inconsistent_cjs_interop,
       environment_consumer: options.environment_consumer,
       environment_name: options.environment_name,
-      convert_external_require: options.convert_external_require,
       finalize_bare_specifier: options.finalize_bare_specifier,
       finalize_other_specifiers: options.finalize_other_specifiers,
       resolve_subpath_imports: options.resolve_subpath_imports,
@@ -218,28 +210,6 @@ impl ViteResolvePlugin {
   async fn debug_log<T: FnOnce() -> String>(&self, message: T) -> anyhow::Result<()> {
     if let Some(on_debug) = &self.on_debug { on_debug(message()).await } else { Ok(()) }
   }
-
-  fn resolve_builtin_for_server(
-    &self,
-    args: &HookResolveIdArgs<'_>,
-    id: &str,
-  ) -> HookResolveIdOutput {
-    // Convert CommonJS requires of Node built-ins to ESM imports for webworker SSR builds.
-    if self.convert_external_require && args.kind == ImportKind::Require && is_node_like_builtin(id)
-    {
-      return HookResolveIdOutput {
-        id: format!("{CJS_EXTERNAL_BUILTIN_FACADE_PREFIX}{id}").into(),
-        ..Default::default()
-      };
-    }
-
-    HookResolveIdOutput {
-      id: id.into(),
-      external: Some(true.into()),
-      side_effects: Some(HookSideEffects::False),
-      ..Default::default()
-    }
-  }
 }
 
 impl Plugin for ViteResolvePlugin {
@@ -261,18 +231,6 @@ impl Plugin for ViteResolvePlugin {
       || args.specifier.starts_with("/virtual:")
     {
       return Ok(None);
-    }
-
-    if args
-      .importer
-      .is_some_and(|importer| importer.starts_with(CJS_EXTERNAL_BUILTIN_FACADE_PREFIX))
-    {
-      return Ok(Some(HookResolveIdOutput {
-        id: args.specifier.into(),
-        external: Some(true.into()),
-        side_effects: Some(HookSideEffects::False), // because it is always a built-in module
-        ..Default::default()
-      }));
     }
 
     if args.specifier.starts_with(BROWSER_EXTERNAL_ID) {
@@ -325,7 +283,7 @@ impl Plugin for ViteResolvePlugin {
           })
           .flatten();
         return Ok(Some(HookResolveIdOutput {
-          id: ArcStr::from(path.to_slash()),
+          id: path.to_slash_lossy().into(),
           package_json_path,
           ..Default::default()
         }));
@@ -384,38 +342,6 @@ impl Plugin for ViteResolvePlugin {
     );
     let resolver = self.resolvers.get(additional_options);
 
-    let specifier = normalize_leading_slashes(&id);
-
-    // tsconfig `paths` mapping for `import.meta.glob`.
-    // The specifier is a glob pattern so we need to apply the mapping here,
-    // otherwise the mapping will be ignored as the mapped path does not point at a
-    // real file.
-    if self.resolve_options.tsconfig_paths
-      && args.custom.get(&rolldown_plugin_utils::constants::ViteImportGlob).is_some()
-      && let Some(importer) = args.importer
-    {
-      let mut candidates = resolver.resolve_tsconfig_path_alias(importer, specifier)?;
-      if candidates.len() > 1 {
-        self
-          .warn(
-            ctx,
-            format!(
-              "The glob \"{specifier}\" matches a tsconfig `paths` entry with multiple targets. \
-               Currently, multiple target `paths` is not supported for glob resolution. The first (\"{}\") is used unconditionally.",
-              candidates[0]
-            ),
-          )
-          .await?;
-      }
-      if !candidates.is_empty() {
-        let mapped = candidates.swap_remove(0);
-        self
-          .debug_log(|| format!("[glob-tsconfig-paths] {} -> {}", id.cyan(), mapped.dimmed()))
-          .await?;
-        return Ok(Some(HookResolveIdOutput { id: mapped.into(), ..Default::default() }));
-      }
-    }
-
     if is_bare_import(&id) {
       let external = self.resolve_options.is_build
         && self.environment_consumer == "server"
@@ -428,15 +354,6 @@ impl Plugin for ViteResolvePlugin {
         self.legacy_inconsistent_cjs_interop,
       )?;
       if let Some(mut result) = result {
-        if self.environment_consumer == "server"
-          && self.convert_external_require
-          && args.kind == ImportKind::Require
-          && is_node_like_builtin(&id)
-          && result.external.as_ref().is_some_and(|external| external.is_external())
-        {
-          return Ok(Some(self.resolve_builtin_for_server(args, &id)));
-        }
-
         if let Some(finalize_bare_specifier) = &self.finalize_bare_specifier
           && !scan
           && result.id.as_path().is_in_node_modules()
@@ -455,7 +372,12 @@ impl Plugin for ViteResolvePlugin {
       // built-ins
       // externalize if building for a server environment, otherwise redirect to an empty module
       if self.environment_consumer == "server" && self.builtin_checker.is_builtin(&id) {
-        return Ok(Some(self.resolve_builtin_for_server(args, &id)));
+        return Ok(Some(HookResolveIdOutput {
+          id: id.into(),
+          external: Some(true.into()),
+          side_effects: Some(HookSideEffects::False),
+          ..Default::default()
+        }));
       } else if self.environment_consumer == "server" && is_node_like_builtin(&id) {
         if !(matches!(self.external, ResolveOptionsExternal::True)
           || self.external.is_external_explicitly(&id))
@@ -476,7 +398,12 @@ impl Plugin for ViteResolvePlugin {
           self.warn(ctx, message).await?;
         }
 
-        return Ok(Some(self.resolve_builtin_for_server(args, &id)));
+        return Ok(Some(HookResolveIdOutput {
+          id: id.into(),
+          external: Some(true.into()),
+          side_effects: Some(HookSideEffects::False),
+          ..Default::default()
+        }));
       } else if self.environment_consumer == "client" && is_node_like_builtin(&id) {
         if self.no_external.is_true()
             // if both noExternal and external are true, noExternal will take the higher priority and bundle it.
@@ -532,6 +459,7 @@ impl Plugin for ViteResolvePlugin {
       }
     }
 
+    let specifier = normalize_leading_slashes(&id);
     let resolved = resolver.normalize_oxc_resolver_result(
       specifier,
       args.importer,
@@ -568,28 +496,15 @@ impl Plugin for ViteResolvePlugin {
     _ctx: rolldown_plugin::SharedLoadPluginContext,
     args: &HookLoadArgs<'_>,
   ) -> HookLoadReturn {
-    if let Some(module_id) = args.id.strip_prefix(CJS_EXTERNAL_BUILTIN_FACADE_PREFIX) {
-      let module_id_literal = serde_json::to_string(module_id)?;
-      let value = if nodejs_built_in_modules::is_nodejs_builtin_module(module_id) {
-        "m.default"
-      } else {
-        "Object.prototype.hasOwnProperty.call(m, 'module.exports') ? m['module.exports'] : { ...m }"
-      };
-      return Ok(Some(HookLoadOutput {
-        code: format!("import * as m from {module_id_literal};module.exports = {value};").into(),
-        ..Default::default()
-      }));
-    }
-
     if let Some(id_without_prefix) = args.id.strip_prefix(BROWSER_EXTERNAL_ID) {
       // A bare `__vite-browser-external` (no `:name` suffix) is a `browser` field `false`
       // mapping. Per the browser field spec it must resolve to an empty module, not the proxy
       // that throws on property access.
       let is_browser_field_false = id_without_prefix.is_empty();
 
-      if self.resolve_options.is_bundled {
+      if self.resolve_options.is_build {
         if self.resolve_options.is_production || is_browser_field_false {
-          // rolldown treats missing export as an error, and will break the bundle.
+          // rolldown treats missing export as an error, and will break build.
           // So use cjs to avoid it.
           return Ok(Some(HookLoadOutput {
             code: arcstr::literal!("module.exports = {}"),
@@ -603,7 +518,7 @@ impl Plugin for ViteResolvePlugin {
           }));
         }
       } else if self.resolve_options.is_production || is_browser_field_false {
-        // unbundled dev serves this module as is, so it needs to be esm
+        // in dev, needs to return esm
         return Ok(Some(HookLoadOutput {
           code: arcstr::literal!("export default {}"),
           ..Default::default()

@@ -6,11 +6,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-export { "\n\"\\'" } from "external";
+import { "\n\"\\'" as test } from "external";
+export { test as "\n\"\\'" };
 
 ```
 
-# Variant: cjs: [format: Cjs]
+# Variant: [format: Cjs]
 
 ## Assets
 
@@ -19,11 +20,6 @@ export { "\n\"\\'" } from "external";
 ```js
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 let external = require("external");
-Object.defineProperty(exports, "\n\"\\'", {
-	enumerable: true,
-	get: function() {
-		return external["\n\"\\'"];
-	}
-});
+exports["\n\"\\'"] = external["\n\"\\'"];
 
 ```

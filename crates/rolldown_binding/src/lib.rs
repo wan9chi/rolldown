@@ -29,24 +29,10 @@ use napi_derive::napi;
 #[cfg(all(
   not(target_family = "wasm"),
   not(feature = "default_global_allocator"),
-  not(target_env = "ohos"),
-  not(feature = "tracking_allocator")
+  not(target_env = "ohos")
 ))]
 #[global_allocator]
 static ALLOC: mimalloc_safe::MiMalloc = mimalloc_safe::MiMalloc;
-
-// Same mimalloc, wrapped with allocation counters. The counters are read
-// through `getNativeMemoryStats()` in `native_memory.rs`; the cfg there must
-// stay in sync with this one.
-#[cfg(all(
-  not(target_family = "wasm"),
-  not(feature = "default_global_allocator"),
-  not(target_env = "ohos"),
-  feature = "tracking_allocator"
-))]
-#[global_allocator]
-static ALLOC: rolldown_tracking_allocator::TrackingAllocator =
-  rolldown_tracking_allocator::TrackingAllocator;
 
 pub mod binding_bundler;
 pub mod binding_dev_engine;
@@ -54,11 +40,8 @@ pub mod binding_dev_options;
 pub mod binding_watcher_bundler;
 pub mod classic_bundler;
 mod generated;
-pub mod native_memory;
 pub mod options;
 pub mod parallel_js_plugin_registry;
-#[cfg(not(target_family = "wasm"))]
-mod runtime;
 pub mod transform;
 pub mod transform_cache;
 pub mod types;
@@ -70,18 +53,11 @@ pub mod worker_manager;
 pub use oxc_parser_napi;
 pub use oxc_resolver_napi;
 
-/// Number of live holders of the shared tokio runtime.
-///
-/// Starts at 0 so the runtime is torn down exactly when the last holder releases it.
-/// Every JS object that outlives a single call and spawns onto the runtime
-/// (`RolldownBuild`, `Watcher`, `DevEngine`, the `scan` bundler) must acquire on
-/// create and release on close. An unpaired release drops the runtime out from
-/// under the remaining holders (#8411, #8747).
 #[cfg(all(target_family = "wasm", tokio_unstable))]
-pub static ACTIVE_TASK_COUNT: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(0));
+pub static ACTIVE_TASK_COUNT: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(1));
 
 #[napi]
-/// Release one holder of the tokio runtime, shutting it down once none are left.
+/// Shutdown the tokio runtime manually.
 ///
 /// This is required for the wasm target with `tokio_unstable` cfg.
 /// In the wasm runtime, the `park` threads will hang there until the tokio::Runtime is shutdown.
@@ -97,7 +73,10 @@ pub fn shutdown_async_runtime() {
 }
 
 #[napi]
-/// Acquire one holder of the tokio runtime, starting it if it is not running.
+/// Start the async runtime manually.
+///
+/// This is required when the async runtime is shutdown manually.
+/// Usually it's used in test.
 pub fn start_async_runtime() {
   #[cfg(all(target_family = "wasm", tokio_unstable))]
   {
@@ -118,11 +97,18 @@ fn init() {
       // it's too high for us
       // we don't have that many `blocking` tasks to run at this moment
       .unwrap_or(4);
+    let worker_threads = std::env::var("ROLLDOWN_WORKER_THREADS")
+      .ok()
+      .and_then(|v| v.parse::<usize>().ok())
+      // unlike the web server scenario
+      // rolldown puts a lot of blocking tasks in the worker threads rather than blocking_threads
+      // so we need to increase the worker threads rather than the blocking_threads
+      .unwrap_or(num_cpus::get_physical() * 3 / 2);
     let mut builder = tokio::runtime::Builder::new_multi_thread();
 
     let rt = builder
       .max_blocking_threads(max_blocking_threads)
-      .worker_threads(runtime::worker_threads())
+      .worker_threads(worker_threads)
       .thread_name("rolldown-worker")
       .enable_all()
       .build()
@@ -130,8 +116,6 @@ fn init() {
     create_custom_tokio_runtime(rt);
   }
 
-  // The published binding is stripped; its debug info ships separately.
-  // See internal-docs/panic-symbolication/implementation.md
   #[cfg(not(feature = "disable_panic_hook"))]
   {
     let default_hook = std::panic::take_hook();

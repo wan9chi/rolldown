@@ -5,8 +5,7 @@
 The `@rolldown/test-dev-server` browser suite drives a real Chromium page against
 the rolldown dev engine (HMR, lazy compilation, error overlay). The server is
 **Vite's full bundle mode** (`experimental.bundledDev`), loaded at runtime from
-the Vite checkout at `vite/` (repo root, a gitignored clone of vitejs/vite
-`rolldown-canary` rebased onto `main`) with its `rolldown`
+the vendored submodule at `packages/test-dev-server/vite` with its `rolldown`
 resolution linked to the workspace's `packages/rolldown` — the harness adds only
 test instrumentation on top (see [The Vite backend](#the-vite-backend)). It runs
 **in-process**: each spec file starts the dev server inside its own vitest worker
@@ -120,10 +119,10 @@ serving. What the harness does own lives in `src/vite-server.ts`:
   assertions, `treeshake` forwarded. Full bundle mode forces
   `devMode.lazy: true`, so lazy compilation is always on in browser runs.
 - **`vite` is not a package dependency.** It is dynamic-imported by file URL
-  from the checkout's built dist (`loadVite()`), with local structural types
+  from the submodule's built dist (`loadVite()`), with local structural types
   for the API slice the harness touches. Node-platform fixtures and CI jobs
-  that never run browser tests work without the checkout; a missing dist
-  fails with a "run `just setup-vite`" hint.
+  that never run browser tests work without the submodule; a missing dist
+  fails with a "run `just setup-test-dev-server-vite`" hint.
 - **Test instrumentation** (`createHarnessPlugin`): the `/_dev/status`
   middleware; `buildSeq` counts `buildStart` plus broadcast
   `update`/`full-reload` payloads and deliberately **not** `error` payloads
@@ -145,39 +144,28 @@ serving. What the harness does own lives in `src/vite-server.ts`:
     `vite:client:connect` listener (registered before Vite's own replay
     listener) drops the stale error when the tracked build state is healthy.
 
-**The checkout stays unpatched.** No Vite source edits on the rolldown side.
-Fixes and test adjustments belong on the vitejs/vite `rolldown-canary` branch,
-which both this harness and `packages/vite-tests` track. Everything
-environment-specific happens in untracked files, via the
-`scripts/src/setup-vite/` script (`just setup-vite`, idempotent).
-It is the only entry point that touches `vite/`: the command that moves the
-commit also rebuilds everything right after, so the checkout and the built
-dist never drift apart. The steps:
+**The submodule stays byte-pristine.** No tracked-file edits, no patches —
+bumping it is a plain pointer update. Everything environment-specific happens
+in untracked files, via `scripts/setup-vite.mjs`
+(`just setup-test-dev-server-vite`, idempotent, `vp`-only):
 
-1. ensure `vite/` is at the latest `rolldown-canary` rebased onto `main`
-   (clone if missing, update otherwise); a checkout taken over by the
-   developer (dirty, or off `rolldown-canary`) is built exactly as-is,
-2. `vp install --frozen-lockfile` (vp delegates to the checkout's pinned
-   pnpm; this also resets any previous step-3 symlink swap),
-3. link `vite/packages/vite/node_modules/rolldown` to the workspace's
-   `packages/rolldown` before building: Vite's browser client inlines
-   `rolldown/experimental/runtime`, so its `DevRuntime` must match the code
-   emitted by the workspace rolldown,
-4. rebuild `packages/vite/dist/node` and `dist/client` with the workspace
-   Rolldown CLI, skipping the type build. `execFileSync` runs the CLI with
-   the current Node executable, avoiding `.bin` shims and Windows shell
-   parsing. Using `vp run` here would re-sync dependencies and undo the link,
-5. verify that Vite's `rolldown` resolution lands in the workspace package.
+1. init the submodule, or re-sync a checkout that is not on the pinned commit — so re-running after a submodule bump picks up the new commit (shallow fetch, repo-root cwd),
+2. `vp install --frozen-lockfile` (vp delegates to the submodule's pinned
+   pnpm; this also resets a previous step-4 swap, so the build always uses
+   Vite's own pinned rolldown),
+3. build `packages/vite` by invoking its pinned rolldown CLI directly (vp's
+   workspace scan trips over Vite's intentionally-broken BOM fixture;
+   `build-types` is skipped — the harness has its own types),
+4. swap `vite/packages/vite/node_modules/rolldown` to a symlink at the
+   workspace's `packages/rolldown`, so Vite's dist resolves the local binding
+   at runtime. Any install inside the submodule resets this — re-run the
+   script.
 
-Any install inside the checkout resets the link, so re-run the setup script
-after such an install.
-
-Repo-wide tools ignore `vite/**` (a `.gitignore`
+Repo-wide tools ignore `packages/test-dev-server/vite/**` (a `.gitignore`
 entry covers gitignore-respecting walkers like oxfmt, plus `.typos.toml` and
 `.ls-lint.json` entries) — a repo-wide `vp fmt --write` must never touch
-files inside `vite/`. On CI, both the dev-server workflow and the vite-tests
-jobs prepare the checkout via a setup-vite step (`run.ts` then clones it
-locally to run Vite's own suite); every other job needs no Vite checkout.
+submodule files. On CI, only the dev-server workflow runs the setup step;
+every other job needs no submodule.
 
 ### Server entry point (`src/`)
 
@@ -297,7 +285,7 @@ in the `tests` workspace.
 
 - **Upstream the two Vite bundled-dev fixes.** The recovery reload and the
   stale-error replay (see [The Vite backend](#the-vite-backend)) are genuine
-  upstream gaps; once the fixes land on vitejs/vite `rolldown-canary`, delete
+  upstream gaps; once fixed in vitejs/vite and the submodule is bumped, delete
   the `WORKAROUND` blocks in `src/vite-server.ts`.
 - **Client-reconnect gate after reloads.** Add
   `untilBrowserLogAfter(() => page.reload(), [/\[vite\] connected\./])` so an

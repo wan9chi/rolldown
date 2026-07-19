@@ -9,7 +9,7 @@ pub struct HmrStepOutput {
   pub hmr_updates: BuildResult<(Vec<rolldown_common::ClientHmrUpdate>, Vec<String>)>,
   /// Build outputs triggered by this HMR step.
   /// Can be empty (pure HMR patch with no rebuild),
-  /// one (a rebuild forced by the rebuild strategy or an explicit trigger),
+  /// one (typical full-reload scenario),
   /// or multiple (if multiple rebuilds are triggered).
   pub build_outputs: Vec<BuildResult<BundleOutput>>,
 }

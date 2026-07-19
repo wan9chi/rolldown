@@ -12,7 +12,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
   ExportsKind, HmrInfo, ImportRecordIdx, ImporterRecord, LocalExport, ModuleDefFormat, ModuleId,
-  ModuleIdx, NamedImport, ResolvedImportRecord, SourceMutation, StmtInfoIdx, SymbolRef,
+  ModuleIdx, NamedImport, ResolvedImportRecord, SourceMutation, SymbolRef,
   side_effects::DeterminedSideEffects, types::source_mutation::ArcSourceMutation,
 };
 
@@ -28,37 +28,13 @@ bitflags! {
         /// If the module has top-level empty function, if any module has top level empty function, we need
         /// to apply cross module optimization.
         const TopExportedSideEffectsFreeFunction = 1 << 5;
-        /// Module evaluation reads at least one imported binding.
-        const TopLevelImportRead = 1 << 6;
-        /// Local initialization creates data and functions without observing outside state.
-        const IndependentInitialization = 1 << 7;
     }
-}
-
-/// One occurrence of `import.meta.ROLLDOWN_FILE_URL_<referenceId>`.
-#[derive(Debug, Clone)]
-pub struct RolldownFileUrlReference {
-  /// Cross-pass identity of the member expression; the key the module finalizer
-  /// looks the replacement up by (see internal-docs/ast-mutation/implementation.md).
-  pub node_id: NodeId,
-  /// The enclosing top-level statement, so occurrences whose statement is
-  /// tree-shaken away can be skipped when invoking the `resolveFileUrl` hook.
-  pub stmt_info_idx: StmtInfoIdx,
-  /// The `<referenceId>` suffix, as handed out by `emitFile`.
-  pub reference_id: CompactStr,
-  /// Optional `urlId`
-  pub url_id: Option<CompactStr>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ThisExprReplaceKind {
   /// It depends on `context` set by the user. If it's unset, replace it with `undefined`.
   Context,
-  /// The top-level `this` of a CommonJS module, which is the initial exports object of the module.
-  /// If the finalizer prints the module inside a CJS closure, it prints `this` as
-  /// `EcmaView::cjs_this_ref`. If the module is an unwrapped CommonJS entry, the finalizer keeps
-  /// `this`, which is the module `this` of Node. The HMR finalizer prints its own exports reference
-  /// instead.
   Exports,
 }
 
@@ -129,8 +105,7 @@ pub struct EcmaView {
   pub import_records: IndexVec<ImportRecordIdx, ResolvedImportRecord>,
   /// Cross-pass AST-node side tables use post-semantic `NodeId`. See internal-docs/ast-mutation/implementation.md.
   ///
-  /// The key is the `NodeId` of `ImportDeclaration`, `ImportExpression`,
-  /// `ExportFromDeclaration`, or `ExportAllDeclaration`.
+  /// The key is the `NodeId` of `ImportDeclaration`, `ImportExpression`, `ExportNamedDeclaration`, `ExportAllDeclaration`
   /// and `CallExpression`(only when the callee is `require`).
   pub imports: FxHashMap<NodeId, ImportRecordIdx>,
   pub exports_kind: ExportsKind,
@@ -141,8 +116,6 @@ pub struct EcmaView {
   pub importers_idx: FxIndexSet<ModuleIdx>,
   // the ids of all modules that import this module via dynamic import()
   pub dynamic_importers: FxIndexSet<ModuleId>,
-  // the idx of all modules that import this module via dynamic import()
-  pub dynamic_importers_idx: FxIndexSet<ModuleIdx>,
   // the module ids statically imported by this module
   pub imported_ids: FxIndexSet<ModuleId>,
   // the module ids imported by this module via dynamic import()
@@ -157,18 +130,7 @@ pub struct EcmaView {
   pub mutations: Vec<ArcSourceMutation>,
   /// `NodeId` of `new URL('path', import.meta.url)` -> `ImportRecordIdx`
   pub new_url_references: FxHashMap<NodeId, ImportRecordIdx>,
-  /// Occurrences of `import.meta.ROLLDOWN_FILE_URL_<referenceId>[_<urlId>]`, in source order.
-  /// One entry per occurrence: the `resolveFileUrl` hook is called per occurrence,
-  /// matching Rollup, so duplicates are meaningful.
-  pub rolldown_file_url_references: Vec<RolldownFileUrlReference>,
   pub this_expr_replace_map: FxHashMap<NodeId, ThisExprReplaceKind>,
-  /// The facade symbol for the top-level `this` of a CommonJS module. The scanner makes it for each
-  /// CommonJS module that reads its top-level `this`. If the finalizer prints the module inside a
-  /// CJS closure, the renamer gives the symbol a name, and the finalizer prints it as the third
-  /// parameter of the closure. The runtime passes the initial exports object of the module to that
-  /// parameter. The name is synthesized, so no binding of the module can capture it. An unwrapped
-  /// CommonJS entry does not use this symbol. See internal-docs/renaming/design.md.
-  pub cjs_this_ref: Option<SymbolRef>,
 
   pub hmr_hot_ref: Option<SymbolRef>,
   pub hmr_info: HmrInfo,
@@ -182,9 +144,6 @@ pub struct EcmaView {
   pub json_module_none_self_reference_included_symbol: Option<Box<FxHashSet<SymbolRef>>>,
   /// Import record indices for `module.exports = require(...)` patterns.
   pub cjs_reexport_import_record_ids: Vec<ImportRecordIdx>,
-  /// Members called on a dynamic import's namespace, e.g. `foo` in
-  /// `import('mod').then(ns => ns.foo())`.
-  pub dynamic_import_called_names: FxHashMap<ImportRecordIdx, FxHashSet<CompactStr>>,
 }
 
 impl EcmaView {
@@ -193,24 +152,12 @@ impl EcmaView {
     self.importers.clear();
     self.importers_idx.clear();
     self.dynamic_importers.clear();
-    self.dynamic_importers_idx.clear();
     for record in records {
       if record.kind.is_static() {
         self.importers.insert(record.importer_path.clone());
         self.importers_idx.insert(record.importer_idx);
       } else {
         self.dynamic_importers.insert(record.importer_path.clone());
-        // Only real `import()` edges join the walkable dynamic-importer set; `HotAccept`
-        // and other non-static records are not import edges. Lazy-compilation proxy
-        // importers (`?rolldown-lazy=1`) are an internal artifact — excluding them keeps
-        // the server's superset walk from bubbling through the proxy chain
-        // (`foo -> proxy -> app`), which patch generation is not set up for. Lazy
-        // dynamic-import HMR is a separate follow-up; until then the walk stops at the
-        // lazy entry, and a tab whose own walk crosses the proxy chain reloads itself
-        // via its missing-factory / no-boundary paths, exactly as before.
-        if record.kind.is_dynamic() && !record.importer_path.as_str().contains("?rolldown-lazy=1") {
-          self.dynamic_importers_idx.insert(record.importer_idx);
-        }
       }
     }
   }
@@ -231,8 +178,6 @@ bitflags! {
         const UnknownExportsRead = 1 << 7;
         /// Top-level return statement (only valid in CommonJS)
         const TopLevelReturn = 1 << 8;
-        /// `import.meta.hot.acceptExports(...)` is called somewhere in the module
-        const HmrAcceptExports = 1 << 9;
         const ModuleOrExports = Self::ModuleRef.bits() | Self::ExportsRef.bits();
     }
 }

@@ -6,12 +6,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// deep.js
+//#region deep.js
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 await sleep(100);
-// middle.js
+//#endregion
+//#region middle.js
 const manager = {
 	value: "hello",
 	ready: false
@@ -19,39 +20,15 @@ const manager = {
 function setup() {
 	manager.ready = true;
 }
-// main.js
+//#endregion
+//#region main.js
 setup();
+//#endregion
 export { manager };
 
 ```
 
-# Variant: on-demand: [on_demand_wrapping: true] [strict_execution_order: true]
-
-## Assets
-
-### main.js
-
-```js
-// deep.js
-function sleep(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-await sleep(100);
-// middle.js
-const manager = {
-	value: "hello",
-	ready: false
-};
-function setup() {
-	manager.ready = true;
-}
-// main.js
-setup();
-export { manager };
-
-```
-
-# Variant: wrap-all: [strict_execution_order: true]
+# Variant: [strict_execution_order: true]
 
 ## Assets
 
@@ -59,45 +36,77 @@ export { manager };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// deep.js
+//#region deep.js
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 var value;
-function init_deep() {
-	return (init_deep = __esmMin((async () => {
-		await sleep(100);
-		value = "hello";
-	})))();
-}
-// middle.js
+var init_deep = __esmMin((async () => {
+	await sleep(100);
+	value = "hello";
+}));
+//#endregion
+//#region middle.js
 function setup() {
 	manager.ready = true;
 }
 var manager;
-function init_middle() {
-	return (init_middle = __esmMin((async () => {
-		await init_deep();
-		manager = {
-			value,
-			ready: false
-		};
-	})))();
+var init_middle = __esmMin((async () => {
+	await init_deep();
+	manager = {
+		value,
+		ready: false
+	};
+}));
+//#endregion
+//#region barrel.js
+var init_barrel = __esmMin((async () => {
+	await init_middle();
+}));
+//#endregion
+await __esmMin((async () => {
+	await init_barrel();
+	setup();
+}))();
+export { manager };
+
+```
+
+# Variant: [on_demand_wrapping: true] [strict_execution_order: true]
+
+## Assets
+
+### main.js
+
+```js
+// HIDDEN [\0rolldown/runtime.js]
+function sleep(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
-// barrel.js
-function init_barrel() {
-	return (init_barrel = __esmMin((async () => {
-		await init_middle();
-	})))();
+function setup() {
+	manager.ready = true;
 }
-// main.js
-function init_main() {
-	return (init_main = __esmMin((async () => {
-		await init_barrel();
-		setup();
-	})))();
-}
-await init_main();
+var value, manager;
+var init_middle = __esmMin((async () => {
+	//#region deep.js
+	await sleep(100);
+	value = "hello";
+	//#endregion
+	//#region middle.js
+	manager = {
+		value,
+		ready: false
+	};
+	//#endregion
+}));
+await __esmMin((async () => {
+	//#region barrel.js
+	await init_middle();
+	//#endregion
+	//#region main.js
+	setup();
+	//#endregion
+}))();
 export { manager };
 
 ```

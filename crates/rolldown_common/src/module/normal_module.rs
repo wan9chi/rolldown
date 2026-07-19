@@ -25,7 +25,7 @@ pub struct NormalModule {
   pub id: ModuleId,
   /// `stable_id` is calculated based on `id` to be stable across machine and os.
   pub stable_id: StableModuleId,
-  // Pretty resource id for debug. It can go in a `//` comment; see `ResolvedId::debug_id`.
+  // Pretty resource id for debug
   pub debug_id: String,
   pub repr_name: String,
   pub module_type: ModuleType,
@@ -35,13 +35,18 @@ pub struct NormalModule {
 
 impl NormalModule {
   pub fn star_export_records(&self) -> impl Iterator<Item = (ImportRecordIdx, ModuleIdx)> + '_ {
-    self.ecma_view.import_records.iter_enumerated().filter_map(|(rec_idx, rec)| {
-      rec
-        .meta
-        .contains(ImportRecordMeta::IsExportStar)
-        .then(|| rec.resolved_module.map(|module_idx| (rec_idx, module_idx)))
-        .flatten()
-    })
+    if self.has_star_export() {
+      itertools::Either::Left(self.ecma_view.import_records.iter_enumerated().filter_map(
+        |(rec_idx, rec)| {
+          if !rec.meta.contains(ImportRecordMeta::IsExportStar) {
+            return None;
+          }
+          rec.resolved_module.map(|module_idx| (rec_idx, module_idx))
+        },
+      ))
+    } else {
+      itertools::Either::Right(std::iter::empty())
+    }
   }
 
   pub fn star_export_module_ids(&self) -> impl Iterator<Item = ModuleIdx> + '_ {
@@ -220,7 +225,6 @@ impl NormalModule {
               c
             },
             initial_indent,
-            ascii_only: options.charset.is_ascii(),
           },
         );
         if !self.ecma_view.mutations.is_empty() {
@@ -238,10 +242,9 @@ impl NormalModule {
             hires: string_wizard::Hires::Boundary,
             ..Default::default()
           });
-          // `original` borrows the module source; `collapse_sourcemaps` copies what it
-          // keeps from it, so no `into_owned` detach is needed.
-          let map =
-            render_output.map.map(|original| collapse_sourcemaps(&[&original, &mutated_map]));
+          let map = render_output
+            .map
+            .map(|original| collapse_sourcemaps(&[&original.into_owned(), &mutated_map]));
           return ModuleRenderOutput { code, map };
         }
         ModuleRenderOutput {
@@ -263,10 +266,6 @@ impl NormalModule {
 
   pub fn can_accept_hmr_dependency_for(&self, module_id: &ModuleId) -> bool {
     self.hmr_info.deps.contains(module_id)
-  }
-
-  pub fn is_hmr_partially_accepting_module(&self) -> bool {
-    self.ast_usage.contains(EcmaModuleAstUsage::HmrAcceptExports)
   }
 }
 

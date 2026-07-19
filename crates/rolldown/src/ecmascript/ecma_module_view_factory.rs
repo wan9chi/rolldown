@@ -81,11 +81,8 @@ pub async fn create_ecma_view(
     hashbang_range,
     ecma_view_meta,
     dynamic_import_rec_exports_usage,
-    dynamic_import_called_names,
     new_url_references: new_url_imports,
-    rolldown_file_url_references,
     this_expr_replace_map,
-    cjs_this_ref,
     hmr_info,
     hmr_hot_ref,
     directive_range,
@@ -127,7 +124,6 @@ pub async fn create_ecma_view(
     importers: FxIndexSet::default(),
     importers_idx: FxIndexSet::default(),
     dynamic_importers: FxIndexSet::default(),
-    dynamic_importers_idx: FxIndexSet::default(),
     imported_ids: FxIndexSet::default(),
     dynamically_imported_ids: FxIndexSet::default(),
     side_effects,
@@ -146,9 +142,7 @@ pub async fn create_ecma_view(
     hashbang_range,
     mutations: vec![],
     new_url_references: new_url_imports,
-    rolldown_file_url_references,
     this_expr_replace_map,
-    cjs_this_ref,
     hmr_info,
     hmr_hot_ref,
     directive_range,
@@ -158,7 +152,6 @@ pub async fn create_ecma_view(
     import_attribute_map,
     json_module_none_self_reference_included_symbol: None,
     cjs_reexport_import_record_ids,
-    dynamic_import_called_names,
   };
 
   let ecma_related =

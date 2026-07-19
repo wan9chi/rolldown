@@ -41,9 +41,6 @@ pub mod bundler_options {
       generated_code_options::GeneratedCodeOptions,
       hash_characters::HashCharacters,
       inject_import::InjectImport,
-      inline_common_chunks_options::{
-        InlineCommonChunksOptions, NormalizedInlineCommonChunksOptions,
-      },
       input_item::InputItem,
       invalidate_js_side_cache::InvalidateJsSideCache,
       is_external::IsExternal,
@@ -54,8 +51,7 @@ pub mod bundler_options {
         ChunkingContext, ManualCodeSplittingOptions, MatchGroup, MatchGroupName, MatchGroupTest,
       },
       minify_options::{
-        EnabledMinifyOptions, ManglePropertiesPattern, ManglePropertiesPatterns, MinifyOptions,
-        RawCompressOptions, RawMangleOptions, RawManglePropertiesOptions, RawMinifyOptions,
+        MinifyOptions, RawCompressOptions, RawMangleOptions, RawMinifyOptions,
         RawMinifyOptionsDetailed,
       },
       module_type::ModuleType,
@@ -65,7 +61,6 @@ pub mod bundler_options {
         InlineConstConfig, InlineConstMode, InlineConstOption, OptimizationOption,
         normalize_optimization_option,
       },
-      output_charset::OutputCharset,
       output_exports::OutputExports,
       output_format::OutputFormat,
       output_option::{
@@ -73,7 +68,6 @@ pub mod bundler_options {
         GlobalsOutputOption, PathsOutputOption, PreserveEntrySignatures,
       },
       platform::Platform,
-      plugin_timings_option::PluginTimingsOption,
       resolve_options::ResolveOptions,
       sanitize_filename::SanitizeFilename,
       source_map_type::SourceMapType,
@@ -108,7 +102,7 @@ pub mod bundler_options {
 // We don't want internal position adjustment of files affect users, so all items are exported in the root.
 pub use crate::{
   chunk::{
-    Chunk, ChunkMeta, PostChunkOptimizationOperation,
+    Chunk, ChunkMeta, PostChunkOptimizationOperation, PreliminarySourcemapFilename,
     chunk_table::ChunkTable,
     types::{
       AddonRenderContext,
@@ -125,7 +119,7 @@ pub use crate::{
     ecma_asset_meta::EcmaAssetMeta,
     ecma_view::{
       EcmaModuleAstUsage, EcmaView, EcmaViewMeta, ExportOrigin, PrependRenderedImport,
-      RolldownFileUrlReference, ThisExprReplaceKind, generate_replace_this_expr_map,
+      ThisExprReplaceKind, generate_replace_this_expr_map,
     },
     json_to_program::{json_value_to_ecma_ast, json_value_to_expression},
     module_idx::ModuleIdx,
@@ -136,8 +130,8 @@ pub use crate::{
   },
   hmr::{
     client_hmr_input::ClientHmrInput, client_hmr_update::ClientHmrUpdate,
-    hmr_boundary::HmrBoundary, hmr_patch::HmrPatch, hmr_stamp_table::HmrStampTable,
-    hmr_update::HmrUpdate, lazy_chunk_output::HmrLazyChunkOutput,
+    hmr_boundary::HmrBoundary, hmr_boundary_output::HmrBoundaryOutput, hmr_patch::HmrPatch,
+    hmr_update::HmrUpdate,
   },
   module::{
     Module,
@@ -185,9 +179,7 @@ pub use crate::{
     BarrelInfo, BarrelState, ExportSource, ImportedExports, LazyBarrelInfo,
     try_extract_lazy_barrel_info,
   },
-  types::member_expr_ref::{
-    MemberExprObjectReferencedType, MemberExprProp, MemberExprRef, MemberExprWriteKind,
-  },
+  types::member_expr_ref::{MemberExprObjectReferencedType, MemberExprProp, MemberExprRef},
   types::member_expr_ref_resolution::MemberExprRefResolution,
   types::module_def_format::ModuleDefFormat,
   types::module_id::{ModuleId, ModuleIdKind},
@@ -226,9 +218,9 @@ pub use crate::{
   types::symbol_ref_db::{
     GetLocalDb, GetLocalDbMut, SymbolRefDb, SymbolRefDbForModule, SymbolRefFlags,
   },
-  types::used_external_symbols::{ExternalInteropUse, UsedExternalSymbols},
-  types::used_symbol_refs::{UsedSymbolRefs, UsedSymbolRefsBuilder, UsedSymbolRefsView},
-  types::watch::{WatchPath, WatcherChangeKind},
+  types::used_external_symbols::UsedExternalSymbols,
+  types::used_symbol_refs::{UsedSymbolRefs, UsedSymbolRefsBuilder},
+  types::watch::WatcherChangeKind,
   types::wrap_kind::WrapKind,
 };
 pub use bundler_options::*;

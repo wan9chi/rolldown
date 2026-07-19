@@ -6,10 +6,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// node_modules/pkg1/2/bar.js
+//#region node_modules/pkg1/2/bar.js
 console.log("SUCCESS");
-// node_modules/pkg2/1/bar.js
+//#endregion
+//#region node_modules/pkg2/1/bar.js
 console.log("SUCCESS");
+//#endregion
 export {};
 
 ```

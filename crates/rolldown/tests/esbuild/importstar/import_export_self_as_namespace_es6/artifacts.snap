@@ -7,12 +7,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// entry.js
+//#region entry.js
 var entry_exports = /* @__PURE__ */ __exportAll({
 	foo: () => 123,
 	ns: () => entry_exports
 });
 const foo = 123;
+//#endregion
 export { foo, entry_exports as ns };
 
 ```

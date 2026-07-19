@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 function id(x) {
 	return x;
 }
@@ -17,8 +17,8 @@ let shouldBeWrapped = [
 	id(foo?.[bar])(),
 	(0, foo.bar)(),
 	(0, foo[bar])(),
-	(0, foo?.bar)(),
-	(0, foo?.[bar])(),
+	(foo?.bar)(),
+	(foo?.[bar])(),
 	id(eval)(),
 	id(eval)?.(),
 	(0, eval)(),
@@ -29,19 +29,19 @@ let shouldBeWrapped = [
 	id(foo?.[bar])` + "``" + `,
 	(0, foo.bar)` + "``" + `,
 	(0, foo[bar])` + "``" + `,
-	(0, foo?.bar)` + "``" + `,
-	(0, foo?.[bar])` + "``" + `,
-	(foo, true),
-	(foo.bar, true),
-	(foo[bar], true),
-	(foo?.bar, true),
-	(foo?.[bar], true),
-	(foo, true),
-	(foo.bar, true),
-	(foo[bar], true),
-	(foo?.bar, true),
-	(foo?.[bar], true),
-	true
+	(foo?.bar)` + "``" + `,
+	(foo?.[bar])` + "``" + `,
+	delete id(foo),
+	delete id(foo.bar),
+	delete id(foo[bar]),
+	delete id(foo?.bar),
+	delete id(foo?.[bar]),
+	delete (0, foo),
+	delete (0, foo.bar),
+	delete (0, foo[bar]),
+	delete (0, foo?.bar),
+	delete (0, foo?.[bar]),
+	delete void 0
 ];
 let shouldNotBeWrapped = [
 	id(foo)(),
@@ -49,7 +49,8 @@ let shouldNotBeWrapped = [
 	id(foo)` + "``" + `,
 	foo` + "``" + `
 ];
-let shouldNotBeDoubleWrapped = [(foo(), bar(), true), (foo(), bar(), true)];
+let shouldNotBeDoubleWrapped = [delete (foo(), bar()), delete id((foo(), bar()))];
+//#endregion
 export { shouldBeWrapped, shouldNotBeDoubleWrapped, shouldNotBeWrapped };
 
 ```

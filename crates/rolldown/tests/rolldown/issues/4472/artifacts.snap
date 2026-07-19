@@ -9,12 +9,16 @@ source: crates/rolldown_testing/src/integration_test.rs
 export * from "ext-index";
 export * from "ext-file";
 export * from "ext-folder";
-// file.js
+//#endregion
+//#region file.js
 const file = {};
-// folder.js
+//#endregion
+//#region folder.js
 const folder = {};
-// main.js
+//#endregion
+//#region main.js
 const index = {};
+//#endregion
 export { file, folder, index };
 
 ```

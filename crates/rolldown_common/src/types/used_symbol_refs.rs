@@ -1,7 +1,5 @@
 use rustc_hash::FxHashSet;
 
-use crate::ModuleIdx;
-
 use super::symbol_ref::SymbolRef;
 
 /// The sealed record of inclusion-fixpoint liveness: symbols the inclusion machinery
@@ -14,9 +12,8 @@ use super::symbol_ref::SymbolRef;
 /// separately, on `LinkingMetadata::namespace_included`.
 ///
 /// Read-only by construction: produced by [`UsedSymbolRefsBuilder::seal`] once the last
-/// writer (the generate stage's unused-runtime-module sweep, after the chunk optimizer's
-/// facade-elimination re-run of the inclusion pass) has finished. There is no way to
-/// mutate it afterwards.
+/// writer (the chunk optimizer's facade-elimination re-run of the inclusion pass) has
+/// finished. There is no way to mutate it afterwards.
 ///
 /// Purpose-specific views exist for common questions — prefer them:
 /// `LinkingMetadata::namespace_included` for namespace retention,
@@ -29,47 +26,19 @@ pub struct UsedSymbolRefs {
 
 impl UsedSymbolRefs {
   #[inline]
-  pub fn view(&self) -> UsedSymbolRefsView<'_> {
-    UsedSymbolRefsView { inner: &self.inner }
-  }
-
-  #[inline]
   pub fn contains(&self, symbol_ref: &SymbolRef) -> bool {
     self.inner.contains(symbol_ref)
   }
 }
 
-/// A shared read-only borrow of either phase of used-symbol collection.
-///
-/// Keeping this view concrete lets readers shared by the mutable and sealed phases compile once
-/// without exposing mutation or allowing a builder to satisfy an API that requires the sealed
-/// [`UsedSymbolRefs`] artifact.
-#[derive(Clone, Copy)]
-pub struct UsedSymbolRefsView<'a> {
-  inner: &'a FxHashSet<SymbolRef>,
-}
-
-impl UsedSymbolRefsView<'_> {
-  #[inline]
-  pub fn contains(self, symbol_ref: &SymbolRef) -> bool {
-    self.inner.contains(symbol_ref)
-  }
-}
-
 /// The mutable phase of [`UsedSymbolRefs`], held only by the inclusion machinery
-/// (the link-stage fixpoint, the chunk optimizer's re-run of it, and the generate
-/// stage's unused-runtime-module sweep).
+/// (the link-stage fixpoint and the chunk optimizer's re-run of it).
 #[derive(Debug, Default)]
 pub struct UsedSymbolRefsBuilder {
   inner: FxHashSet<SymbolRef>,
 }
 
 impl UsedSymbolRefsBuilder {
-  #[inline]
-  pub fn view(&self) -> UsedSymbolRefsView<'_> {
-    UsedSymbolRefsView { inner: &self.inner }
-  }
-
   #[inline]
   pub fn insert(&mut self, symbol_ref: SymbolRef) {
     self.inner.insert(symbol_ref);
@@ -78,14 +47,6 @@ impl UsedSymbolRefsBuilder {
   #[inline]
   pub fn contains(&self, symbol_ref: &SymbolRef) -> bool {
     self.inner.contains(symbol_ref)
-  }
-
-  /// Drop every symbol owned by `owner`. Used by the generate stage's runtime
-  /// module sweep when the runtime module turns out to be unused after the
-  /// entry-level-external walk-back invalidated the link-time reasons for
-  /// including it.
-  pub fn remove_owned_by(&mut self, owner: ModuleIdx) {
-    self.inner.retain(|symbol_ref| symbol_ref.owner != owner);
   }
 
   pub fn seal(self) -> UsedSymbolRefs {

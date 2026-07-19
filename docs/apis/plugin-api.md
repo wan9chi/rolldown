@@ -184,7 +184,6 @@ async: color="#ff7e17", dark$color="#cc5f1a", penwidth=1
 
 # nodes
 renderStart(/reference/Interface.Plugin#renderstart): parallel, sync
-resolveFileUrl(/reference/Interface.Plugin#resolvefileurl): first, sync
 banner(/reference/Interface.Plugin#banner): sequential, sync
 footer(/reference/Interface.Plugin#footer): sequential, sync
 intro(/reference/Interface.Plugin#intro): sequential, sync
@@ -198,7 +197,6 @@ generateBundle(/reference/Interface.Plugin#generatebundle): sequential, sync
 writeBundle(/reference/Interface.Plugin#writebundle): parallel, sync
 renderError(/reference/Interface.Plugin#rendererror): parallel, sync
 closeBundle(/reference/Interface.Plugin#closebundle): parallel, sync
-beforeImportMeta: invisible
 beforeAddons: invisible
 afterAddons: invisible
 
@@ -206,10 +204,7 @@ afterAddons: invisible
 generateChunks: beforeAddons, banner, footer, intro, outro, afterAddons
 
 # edges
-renderStart -> beforeImportMeta: each chunk
-beforeImportMeta -> resolveFileUrl: each import.meta.ROLLDOWN_FILE_URL_*
-resolveFileUrl -> beforeImportMeta
-beforeImportMeta -> beforeAddons
+renderStart -> beforeAddons: each chunk
 augmentChunkHash -> generateBundle
 generateBundle -> writeBundle
 writeBundle .-> closeBundle
@@ -221,7 +216,7 @@ banner -> afterAddons
 footer -> afterAddons
 intro -> afterAddons
 outro -> afterAddons
-afterAddons .-> beforeImportMeta: next chunk, constraint=false
+afterAddons .-> beforeAddons: next chunk, constraint=false
 afterAddons -> renderChunk: each chunk
 renderChunk -> minify
 minify -> postBanner
@@ -239,6 +234,7 @@ Note that `minify` in the graph above is not a plugin hook and is the step where
 The following Output Generation Hooks are supported by Rollup, but not by Rolldown:
 
 - `resolveImportMeta` ([#1010](https://github.com/rolldown/rolldown/issues/1010))
+- `resolveFileUrl`
 - `renderDynamicImport` ([#4532](https://github.com/rolldown/rolldown/issues/4532))
 
 :::
@@ -282,12 +278,3 @@ In Rollup, the [`options`](/reference/Interface.Plugin#options) hook is called o
 In Rollup, certain hooks like [`writeBundle`](/reference/Interface.FunctionPluginHooks#writebundle) are "parallel" by default, meaning they run concurrently across multiple plugins. This requires plugins to explicitly set `sequential: true` if they need their hooks to run one after another.
 
 In Rolldown, the [`writeBundle`](/reference/Interface.FunctionPluginHooks#writebundle) hook is already sequential by default, so plugins do not need to specify `sequential: true` for this hook.
-
-### Sourcemap Validation
-
-Rollup does not check a plugin's sourcemap against its own `sources` and `names`. A mapping that points at a missing source is dropped. A mapping that points at a missing name is kept without the name. Rolldown checks every index while converting the map to the internal representation. So an invalid map that Rollup accepts can fail the build here. For example:
-
-```
-Failed to convert json sourcemap to struct
-Reference to non-existing source at position 1
-```

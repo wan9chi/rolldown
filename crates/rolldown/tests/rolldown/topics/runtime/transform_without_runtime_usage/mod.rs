@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 use rolldown::{BundlerOptions, InputItem};
 use rolldown_common::RUNTIME_MODULE_KEY;
@@ -39,7 +39,7 @@ impl Plugin for TransformWithoutRuntimeUsagePlugin {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn transform_runtime_module_without_usage() {
-  let plugin = Plugin::new_shared(TransformWithoutRuntimeUsagePlugin);
+  let plugin = Arc::new(TransformWithoutRuntimeUsagePlugin);
 
   manual_integration_test!()
     .build(TestMeta { hidden_runtime_module: false, ..Default::default() })

@@ -1,14 +1,13 @@
 use arcstr::ArcStr;
 use oxc_str::CompactStr;
 
-use crate::{ChunkIdx, ModuleId};
+use crate::ModuleId;
 
 use super::output_chunk::Modules;
 
 // The prefix `Rollup` shows that this is struct is designed for compatibility with Rollup. Adding the `Rollup` prefix to show how much types are only used for compatibility with Rollup.
 #[derive(Debug)]
 pub struct RollupRenderedChunk {
-  pub originate_from: ChunkIdx,
   // PreRenderedChunk
   pub name: ArcStr,
   pub is_entry: bool,
