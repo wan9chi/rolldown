@@ -1,6 +1,9 @@
 {
   "config": {
-    "input": [{ "import": "main.js" }, { "import": "entry.js" }],
+    "input": [
+      { "import": "main.js" },
+      { "import": "entry.js" }
+    ],
     "codeSplitting": false
   },
   "expectError": true

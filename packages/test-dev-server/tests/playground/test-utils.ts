@@ -4,8 +4,6 @@
 
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
-
-export { slash } from '@rolldown/test-dev-server';
 import type { ConsoleMessage, Locator } from 'playwright';
 import { expect } from 'vitest';
 import {

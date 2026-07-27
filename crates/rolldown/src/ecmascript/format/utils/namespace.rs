@@ -9,8 +9,9 @@ use std::fmt::Write as _;
 use arcstr::ArcStr;
 use rolldown_common::OutputExports;
 use rolldown_error::{BuildDiagnostic, BuildResult};
-use rolldown_utils::ecmascript::{
-  escape_non_ascii, is_validate_assignee_identifier_name, property_access_str_with_ascii,
+use rolldown_utils::{
+  concat_string,
+  ecmascript::{is_validate_assignee_identifier_name, is_validate_identifier_name},
 };
 
 use crate::types::generator::GenerateContext;
@@ -35,7 +36,6 @@ pub fn generate_namespace_definition(
   name: &str,
   global: &str,
   delimiter: &str,
-  ascii_only: bool,
 ) -> (String, String) {
   let parts: Vec<&str> = name.split('.').collect();
   let mut stmts = String::new();
@@ -43,7 +43,7 @@ pub fn generate_namespace_definition(
   let global_len = global.len();
 
   for (i, part) in parts.iter().enumerate() {
-    let property = render_property_access(part, ascii_only);
+    let property = render_property_access(part);
     namespace.push_str(&property);
 
     if i < parts.len() - 1 {
@@ -89,8 +89,7 @@ pub fn generate_identifier(
 
   // It is same as Rollup.
   if name.contains('.') {
-    let (stmts, namespace) =
-      generate_namespace_definition(name, "this", ";\n", ctx.options.charset.is_ascii());
+    let (stmts, namespace) = generate_namespace_definition(name, "this", ";\n");
     // Extend the object if the `extend` option is enabled.
     let final_expr = if ctx.options.extend && matches!(export_mode, OutputExports::Named) {
       format!("{namespace} = {namespace} || {{}}")
@@ -102,7 +101,7 @@ pub fn generate_identifier(
   }
 
   if ctx.options.extend {
-    let property = render_property_access(name.as_str(), ctx.options.charset.is_ascii());
+    let property = render_property_access(name.as_str());
     let final_expr = if matches!(export_mode, OutputExports::Named) {
       // In named exports, the `extend` option will make the assignment disappear and
       // the modification will be done extending the existed object (the `name` option).
@@ -119,7 +118,7 @@ pub fn generate_identifier(
 
   if is_validate_assignee_identifier_name(name) {
     // If valid, we can use the `var` statement to declare the variable.
-    Ok((String::new(), format!("var {}", escape_non_ascii(name, ctx.options.charset.is_ascii()))))
+    Ok((String::new(), format!("var {name}")))
   } else {
     // This behavior is aligned with Rollup. If using `output.extend: true`, this error won't be triggered.
     let name = ArcStr::from(name);
@@ -131,8 +130,12 @@ pub fn generate_identifier(
 ///
 /// - If the name is not an invalid identifier, it will generate a caller like `.name`.
 /// - Otherwise, it will generate a caller like `["-foo"]`.
-pub fn render_property_access(name: &str, ascii_only: bool) -> String {
-  property_access_str_with_ascii("", name, ascii_only)
+pub fn render_property_access(name: &str) -> String {
+  if is_validate_identifier_name(name) {
+    concat_string!(".", name)
+  } else {
+    concat_string!("[\"", name, "\"]")
+  }
 }
 
 #[cfg(test)]
@@ -141,14 +144,14 @@ mod tests {
 
   #[test]
   fn test_generate_namespace_definition() {
-    let result = generate_namespace_definition("a.b.c", "this", ";\n", false);
+    let result = generate_namespace_definition("a.b.c", "this", ";\n");
     assert_eq!(result.0, "this.a = this.a || {};\nthis.a.b = this.a.b || {};\n");
     assert_eq!(result.1, "this.a.b.c");
   }
 
   #[test]
   fn test_non_identifier_as_name() {
-    let result = generate_namespace_definition("1.2.3", "this", ";\n", false);
+    let result = generate_namespace_definition("1.2.3", "this", ";\n");
     assert_eq!(
       result.0,
       "this[\"1\"] = this[\"1\"] || {};\nthis[\"1\"][\"2\"] = this[\"1\"][\"2\"] || {};\n"
@@ -158,7 +161,7 @@ mod tests {
 
   #[test]
   fn test_reserved_identifier_as_name() {
-    let result = generate_namespace_definition("if.else", "this", ";\n", false);
+    let result = generate_namespace_definition("if.else", "this", ";\n");
     assert_eq!(result.0, "this.if = this.if || {};\n");
     assert_eq!(result.1, "this.if.else");
   }
@@ -166,8 +169,7 @@ mod tests {
   #[test]
   /// It is related a bug in rollup. Check it out in [rollup/rollup#5603](https://github.com/rollup/rollup/issues/5603).
   fn test_invalid_identifier_as_name() {
-    let result =
-      generate_namespace_definition("toString.valueOf.constructor", "this", ";\n", false);
+    let result = generate_namespace_definition("toString.valueOf.constructor", "this", ";\n");
     assert_eq!(
       result.0,
       "this.toString = this.toString || {};\nthis.toString.valueOf = this.toString.valueOf || {};\n"

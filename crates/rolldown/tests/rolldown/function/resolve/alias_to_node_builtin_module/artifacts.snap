@@ -8,8 +8,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import { createRequire } from "node:module";
 // HIDDEN [\0rolldown/runtime.js]
-// main.js
+//#region main.js
 (/* @__PURE__ */ (() => createRequire(import.meta.url))())("fs");
+//#endregion
 export {};
 
 ```

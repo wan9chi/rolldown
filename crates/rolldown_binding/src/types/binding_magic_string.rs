@@ -4,12 +4,13 @@ use std::borrow::Cow;
 use napi::bindgen_prelude::{Either, This};
 use napi::{Env, JsString};
 use napi_derive::napi;
-use oxc_napi::JsRegExp;
 use rolldown_sourcemap::{JSONSourceMap, SourceMap};
 use rolldown_utils::base64::to_standard_base64;
-use rolldown_utils::js_regex::{HybridMatch, HybridRegex};
+use rolldown_utils::js_regex::HybridRegex;
 use serde::Serialize;
 use string_wizard::{MagicString, MagicStringOptions, SourceMapOptions, UpdateOptions};
+
+use super::js_regex::JsRegExp;
 
 /// Internal representation preserving the original JS format (flat `[start, end]` vs nested
 /// `[[start, end], ...]`) so the getter returns the same shape the user passed in.
@@ -304,7 +305,7 @@ impl BindingSourceMap {
   /// The list of source indices that should be excluded from debugging.
   #[napi(getter, js_name = "x_google_ignoreList")]
   pub fn x_google_ignore_list(&self) -> Option<Vec<u32>> {
-    self.json.ignore_list.clone()
+    self.json.x_google_ignore_list.clone()
   }
 
   /// Returns the source map as a JSON string.
@@ -317,7 +318,7 @@ impl BindingSourceMap {
       sources_content: self.json.sources_content.as_ref(),
       names: &self.json.names,
       mappings: &self.json.mappings,
-      x_google_ignore_list: self.json.ignore_list.as_ref(),
+      x_google_ignore_list: self.json.x_google_ignore_list.as_ref(),
     };
     serde_json::to_string(&serializable).expect("should be able to serialize source map")
   }
@@ -398,7 +399,7 @@ impl BindingDecodedMap {
   /// The list of source indices that should be excluded from debugging.
   #[napi(getter, js_name = "x_google_ignoreList")]
   pub fn x_google_ignore_list(&self) -> Option<Vec<u32>> {
-    self.json.ignore_list.clone()
+    self.json.x_google_ignore_list.clone()
   }
 }
 
@@ -497,9 +498,9 @@ impl BindingMagicString<'_> {
   /// Handles `$&`, `$$`, and `$N` substitution patterns in the replacement string.
   ///
   /// NOTE: Uses `HybridRegex` which tries `regex::Regex` first (orders of magnitude
-  /// faster) and only falls back to the ECMAScript engine when the pattern uses syntax
+  /// faster) and only falls back to `regress::Regex` when the pattern uses syntax
   /// not supported by the `regex` crate (e.g. backreferences, lookaround).
-  /// Sticky (`y`) flag always uses the ECMAScript path since `regex` doesn't support it,
+  /// Sticky (`y`) flag always uses the `regress` path since `regex` doesn't support it,
   /// and `lastIndex` is respected via `find_from`.
   fn regex_replace(&mut self, js_regex: &JsRegExp, replacement: &str) -> napi::Result<Option<u32>> {
     let global = js_regex.flags.contains('g');
@@ -514,10 +515,10 @@ impl BindingMagicString<'_> {
 
     // Collect into Vec to release the borrow on `source` before mutating `self.inner`.
     #[expect(clippy::cast_possible_truncation)]
-    let overwrites: Vec<(u32, u32, String)> = match reg.as_optimized() {
-      Some(r) => {
+    let overwrites: Vec<(u32, u32, String)> = match &reg {
+      HybridRegex::Optimize(r) => {
         // The `regex` crate path is only used for non-sticky patterns (the `y` flag
-        // causes `regex::Regex::new` to fail, selecting the ECMAScript fallback).
+        // causes `regex::Regex::new` to fail, falling back to regress).
         // For non-sticky regexes, JS resets `lastIndex` before matching, so we
         // always start from the beginning.
         let iter = r.captures_iter(source);
@@ -537,7 +538,7 @@ impl BindingMagicString<'_> {
           })
           .collect()
       }
-      None => {
+      HybridRegex::Ecma(r) => {
         let is_sticky = js_regex.flags.contains('y');
         // For global regexes, JS resets lastIndex to 0 before matching.
         // For non-global sticky, use the caller's lastIndex (converted from UTF-16 to byte offset).
@@ -545,7 +546,7 @@ impl BindingMagicString<'_> {
         let start = if global || !is_sticky {
           0
         } else {
-          match self.utf16_to_byte_mapper.utf16_to_byte(js_regex.last_index) {
+          match self.utf16_to_byte_mapper.utf16_to_byte(js_regex.last_index as u32) {
             Some(byte_offset) => byte_offset as usize,
             None => return Ok(None),
           }
@@ -556,19 +557,16 @@ impl BindingMagicString<'_> {
           // For non-global sticky, this is at most one match.
           let mut results = Vec::new();
           let mut pos = start;
-          let matches =
-            reg.find_from(source, start).expect("fallback regex should use the ECMAScript engine");
-          for m in matches {
-            let range = m.range();
-            if range.start != pos {
+          for m in r.find_from(source, start) {
+            if m.range.start != pos {
               break; // non-contiguous — stop
             }
-            pos = range.end;
-            last_match_end = Some(range.end as u32);
-            let matched = &source[range.clone()];
-            let rep = apply_replacement_ecma(replacement, matched, &m, source);
+            pos = m.range.end;
+            last_match_end = Some(m.range.end as u32);
+            let matched = &source[m.range.clone()];
+            let rep = apply_replacement_regress(replacement, matched, &m, source);
             if rep != matched {
-              results.push((range.start as u32, range.end as u32, rep));
+              results.push((m.range.start as u32, m.range.end as u32, rep));
             }
             if !global {
               break; // non-global: one match only
@@ -577,8 +575,7 @@ impl BindingMagicString<'_> {
           results
         } else {
           // Non-sticky
-          let iter =
-            reg.find_from(source, 0).expect("fallback regex should use the ECMAScript engine");
+          let iter = r.find_from(source, 0);
           let iter = if global {
             itertools::Either::Left(iter)
           } else {
@@ -586,11 +583,10 @@ impl BindingMagicString<'_> {
           };
           iter
             .filter_map(|m| {
-              let range = m.range();
-              last_match_end = Some(range.end as u32);
-              let matched = &source[range.clone()];
-              let rep = apply_replacement_ecma(replacement, matched, &m, source);
-              (rep != matched).then_some((range.start as u32, range.end as u32, rep))
+              last_match_end = Some(m.range.end as u32);
+              let matched = &source[m.range.clone()];
+              let rep = apply_replacement_regress(replacement, matched, &m, source);
+              (rep != matched).then_some((m.range.start as u32, m.range.end as u32, rep))
             })
             .collect()
         }
@@ -1259,7 +1255,7 @@ impl BindingMagicString<'_> {
         None,
       );
       if self.ignore_list {
-        m.set_ignore_list(vec![0]);
+        m.set_x_google_ignore_list(vec![0]);
       }
       m
     } else {
@@ -1301,7 +1297,7 @@ impl BindingMagicString<'_> {
         None,
       );
       if self.ignore_list {
-        m.set_ignore_list(vec![0]);
+        m.set_x_google_ignore_list(vec![0]);
       }
       m
     } else {
@@ -1395,13 +1391,13 @@ fn apply_replacement_regex(
   apply_replacement(replacement, matched, group_count, |n| caps.get(n).map(|m| m.as_str()))
 }
 
-/// `apply_replacement` adapter for an ECMAScript match (slow/fallback path).
-fn apply_replacement_ecma(
+/// `apply_replacement` adapter for `regress::Match` (slow/fallback path).
+fn apply_replacement_regress(
   replacement: &str,
   matched: &str,
-  m: &HybridMatch,
+  m: &regress::Match,
   source: &str,
 ) -> String {
-  let group_count = m.group_count();
+  let group_count = 1 + m.captures.len();
   apply_replacement(replacement, matched, group_count, |n| m.group(n).map(|range| &source[range]))
 }

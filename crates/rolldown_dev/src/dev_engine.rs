@@ -4,14 +4,12 @@ use std::sync::{
 };
 
 use anyhow::Context;
-use arcstr::ArcStr;
 use futures::{FutureExt, future::Shared};
 #[cfg(feature = "testing")]
 use rolldown_common::WatcherChangeKind;
 use rolldown_common::{HmrLazyChunkOutput, HmrStampTable};
 use rolldown_error::{BuildResult, ResultExt};
-use rolldown_fs_watcher::{FsWatcher, FsWatcherConfig};
-use rolldown_utils::dashmap::FxDashSet;
+use rolldown_fs_watcher::{FsWatcher, FsWatcherConfig, FsWatcherExt, NoopFsWatcher};
 use rustc_hash::FxHashMap;
 #[cfg(feature = "testing")]
 use rustc_hash::FxHashSet;
@@ -57,28 +55,16 @@ pub struct DevEngine {
   /// filenames — so two independent counters would let two different payloads
   /// collide on one key.
   next_hmr_patch_id: Arc<AtomicU32>,
-  /// Live handle to the plugin-facing module infos — the same map plugin contexts read.
-  /// Full builds clear it in place (the `Arc` identity is stable), so lock-free reads
-  /// here always observe the latest build. Powers the engine-level module queries.
-  module_infos: rolldown_common::SharedModuleInfoDashMap,
 }
 
 impl DevEngine {
-  pub fn new(mut config: BundlerConfig, options: DevOptions) -> BuildResult<Self> {
-    // The HMR stage diffs against the scan-stage snapshot, which is only kept
-    // when incremental build is on. Without it the first file change unwraps a
-    // `None` snapshot and panics the worker. `prepare_build_context` already
-    // forces this for `dev_mode`, but `dev()` is reachable without it.
-    config.options.experimental.get_or_insert_default().incremental_build = Some(true);
-
+  pub fn new(config: BundlerConfig, options: DevOptions) -> BuildResult<Self> {
     // Build the bundler from config
     let bundler = BundlerBuilder::default()
       .with_options(config.options)
       .with_plugins(config.plugins)
       .build()?;
 
-    let module_infos = bundler.module_infos();
-    let cwd = bundler.options().cwd.clone();
     let bundler = Arc::new(Mutex::new(bundler));
 
     let normalized_options = normalize_dev_options(options);
@@ -102,26 +88,27 @@ impl DevEngine {
     });
 
     let watcher_config = FsWatcherConfig {
-      enabled: !ctx.options.disable_watcher,
       poll_interval: ctx.options.poll_interval,
       debounce_delay: ctx.options.debounce_duration,
       compare_contents_for_polling: ctx.options.compare_contents_for_polling,
       debounce_tick_rate: ctx.options.debounce_tick_rate,
       use_polling: ctx.options.use_polling,
       use_debounce: ctx.options.use_debounce,
-      ignored: ctx.options.watch_exclude.clone(),
-      cwd,
     };
 
     let event_handler = BundleCoordinator::create_watcher_event_handler(coordinator_tx.clone());
-    let watcher = FsWatcher::new(event_handler, &watcher_config)?;
+
+    let watcher = if ctx.options.disable_watcher {
+      NoopFsWatcher::with_config(event_handler, watcher_config)?.into_dyn_fs_watcher()
+    } else {
+      rolldown_fs_watcher::create_fs_watcher(event_handler, watcher_config)?
+    };
 
     let coordinator = BundleCoordinator::new(
       Arc::clone(&bundler),
       Arc::clone(&ctx),
       coordinator_rx,
       watcher,
-      watcher_config.cwd,
       Arc::clone(&next_hmr_patch_id),
     );
 
@@ -136,18 +123,7 @@ impl DevEngine {
       clients,
       is_closed: AtomicBool::new(false),
       next_hmr_patch_id,
-      module_infos,
     })
-  }
-
-  /// Same data the plugin-context `getModuleInfo` returns, readable from the engine
-  /// handle at any time (no hook context needed).
-  pub fn get_module_info(&self, module_id: &str) -> Option<Arc<rolldown_common::ModuleInfo>> {
-    self.module_infos.get(module_id).map(|entry| Arc::clone(entry.value()))
-  }
-
-  pub fn get_module_ids(&self) -> Vec<arcstr::ArcStr> {
-    self.module_infos.iter().map(|entry| entry.key().clone()).collect()
   }
 
   pub async fn run(&self) -> BuildResult<()> {
@@ -238,9 +214,7 @@ impl DevEngine {
     Ok(status.into())
   }
 
-  /// Ensure there's latest bundle output available for browser loading/reloading scenarios.
-  ///
-  /// If the `DevEngine` is closed while waiting, this method will return early without error.
+  // Ensure there's latest bundle output available for browser loading/reloading scenarios
   pub async fn ensure_latest_bundle_output(&self) -> BuildResult<()> {
     self.create_error_if_closed()?;
 
@@ -248,36 +222,28 @@ impl DevEngine {
     loop {
       loop_count += 1;
       if loop_count > 100 {
-        debug_assert!(
-          false,
-          "[DevEngine] ensure_latest_bundle_output has looped {loop_count} times, something is definitely wrong",
-        );
-        tracing::warn!(
-          "[DevEngine] ensure_latest_bundle_output has looped {loop_count} times, something might be wrong",
-        );
+        if cfg!(debug_assertions) {
+          panic!(
+            "[DevEngine] ensure_latest_bundle_output has looped {loop_count} times, something is definitely wrong",
+          );
+        } else {
+          tracing::warn!(
+            "[DevEngine] ensure_latest_bundle_output has looped {loop_count} times, something might be wrong",
+          );
+        }
         break;
       }
       let (reply_sender, reply_receiver) = tokio::sync::oneshot::channel();
-      if let Err(err) = self
+      self
         .coordinator_sender
         .send(CoordinatorMsg::EnsureLatestBundleOutput { reply: reply_sender })
-      {
-        if self.is_closed() {
-          return Ok(());
-        }
-        return (Err(err))
-          .map_err_to_unhandleable()
-          .context("DevEngine: failed to send EnsureLatestBundleOutput to coordinator")?;
-      }
+        .map_err_to_unhandleable()
+        .context("DevEngine: failed to send EnsureLatestBundleOutput to coordinator")?;
 
-      let Ok(received) = reply_receiver.await else {
-        if self.is_closed() {
-          return Ok(());
-        }
-        return Err(anyhow::anyhow!(
-          "DevEngine: coordinator closed before responding to EnsureLatestBundleOutput"
-        ))?;
-      };
+      let received = reply_receiver
+        .await
+        .map_err_to_unhandleable()
+        .context("DevEngine: coordinator closed before responding to EnsureLatestBundleOutput")?;
 
       // Wait for the build if one is running or was scheduled
       if let Some(ret) = received {
@@ -308,8 +274,8 @@ impl DevEngine {
 
   /// Client-connect signal (the clientId hello): creates the per-client session with an
   /// empty ship map and the current top-level-evaluated map frozen in. The hello comes from
-  /// the dev client script of a page that loaded a served entry chunk, so it doubles as
-  /// the entry delivery notification. (A client that loaded an output older than the latest rebuild
+  /// the runtime inside the entry chunk, so it doubles as the entry delivery
+  /// notification. (A client that loaded an output older than the latest rebuild
   /// gets the newer map; the mismatched entries then read as current copies the client
   /// does not hold — the reload fallback covers that window until the hello carries a
   /// build id.) Reconnects arrive as fresh clientIds, which is the per-client reset.
@@ -330,15 +296,9 @@ impl DevEngine {
     self.dev_context.pending_payloads.lock().await.retain(|_, p| p.client_id != client_id);
   }
 
-  /// Delivery notification for the payload `filename`. The dev server calls this when
-  /// the client reports that it ran the payload: Vite appends a
-  /// `__rolldown_runtime__.payloadDelivered(filename)` statement to the end of every
-  /// patch and lazy chunk, so the report means every `registerFactory` in the payload
-  /// has run. A completed HTTP response is not enough — the bytes may not have
-  /// evaluated yet, and a later chunk would then omit a factory the client does not
-  /// hold (rolldown/rolldown#10774). Max-merges the pending entry's stamps into that
-  /// client's shipped[C] — idempotent, and a late or repeated delivery can never move
-  /// the record backwards.
+  /// Delivery notification from the serving middleware: the response for `filename`
+  /// completed. Max-merges the pending entry's stamps into that client's shipped[C] —
+  /// idempotent, and a late or repeated delivery can never move the record backwards.
   pub async fn notify_payload_delivered(&self, filename: &str) {
     let Some(pending) = self.dev_context.pending_payloads.lock().await.remove(filename) else {
       return;
@@ -412,9 +372,10 @@ impl DevEngine {
     drop(stamp_table);
 
     if let Ok(output) = &mut result {
-      // Record the rendered chunk as pending: the delivery notification for
-      // `output.filename` max-merges its stamps into `shipped[C]`. The binding
-      // layer drops `carried`, so hand it to the pending entry instead of cloning.
+      // Record the rendered chunk as pending: the delivery notification
+      // max-merges its stamps into `shipped[C]` when the serving middleware
+      // sees the response for `output.filename` complete. The binding layer
+      // drops `carried`, so hand it to the pending entry instead of cloning.
       self
         .dev_context
         .insert_pending_payload(
@@ -439,11 +400,7 @@ impl DevEngine {
 
       // Notify that the proxy module has changed so build output gets updated.
       // This ensures future page loads get the fetched template directly.
-      // The compile added the files it loaded to the watch list of the latest build.
-      // A new build can start before the coordinator reads this message, and its list
-      // starts empty, so send this list with the message.
-      // See internal-docs/dev-engine/implementation.md §15.
-      self.notify_module_changed(proxy_module_id, Arc::clone(bundler.watch_files()));
+      self.notify_module_changed(proxy_module_id);
     }
 
     result
@@ -451,8 +408,8 @@ impl DevEngine {
 
   /// Notify the coordinator that a module has changed programmatically.
   /// This triggers a rebuild to update the build output.
-  fn notify_module_changed(&self, module_id: String, watch_files: Arc<FxDashSet<ArcStr>>) {
-    let _ = self.coordinator_sender.send(CoordinatorMsg::ModuleChanged { module_id, watch_files });
+  fn notify_module_changed(&self, module_id: String) {
+    let _ = self.coordinator_sender.send(CoordinatorMsg::ModuleChanged { module_id });
   }
 
   pub async fn close(&self) -> BuildResult<()> {
@@ -502,13 +459,26 @@ impl DevEngine {
     // covers the first, leaving the rest racing the caller's assertions.
     let events = changed_files
       .into_iter()
-      .map(|(path, kind)| rolldown_fs_watcher::FsEvent::new(path, kind))
+      .map(|(path, event)| {
+        let notify_event = notify::Event {
+          kind: if event == WatcherChangeKind::Delete {
+            notify::EventKind::Remove(notify::event::RemoveKind::Any)
+          } else {
+            notify::EventKind::Modify(notify::event::ModifyKind::Data(
+              notify::event::DataChange::Any,
+            ))
+          },
+          paths: vec![path],
+          attrs: notify::event::EventAttributes::default(),
+        };
+        rolldown_fs_watcher::FsEvent { detail: notify_event, time: std::time::Instant::now() }
+      })
       .collect::<Vec<_>>();
 
     if !events.is_empty() {
       // Send WatchEvent message to coordinator (simulates real file change)
       // The coordinator will automatically schedule a build via handle_file_changes
-      let _ = self.coordinator_sender.send(CoordinatorMsg::WatchEvent(events));
+      let _ = self.coordinator_sender.send(CoordinatorMsg::WatchEvent(Ok(events)));
     }
 
     // Send ScheduleBuild to ensure WatchEvent is processed (FIFO),
@@ -583,151 +553,5 @@ impl From<CoordinatorStateSnapshot> for BundleState {
       last_error_stage: snapshot.last_error_stage,
       has_stale_output: snapshot.has_stale_output,
     }
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use rolldown::{BundlerConfig, BundlerOptions};
-
-  #[test]
-  fn dev_engine_forces_incremental_build_on() {
-    let engine = super::DevEngine::new(
-      BundlerConfig::new(BundlerOptions::default(), vec![]),
-      crate::DevOptions::default(),
-    )
-    .unwrap();
-    assert!(
-      engine.bundler.try_lock().unwrap().options().experimental.is_incremental_build_enabled()
-    );
-  }
-
-  /// A lazy compile adds the files it loads to the watch list of the build it runs
-  /// against. A build that starts before the coordinator handles the compile's
-  /// `ModuleChanged` begins with an empty list, and no later build loads those cached
-  /// modules again, so the coordinator must still end up watching them.
-  #[cfg(feature = "testing")]
-  #[tokio::test]
-  async fn lazy_compile_files_stay_watched_when_a_build_starts_first() {
-    use rolldown::{DevModeOptions, ExperimentalOptions};
-    use rolldown_common::ScanMode;
-
-    let dir = std::env::temp_dir().join(format!("rolldown-dev-lazy-watch-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    // The resolver returns real paths, and the temp dir can sit behind a symlink.
-    let dir = dunce::canonicalize(&dir).unwrap();
-    std::fs::write(dir.join("main.js"), "import('./lazy.js');\n").unwrap();
-    std::fs::write(dir.join("lazy.js"), "export { dep } from './dep.js';\n").unwrap();
-    std::fs::write(dir.join("dep.js"), "export const dep = 1;\n").unwrap();
-    let lazy = dir.join("lazy.js").to_string_lossy().into_owned();
-    let dep = dir.join("dep.js").to_string_lossy().into_owned();
-
-    let engine = super::DevEngine::new(
-      BundlerConfig::new(
-        BundlerOptions {
-          input: Some(vec!["./main.js".to_string().into()]),
-          cwd: Some(dir.clone()),
-          experimental: Some(ExperimentalOptions {
-            dev_mode: Some(DevModeOptions { lazy: Some(true), ..Default::default() }),
-            ..Default::default()
-          }),
-          ..Default::default()
-        },
-        vec![],
-      ),
-      crate::DevOptions {
-        watch: Some(crate::DevWatchOptions {
-          disable_watcher: Some(true),
-          skip_write: Some(true),
-          ..Default::default()
-        }),
-        ..Default::default()
-      },
-    )
-    .unwrap();
-    engine.run().await.unwrap();
-    let watched = engine.get_watched_files().await.unwrap();
-    assert!(!watched.contains(&lazy) && !watched.contains(&dep), "not loaded before the compile");
-
-    engine
-      .compile_lazy_entry(format!("{lazy}?rolldown-lazy=1"), "client".to_string())
-      .await
-      .unwrap();
-    // The compile has sent `ModuleChanged`. On this single-threaded runtime the coordinator
-    // has not run since, so it reads the message only after this build replaced the list.
-    engine.bundler.lock().await.incremental_generate(ScanMode::Partial(vec![])).await.unwrap();
-    engine.ensure_latest_bundle_output().await.unwrap();
-
-    let watched = engine.get_watched_files().await.unwrap();
-    engine.close().await.unwrap();
-    std::fs::remove_dir_all(&dir).unwrap();
-    assert!(watched.contains(&lazy) && watched.contains(&dep), "{watched:#?}");
-  }
-
-  /// With `RebuildStrategy::Always` one task runs the HMR stage and then a rebuild. The HMR
-  /// stage adds the files it loads to the latest build's watch list. The rebuild starts a
-  /// new, empty list and does not load those cached modules again, so the coordinator must
-  /// still end up watching them.
-  #[cfg(feature = "testing")]
-  #[tokio::test]
-  async fn hmr_stage_files_stay_watched_when_the_same_task_rebuilds() {
-    use rolldown::{DevModeOptions, ExperimentalOptions};
-    use rolldown_common::WatcherChangeKind;
-    use rolldown_utils::indexmap::FxIndexMap;
-
-    let dir =
-      std::env::temp_dir().join(format!("rolldown-dev-hmr-rebuild-watch-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    // The resolver returns real paths, and the temp dir can sit behind a symlink.
-    let dir = dunce::canonicalize(&dir).unwrap();
-    std::fs::write(dir.join("main.js"), "export const main = 1;\n").unwrap();
-    std::fs::write(dir.join("dep.js"), "export const dep = 1;\n").unwrap();
-    let main = dir.join("main.js").to_string_lossy().into_owned();
-    let dep = dir.join("dep.js").to_string_lossy().into_owned();
-
-    let engine = super::DevEngine::new(
-      BundlerConfig::new(
-        BundlerOptions {
-          input: Some(vec!["./main.js".to_string().into()]),
-          cwd: Some(dir.clone()),
-          experimental: Some(ExperimentalOptions {
-            dev_mode: Some(DevModeOptions::default()),
-            ..Default::default()
-          }),
-          ..Default::default()
-        },
-        vec![],
-      ),
-      crate::DevOptions {
-        rebuild_strategy: Some(crate::RebuildStrategy::Always),
-        watch: Some(crate::DevWatchOptions {
-          disable_watcher: Some(true),
-          skip_write: Some(true),
-          ..Default::default()
-        }),
-        ..Default::default()
-      },
-    )
-    .unwrap();
-    engine.run().await.unwrap();
-    let watched = engine.get_watched_files().await.unwrap();
-    assert!(watched.contains(&main) && !watched.contains(&dep), "{watched:#?}");
-
-    std::fs::write(
-      dir.join("main.js"),
-      "import { dep } from './dep.js';\nexport const main = dep;\n",
-    )
-    .unwrap();
-    engine
-      .ensure_task_with_changed_files(FxIndexMap::from_iter([(
-        dir.join("main.js"),
-        WatcherChangeKind::Update,
-      )]))
-      .await;
-
-    let watched = engine.get_watched_files().await.unwrap();
-    engine.close().await.unwrap();
-    std::fs::remove_dir_all(&dir).unwrap();
-    assert!(watched.contains(&dep), "{watched:#?}");
   }
 }

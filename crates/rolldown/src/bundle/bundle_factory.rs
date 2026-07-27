@@ -1,9 +1,10 @@
 use std::{any::Any, sync::Arc};
 
+use arcstr::ArcStr;
 use dashmap::DashMap;
 use rolldown_common::{
   BundleMode, BundlerOptions, FileEmitter, ModuleIdx, NormalizedBundlerOptions, SharedFileEmitter,
-  SharedModuleInfoDashMap, WatchPath,
+  SharedModuleInfoDashMap,
 };
 use rolldown_error::{BuildDiagnostic, BuildResult, EventKindSwitcher};
 use rolldown_fs::{FileSystem, OsFileSystem};
@@ -48,7 +49,7 @@ pub struct BundleFactory {
   module_infos_for_incremental_build: SharedModuleInfoDashMap,
 
   // Used to preserve transform dependencies (from addWatchFile) across incremental builds for HMR
-  transform_dependencies_for_incremental_build: Arc<DashMap<ModuleIdx, Arc<FxDashSet<WatchPath>>>>,
+  transform_dependencies_for_incremental_build: Arc<DashMap<ModuleIdx, Arc<FxDashSet<ArcStr>>>>,
 
   // Used to generate unique id for each bundle process
   bundle_id_seed: u32,
@@ -124,10 +125,8 @@ impl BundleFactory {
     };
 
     if bundle_mode.is_full_build() {
-      // A full build starts from an empty module-info set. Clear the shared map in place
-      // instead of replacing it, so long-lived handles (the dev engine's module queries)
-      // keep observing the current build.
-      self.module_infos_for_incremental_build.clear();
+      // Reset module infos for full bundle and store it for potential incremental builds
+      self.module_infos_for_incremental_build = Arc::default();
       // Also reset transform dependencies for full builds
       self.transform_dependencies_for_incremental_build = Arc::default();
     }
@@ -142,16 +141,9 @@ impl BundleFactory {
     fs: Fs,
     resolver: SharedResolver<Fs>,
   ) -> Bundle<Fs> {
-    self.module_infos_for_incremental_build.clear();
+    self.module_infos_for_incremental_build = Arc::default();
     self.transform_dependencies_for_incremental_build = Arc::default();
     self.build_bundle(fs, resolver, ScanStageCache::default())
-  }
-
-  /// Live handle to the plugin-facing module infos. The `Arc` identity is stable for the
-  /// factory's lifetime — full builds clear the map in place — so a held clone always
-  /// observes the latest build.
-  pub fn module_infos(&self) -> SharedModuleInfoDashMap {
-    Arc::clone(&self.module_infos_for_incremental_build)
   }
 
   fn build_bundle<Fs: FileSystem + Clone + 'static>(

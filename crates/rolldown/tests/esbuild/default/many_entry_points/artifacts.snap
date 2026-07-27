@@ -6,319 +6,359 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## e00.js
 
 ```js
-// e00.js
+//#region e00.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e01.js
 
 ```js
-// e01.js
+//#region e01.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e02.js
 
 ```js
-// e02.js
+//#region e02.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e03.js
 
 ```js
-// e03.js
+//#region e03.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e04.js
 
 ```js
-// e04.js
+//#region e04.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e05.js
 
 ```js
-// e05.js
+//#region e05.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e06.js
 
 ```js
-// e06.js
+//#region e06.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e07.js
 
 ```js
-// e07.js
+//#region e07.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e08.js
 
 ```js
-// e08.js
+//#region e08.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e09.js
 
 ```js
-// e09.js
+//#region e09.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e10.js
 
 ```js
-// e10.js
+//#region e10.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e11.js
 
 ```js
-// e11.js
+//#region e11.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e12.js
 
 ```js
-// e12.js
+//#region e12.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e13.js
 
 ```js
-// e13.js
+//#region e13.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e14.js
 
 ```js
-// e14.js
+//#region e14.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e15.js
 
 ```js
-// e15.js
+//#region e15.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e16.js
 
 ```js
-// e16.js
+//#region e16.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e17.js
 
 ```js
-// e17.js
+//#region e17.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e18.js
 
 ```js
-// e18.js
+//#region e18.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e19.js
 
 ```js
-// e19.js
+//#region e19.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e20.js
 
 ```js
-// e20.js
+//#region e20.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e21.js
 
 ```js
-// e21.js
+//#region e21.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e22.js
 
 ```js
-// e22.js
+//#region e22.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e23.js
 
 ```js
-// e23.js
+//#region e23.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e24.js
 
 ```js
-// e24.js
+//#region e24.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e25.js
 
 ```js
-// e25.js
+//#region e25.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e26.js
 
 ```js
-// e26.js
+//#region e26.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e27.js
 
 ```js
-// e27.js
+//#region e27.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e28.js
 
 ```js
-// e28.js
+//#region e28.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e29.js
 
 ```js
-// e29.js
+//#region e29.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e30.js
 
 ```js
-// e30.js
+//#region e30.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e31.js
 
 ```js
-// e31.js
+//#region e31.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e32.js
 
 ```js
-// e32.js
+//#region e32.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e33.js
 
 ```js
-// e33.js
+//#region e33.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e34.js
 
 ```js
-// e34.js
+//#region e34.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e35.js
 
 ```js
-// e35.js
+//#region e35.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e36.js
 
 ```js
-// e36.js
+//#region e36.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e37.js
 
 ```js
-// e37.js
+//#region e37.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e38.js
 
 ```js
-// e38.js
+//#region e38.js
 console.log(123);
+//#endregion
 
 ```
 
 ## e39.js
 
 ```js
-// e39.js
+//#region e39.js
 console.log(123);
+//#endregion
 
 ```

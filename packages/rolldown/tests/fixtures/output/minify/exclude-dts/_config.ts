@@ -6,12 +6,7 @@ export default defineTest({
   sequential: true,
   config: {
     output: {
-      minify: {
-        compress: true,
-        mangle: true,
-        codegen: true,
-        mangleProps: { include: /^_/ },
-      },
+      minify: true,
     },
     plugins: [
       {

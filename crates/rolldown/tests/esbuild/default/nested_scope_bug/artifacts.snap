@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 (() => {
 	function a() {
 		b();
@@ -16,5 +16,6 @@ source: crates/rolldown_testing/src/integration_test.rs
 	};
 	a();
 })();
+//#endregion
 
 ```

@@ -31,9 +31,6 @@ export interface HookFilter {
    * If the value is a string, it is treated as a glob pattern.
    * The string type is not available for {@linkcode Plugin.resolveId | resolveId} hook.
    *
-   * If the value is a regular expression, it is tested after the `id`'s path separators are normalized to forward slashes (`/`).
-   * This keeps the filter portable across operating systems without requiring the regular expression to match both `/` and `\`.
-   *
    * @example
    * Include all `id`s that contain `node_modules` in the path.
    * ```js
@@ -71,10 +68,9 @@ export interface HookFilter {
    */
   moduleType?: ModuleTypeFilter;
   /**
-   * A filter based on the code passed to the hook.
+   * A filter based on the module's code.
    *
-   * Only available for {@linkcode Plugin.transform | transform} and
-   * {@linkcode Plugin.renderChunk | renderChunk} hooks.
+   * Only available for {@linkcode Plugin.transform | transform} hook.
    */
   code?: GeneralHookFilter;
 }

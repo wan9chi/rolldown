@@ -6,9 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## src_entry.js
 
 ```js
-// node_modules/demo-pkg/index-module.js
+//#region node_modules/demo-pkg/index-module.js
 console.log("TEST FAILED");
-// src/entry.js
+//#endregion
+//#region src/entry.js
 console.log("unused import");
+//#endregion
 
 ```

@@ -1,7 +1,6 @@
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
 import nodeUrl from 'node:url';
-import { getNativeMemoryStats, resetNativeMemoryStats } from 'rolldown/experimental';
 import * as tinyBench from 'tinybench';
 import { getRolldownSuiteList, runRolldown } from '../src/run-bundler.js';
 import { expandSuitesWithDerived, suitesForCI } from '../src/suites/index.js';
@@ -16,38 +15,12 @@ const bench = new tinyBench.Bench({
 });
 bench.threshold = 1;
 
-// Peak Rust-side memory per suite, in bytes. Only recorded when the binding was
-// built with `--features tracking_allocator` (`just build-rolldown-release-tracking`,
-// which the benchmark workflow uses); a stock binding returns null and no memory
-// rows are emitted.
-const peakMemoryBySuite = new Map();
-
 for (const suite of expandSuitesWithDerived(suitesForCI)) {
   const rolldownSuiteList = getRolldownSuiteList(suite);
   for (const rolldownSuite of rolldownSuiteList) {
-    const taskName = `${suite.title} (${rolldownSuite.suiteName})`;
-    // Suites share the process, so memory retained by earlier suites is the
-    // floor this suite starts from. Record the peak ABOVE that floor — the
-    // suite's own demand — so later suites are not charged for earlier residue.
-    let liveAtStart = 0;
-    bench.add(
-      taskName,
-      async () => {
-        await runRolldown(rolldownSuite);
-      },
-      {
-        beforeAll: () => {
-          resetNativeMemoryStats();
-          liveAtStart = getNativeMemoryStats()?.liveBytes ?? 0;
-        },
-        afterAll: () => {
-          const stats = getNativeMemoryStats();
-          if (stats) {
-            peakMemoryBySuite.set(taskName, Math.max(0, Math.round(stats.peakBytes - liveAtStart)));
-          }
-        },
-      },
-    );
+    bench.add(`${suite.title} (${rolldownSuite.suiteName})`, async () => {
+      await runRolldown(rolldownSuite);
+    });
   }
 }
 
@@ -64,14 +37,6 @@ const dataForGitHubBenchmarkAction = bench.tasks.map((task) => {
     unit: 'ms / ops',
   };
 });
-
-for (const [taskName, peakBytes] of peakMemoryBySuite) {
-  dataForGitHubBenchmarkAction.push({
-    name: `${taskName} (peak memory)`,
-    value: peakBytes,
-    unit: 'bytes',
-  });
-}
 
 const serialized = JSON.stringify(dataForGitHubBenchmarkAction, null, 2);
 

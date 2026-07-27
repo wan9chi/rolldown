@@ -6,23 +6,26 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## package.js
 
 ```js
-// node_modules/package/index.js
+//#region node_modules/package/index.js
 console.log("imported");
+//#endregion
 
 ```
 
 ## src_entry1.js
 
 ```js
-// src/entry1.js
+//#region src/entry1.js
 import("./package.js");
+//#endregion
 
 ```
 
 ## src_entry2.js
 
 ```js
-// src/entry2.js
+//#region src/entry2.js
 import("./package.js");
+//#endregion
 
 ```

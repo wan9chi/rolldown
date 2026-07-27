@@ -1,6 +1,6 @@
 {
   "name": "@rolldown/browser",
-  "version": "1.2.15",
+  "version": "1.2.0",
   "description": "Fast JavaScript/TypeScript bundler in Rust with Rollup-compatible API.",
   "keywords": [
     "bundler",
@@ -45,10 +45,6 @@
     "./experimental/runtime-types": {
       "types": "./dist/experimental-runtime-types.d.ts"
     },
-    "./experimental/runtime": {
-      "types": "./dist/experimental-runtime.d.ts",
-      "default": "./dist/experimental-runtime.mjs"
-    },
     "./plugins": {
       "browser": "./dist/plugins-index.browser.mjs",
       "default": "./dist/plugins-index.mjs"
@@ -72,8 +68,8 @@
     "publint": "publint ."
   },
   "dependencies": {
-    "@emnapi/core": "catalog:",
-    "@emnapi/runtime": "catalog:",
+    "@emnapi/core": "1.11.2",
+    "@emnapi/runtime": "1.11.2",
     "@napi-rs/wasm-runtime": "catalog:"
   }
 }

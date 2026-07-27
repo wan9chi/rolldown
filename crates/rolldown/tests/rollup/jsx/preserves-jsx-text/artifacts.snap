@@ -6,10 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 const Foo = () => {};
 const element = <Foo>some&amp;\text</Foo>;
 const fragment = <>other&amp;\text</>;
+//#endregion
 export { element, fragment };
 
 ```
