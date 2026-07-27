@@ -7,7 +7,7 @@ import { expect } from 'vitest';
 // With `preserveModules`, a module whose id is a rooted-but-drive-less path
 // (`/favicon.ico`, or `\favicon.ico`) used to crash **only on Windows** with:
 //   [INVALID_OPTION] Invalid substitution "/favicon" for placeholder "[name]"
-//   in "output.entryFileNames" pattern, can be neither absolute nor relative path.
+//   in "entryFileNames" pattern, can be neither absolute nor relative paths.
 //
 // Root cause: Rust's `Path::is_absolute()` reports `/favicon` as non-absolute on
 // Windows (no drive prefix), so `get_preserve_modules_chunk_name` skips the

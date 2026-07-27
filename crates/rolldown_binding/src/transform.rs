@@ -23,7 +23,7 @@ fn resolve_tsconfig_from_cache(
   let Some(tsconfig_cache) = cache else {
     return Ok(());
   };
-  if matches!(options.tsconfig, Some(TsconfigOption::Config(_) | TsconfigOption::Disabled)) {
+  if !matches!(options.tsconfig, Some(TsconfigOption::Auto) | None) {
     return Ok(());
   }
 
@@ -64,16 +64,16 @@ fn enhanced_transform_internal(
   Ok(BindingEnhancedTransformResult::from_enhanced_transform_result(result, cwd))
 }
 
-pub struct EnhancedTransformTask {
+pub struct EnhancedTransformTask<'a> {
   filename: String,
   source_text: String,
   options: Option<BindingEnhancedTransformOptions>,
-  cache: Option<TsconfigCache>,
+  cache: Option<&'a TsconfigCache>,
   yarn_pnp: bool,
 }
 
 #[napi]
-impl Task for EnhancedTransformTask {
+impl Task for EnhancedTransformTask<'_> {
   type JsValue = BindingEnhancedTransformResult;
   type Output = BindingEnhancedTransformResult;
 
@@ -82,7 +82,7 @@ impl Task for EnhancedTransformTask {
       &self.filename,
       &self.source_text,
       self.options.take(),
-      self.cache.as_ref(),
+      self.cache,
       self.yarn_pnp,
     )
   }
@@ -99,15 +99,8 @@ pub fn enhanced_transform(
   options: Option<BindingEnhancedTransformOptions>,
   cache: Option<&TsconfigCache>,
   yarn_pnp: bool,
-) -> AsyncTask<EnhancedTransformTask> {
-  // The task runs on another thread and may outlive the JS `TsconfigCache` object.
-  AsyncTask::new(EnhancedTransformTask {
-    filename,
-    source_text,
-    options,
-    cache: cache.cloned(),
-    yarn_pnp,
-  })
+) -> AsyncTask<EnhancedTransformTask<'_>> {
+  AsyncTask::new(EnhancedTransformTask { filename, source_text, options, cache, yarn_pnp })
 }
 
 #[napi]
@@ -127,8 +120,7 @@ pub fn resolve_tsconfig(
   cache: Option<&TsconfigCache>,
   yarn_pnp: bool,
 ) -> napi::Result<Option<BindingTsconfigResult>> {
-  let tsconfig_cache =
-    if let Some(cache) = cache { cache } else { &TsconfigCache::new(yarn_pnp, None) };
+  let tsconfig_cache = if let Some(cache) = cache { cache } else { &TsconfigCache::new(yarn_pnp) };
 
   match tsconfig_cache.find_tsconfig(Path::new(&filename)) {
     Ok(Some(tsconfig)) => Ok(Some(tsconfig.as_ref().clone().into())),

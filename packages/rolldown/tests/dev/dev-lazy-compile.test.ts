@@ -2,8 +2,7 @@ import { getDevWatchOptionsForCi } from '@rolldown/test-dev-server';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
-import type { InputOptions, OutputOptions, Plugin } from 'rolldown';
+import type { InputOptions, OutputOptions } from 'rolldown';
 import type { DevEngine, DevOptions } from 'rolldown/experimental';
 import { dev as _dev } from 'rolldown/experimental';
 import { SourceMapConsumer, SourceMapGenerator } from 'source-map';
@@ -62,8 +61,8 @@ test(
     await engine.run();
 
     // An arbitrary id that was never part of the build graph must be rejected.
-    // The thrown message is prefixed by the napi binding with
-    // "Failed to compile lazy entry: ..." so match on the inner substring.
+    // The rejection aggregates the diagnostics, so match on the message rather
+    // than on the whole string.
     await expect(
       engine.compileEntry('/does/not/exist.js?rolldown-lazy=1', 'some-client'),
     ).rejects.toThrow('Lazy entry module not found in cache');
@@ -289,83 +288,6 @@ test(
   },
 );
 
-// A virtual module behind a lazy proxy must stay loadable: re-resolving the proxy id
-// (`\0virtual:lazy-me?rolldown-lazy=1`) is claimed by the lazy compilation plugin itself
-// and never reaches user `resolveId` hooks, which only recognize the bare id.
-test(
-  'lazy proxy ids resolve without reaching user resolveId hooks',
-  { timeout: TEST_TIMEOUT },
-  async ({ onTestFinished }) => {
-    const uniqueId = crypto.randomUUID().slice(0, 8);
-    const dir = path.join(import.meta.dirname, 'temp', `dev-lazy-virtual-${uniqueId}`);
-    fs.mkdirSync(dir, { recursive: true });
-    const main = path.join(dir, 'main.js');
-    fs.writeFileSync(main, `globalThis.load = () => import('virtual:lazy-me');\n`);
-
-    const virtualId = '\0virtual:lazy-me';
-    const lazyProxyId = `${virtualId}?rolldown-lazy=1`;
-
-    const seenByOwner: string[] = [];
-    const seenByObserver: string[] = [];
-    let resolvedProxyId: string | null | undefined;
-    const virtualOwner: Plugin = {
-      name: 'virtual-owner',
-      resolveId(source) {
-        seenByOwner.push(source);
-        if (source === 'virtual:lazy-me' || source === virtualId) {
-          return virtualId;
-        }
-      },
-      load(id) {
-        if (id === virtualId) {
-          return `export const value = 1;\n`;
-        }
-      },
-      // The real module is only parsed once the proxy is fetched, so by now the proxy
-      // id is a registered lazy entry and re-resolving it must work.
-      async moduleParsed(moduleInfo) {
-        if (moduleInfo.id === virtualId) {
-          resolvedProxyId = (await this.resolve(lazyProxyId))?.id;
-        }
-      },
-    };
-    const observer: Plugin = {
-      name: 'observe-resolve-ids',
-      resolveId(source) {
-        seenByObserver.push(source);
-      },
-    };
-
-    const engine = await dev(
-      {
-        input: main,
-        plugins: [virtualOwner, observer],
-        experimental: { devMode: { lazy: true } },
-      },
-      { dir: path.join(dir, 'dist') },
-      {},
-    );
-
-    onTestFinished(async () => {
-      await engine.close();
-      if (!process.env.CI) {
-        fs.rmSync(dir, { recursive: true, force: true });
-      }
-    });
-
-    await engine.run();
-    await engine.registerClient('c1');
-    const chunk = await engine.compileEntry(lazyProxyId, 'c1');
-
-    expect(chunk.code).toContain('value');
-    expect(resolvedProxyId).toBe(lazyProxyId);
-    expect(seenByOwner.some((id) => id.includes('?rolldown-lazy=1'))).toBe(false);
-    expect(seenByObserver.some((id) => id.includes('?rolldown-lazy=1'))).toBe(false);
-    expect(seenByOwner).toContain('virtual:lazy-me');
-    expect(seenByOwner).toContain(virtualId);
-  },
-);
-
 // With `sourcemap: true` the chunk gets a `sourceMappingURL`, so the map it names
 // has to be reachable: a lazy chunk is not written to disk, which leaves the
 // return value as the only way for the consumer to serve it.
@@ -462,39 +384,34 @@ test(
   },
 );
 
-// The dev runtime registry only holds modules this build wrapped, so an external can
-// only be reached through a real import statement. The three re-export forms used to
-// ask the registry for it instead, which yields `{}`; and when the same module also
-// imported that external, the two paths emitted one binding name twice, the inner
-// `var` shadowing the real import.
+// A lazy compile is the first time a lazy module runs the plugin pipeline, so a plugin
+// throwing is the ordinary failure here rather than an exotic one. The engine used to
+// answer with a napi error built from `format!("{e:#?}")`, which flattened whatever was
+// thrown - message, custom fields, stack - into one string, leaving the caller unable to
+// tell which plugin or module was at fault.
 test(
-  'a lazy chunk imports externals it re-exports instead of asking the registry',
+  'a plugin error during lazy compile reaches the caller intact',
   { timeout: TEST_TIMEOUT },
   async ({ onTestFinished }) => {
     const uniqueId = crypto.randomUUID().slice(0, 8);
-    const dir = path.join(import.meta.dirname, 'temp', `dev-lazy-reexport-external-${uniqueId}`);
+    const dir = path.join(import.meta.dirname, 'temp', `dev-lazy-plugin-error-${uniqueId}`);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'main.js'), `import('./lazy.js');\n`);
-    // reachable only through the lazy chunk, and re-exports the external three ways
-    // while also importing it — the case that produced the shadowing `var`
-    fs.writeFileSync(
-      path.join(dir, 'reexport.js'),
-      `import { helper } from 'external-dep';\n` +
-        `export { helper as reHelper } from 'external-dep';\n` +
-        `export * as EXT from 'external-dep';\n` +
-        `export * from 'external-dep';\n` +
-        `export const helperType = typeof helper;\n`,
-    );
-    fs.writeFileSync(
-      path.join(dir, 'lazy.js'),
-      `import { EXT, reHelper, helperType } from './reexport.js';\n` +
-        `export const lazy = [EXT, reHelper, helperType];\n`,
-    );
+    fs.writeFileSync(path.join(dir, 'lazy.js'), `export const lazy = 'lazy';\n`);
+
+    const plugin = {
+      name: 'throws-on-lazy',
+      transform(_code: string, id: string) {
+        if (id.endsWith('lazy.js')) {
+          throw Object.assign(new Error('boom from a user plugin'), { code: 'PLUGIN_BOOM' });
+        }
+      },
+    };
 
     const engine = await dev(
       {
         input: path.join(dir, 'main.js'),
-        external: ['external-dep'],
+        plugins: [plugin],
         experimental: { devMode: { lazy: true } },
       },
       { dir: path.join(dir, 'dist') },
@@ -508,94 +425,25 @@ test(
       }
     });
 
+    // The initial build stubs `lazy.js` with a proxy, so the plugin has not run on it yet.
     await engine.run();
 
-    const chunk = await engine.compileEntry(
-      `${path.join(dir, 'lazy.js')}?rolldown-lazy=1`,
-      'reexport-external-client',
-    );
+    const rejection = await engine
+      .compileEntry(`${path.join(dir, 'lazy.js')}?rolldown-lazy=1`, 'c1')
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
 
-    const bindings = [...chunk.code.matchAll(/import \* as (\w+) from "external-dep"/g)].map(
-      (match) => match[1],
-    );
-    expect(bindings).toHaveLength(1);
-    // the registry never holds an external, so nothing may look it up there
-    expect(chunk.code).not.toMatch(/loadExports\("external-dep"\)/);
-    // and the one binding is declared once, so the import is not shadowed
-    expect(chunk.code).not.toMatch(new RegExp(`var\\s+${bindings[0]}\\b`));
-  },
-);
-
-// Every module registers an exports holder with the runtime, and `loadExports` reads
-// `exports` straight off that holder. A module with no exports is no exception: it has to
-// register `{ exports: {} }`, matching what a normal build gives such a module. Registering a
-// bare `{}` reads back as `undefined`, and every consumer of it then breaks — `__toCommonJS`
-// throws "Cannot convert undefined or null to object".
-test(
-  'a module without exports still registers an empty exports object',
-  { timeout: TEST_TIMEOUT },
-  async ({ onTestFinished }) => {
-    const uniqueId = crypto.randomUUID().slice(0, 8);
-    const dir = path.join(import.meta.dirname, 'temp', `dev-lazy-require-unused-${uniqueId}`);
-    const pkg = path.join(dir, 'pkg');
-    fs.mkdirSync(pkg, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'main.js'), `import('./pkg/cjs.js');\n`);
-    // A `package.json` without `type` makes the files below CommonJS. That is what stops a
-    // module with no exports from registering an exports object at all, which is the state
-    // the bug needed.
-    fs.writeFileSync(path.join(pkg, 'package.json'), `{ "name": "pkg", "main": "cjs.js" }\n`);
-    fs.writeFileSync(
-      path.join(pkg, 'cjs.js'),
-      `require('./side-effect.js');\n\nmodule.exports = 'loaded';\n`,
-    );
-    fs.writeFileSync(path.join(pkg, 'side-effect.js'), `globalThis.sideEffectRan = true;\n`);
-
-    const engine = await dev(
-      {
-        input: path.join(dir, 'main.js'),
-        experimental: { devMode: { lazy: true, implement: '', skipCommonRuntimeInjection: true } },
-      },
-      { dir: path.join(dir, 'dist'), format: 'esm' },
-      {},
-    );
-
-    onTestFinished(async () => {
-      await engine.close();
-      delete (globalThis as Record<string, unknown>).sideEffectRan;
-      if (!process.env.CI) {
-        fs.rmSync(dir, { recursive: true, force: true });
-      }
+    expect(rejection).toBeInstanceOf(Error);
+    const [cause] = (rejection as { errors?: unknown[] }).errors ?? [];
+    // Which plugin, which hook, which module - and the throw site itself.
+    expect(cause).toMatchObject({
+      message: 'boom from a user plugin',
+      plugin: 'throws-on-lazy',
+      hook: 'transform',
+      id: path.join(dir, 'lazy.js'),
     });
-
-    await engine.run();
-    await engine.registerClient('require-unused-client');
-    const chunk = await engine.compileEntry(
-      `${path.join(pkg, 'cjs.js')}?rolldown-lazy=1`,
-      'require-unused-client',
-    );
-
-    // `require('./side-effect.js')` is a statement, so its result is thrown away and only the
-    // init call is emitted — the same shape a normal build produces for an unused require.
-    expect(chunk.code).toMatch(/initModule\("[^"]*side-effect\.js"\)/);
-    expect(chunk.code).not.toMatch(/loadExports\("[^"]*side-effect\.js"\)/);
-
-    const { DevRuntime } = await import(import.meta.resolve('rolldown/experimental/runtime'));
-    const runtime = new DevRuntime('require-unused-client');
-    runtime.hooks = {
-      createModuleHotContext: () => ({}),
-      onModuleCacheRemoval: () => {},
-    };
-    vm.runInThisContext(`(__rolldown_runtime__) => {\n${chunk.code}\n}`)(runtime);
-
-    // The registry is keyed by the stable id, which is relative to the process cwd.
-    const stableId = (suffix: string) =>
-      new RegExp(`registerFactory\\("([^"]*${suffix})"`).exec(chunk.code)![1];
-
-    const lazyExports = runtime.loadExports(stableId('cjs\\.js\\?rolldown-lazy=1'));
-    expect(await lazyExports['rolldown:exports']).toBe('loaded');
-    expect((globalThis as Record<string, unknown>).sideEffectRan).toBe(true);
-
-    // The module has no exports, so its exports are empty — never `undefined`.
-    expect(runtime.loadExports(stableId('side-effect\\.js'))).toEqual({});
+    expect((cause as Error).stack).toContain('boom from a user plugin');
   },
 );

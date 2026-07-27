@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 console.log(import.meta.hello);
 console.log(import.meta.dirname);
 console.log(import.meta.filename);
@@ -14,5 +14,6 @@ console.log(import.meta.url);
 console.log(import.meta.url);
 console.log(import.meta["url"]);
 console.log(import.meta);
+//#endregion
 
 ```

@@ -22,10 +22,12 @@ export * from "external" with { type: "css" };
 ## shared.js
 
 ```js
-// setup.js
+//#region setup.js
 globalThis.setupValue = "ready";
-// reader.js
+//#endregion
+//#region reader.js
 console.log(globalThis.setupValue);
+//#endregion
 
 ```
 
@@ -55,32 +57,36 @@ init_b();
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// setup.js
+//#region setup.js
 function init_setup() {
 	return (init_setup = __esmMin((() => {
 		globalThis.setupValue = "ready";
 	})))();
 }
-// reader.js
+//#endregion
+//#region reader.js
 function init_reader() {
 	return (init_reader = __esmMin((() => {
 		console.log(globalThis.setupValue);
 	})))();
 }
-// a.js
+//#endregion
+//#region a.js
 function init_a() {
 	return (init_a = __esmMin((() => {
 		init_setup();
 		init_reader();
 	})))();
 }
-// b.js
+//#endregion
+//#region b.js
 function init_b() {
 	return (init_b = __esmMin((() => {
 		init_setup();
 		init_reader();
 	})))();
 }
+//#endregion
 export { init_setup as i, init_a as n, init_reader as r, init_b as t };
 
 ```

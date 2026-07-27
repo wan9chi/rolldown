@@ -13,7 +13,6 @@ use rolldown_error::BuildResult;
 use rolldown_utils::rayon::IndexedParallelIterator;
 use rolldown_utils::{
   base64::to_url_safe_base64,
-  concat_string,
   hash_placeholder::{
     HASH_PLACEHOLDER_LEFT_FINDER, extract_hash_placeholders, replace_placeholder_with_hash,
     visit_with_placeholders_defaulted,
@@ -84,6 +83,11 @@ pub async fn finalize_assets(
       .collect::<Vec<_>>()
       .into();
 
+  // Instead of using `index_direct_dependencies`, we are gonna use `index_transitive_dependencies` to calculate the hash.
+  // The reason is that we want to make sure, in `a -> b -> c`, if `c` is changed, not only the direct dependency `b` is changed, but also the indirect dependency `a` is changed.
+  let index_transitive_dependencies: IndexVec<InsChunkIdx, FxIndexSet<InsChunkIdx>> =
+    collect_transitive_dependencies(&index_direct_dependencies);
+
   let hash_base = hash_characters.base();
   let index_standalone_content_hashes: IndexVec<InsChunkIdx, String> = index_instantiated_chunks
     .par_iter()
@@ -120,10 +124,8 @@ pub async fn finalize_assets(
       let asset_idx = InsChunkIdx::from(asset_idx);
       index_standalone_content_hashes[asset_idx].hash(&mut hasher);
 
-      // Calculate this asset's transitive closure only for the duration of its hash. Retaining
-      // every closure at once makes memory quadratic for output graphs with many shared chunks.
-      let dependencies = collect_transitive_dependencies(asset_idx, &index_direct_dependencies);
-      dependencies.into_iter().for_each(|dep_id| {
+      let dependencies = &index_transitive_dependencies[asset_idx];
+      dependencies.iter().copied().for_each(|dep_id| {
         index_standalone_content_hashes[dep_id].hash(&mut hasher);
       });
 
@@ -205,10 +207,10 @@ pub async fn finalize_assets(
         .iter()
         .flat_map(|importee_idx| &index_chunk_to_instances[*importee_idx])
         .map(|importee_asset_idx| index_ins_chunk_to_filename[*importee_asset_idx].clone())
-        .chain(super::static_external_imports(chunk, &link_output.module_table).map(|idx| {
-          link_output.module_table[idx]
+        .chain(chunk.direct_imports_from_external_modules.iter().map(|(idx, _)| {
+          link_output.module_table[*idx]
             .as_external()
-            .expect("static external imports should only contain external modules")
+            .expect("direct_imports_from_external_modules should only contain external modules")
             .get_file_name(resolved_paths)
         }))
         .collect();
@@ -218,12 +220,6 @@ pub async fn finalize_assets(
         .iter()
         .flat_map(|importee_idx| &index_chunk_to_instances[*importee_idx])
         .map(|importee_asset_idx| index_ins_chunk_to_filename[*importee_asset_idx].clone())
-        .chain(chunk.dynamic_imports_from_external_modules.iter().map(|idx| {
-          link_output.module_table[*idx]
-            .as_external()
-            .expect("dynamic_imports_from_external_modules should only contain external modules")
-            .get_file_name(resolved_paths)
-        }))
         .collect();
     }
   });
@@ -282,7 +278,7 @@ async fn finalize_sourcemaps(
           let map_filename = ecma_meta
             .sourcemap_filename
             .clone()
-            .unwrap_or_else(|| concat_string!(asset.filename, ".map"));
+            .unwrap_or_else(|| format!("{}.map", asset.filename));
           if let Some(sourcemap_asset) = emit_sourcemap(
             options,
             &mut code,
@@ -360,9 +356,8 @@ fn get_sourcemap_hashes_by_placeholder<'a>(
 }
 
 fn collect_transitive_dependencies(
-  index: InsChunkIdx,
   index_direct_dependencies: &IndexVec<InsChunkIdx, Vec<InsChunkIdx>>,
-) -> FxIndexSet<InsChunkIdx> {
+) -> IndexVec<InsChunkIdx, FxIndexSet<InsChunkIdx>> {
   fn traverse(
     index: InsChunkIdx,
     dep_map: &IndexVec<InsChunkIdx, Vec<InsChunkIdx>>,
@@ -376,9 +371,20 @@ fn collect_transitive_dependencies(
     }
   }
 
-  let mut visited_deps = FxIndexSet::default();
-  traverse(index, index_direct_dependencies, &mut visited_deps);
-  visited_deps
+  let index_transitive_dependencies: IndexVec<InsChunkIdx, FxIndexSet<InsChunkIdx>> =
+    index_direct_dependencies
+      .par_iter()
+      .enumerate()
+      .map(|(idx, _deps)| {
+        let idx = InsChunkIdx::from(idx);
+        let mut visited_deps = FxIndexSet::default();
+        traverse(idx, index_direct_dependencies, &mut visited_deps);
+        visited_deps
+      })
+      .collect::<Vec<_>>()
+      .into();
+
+  index_transitive_dependencies
 }
 
 /// Walks chunks in a deterministic order and rehashes any chunk whose resolved file name would

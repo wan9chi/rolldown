@@ -37,4 +37,4 @@ test = false
 workspace = true
 
 [lib]
-test = true
+test = false

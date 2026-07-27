@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.ts
+//#region entry.ts
 function foo(x = this) {
 	console.log(this);
 }
@@ -43,5 +43,6 @@ if (nested) {
 	}
 	new Bar(bar(objBar));
 }
+//#endregion
 
 ```

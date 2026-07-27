@@ -26,25 +26,13 @@ import type { LogLevelOption } from '../log/logging';
 import { error, logPluginError } from '../log/logs';
 import type { InputOptions } from '../options/input-options';
 import type { OutputOptions } from '../options/output-options';
-import {
-  bindingifyCloseWatcher,
-  bindingifyHotUpdate,
-  bindingifyWatchChange,
-} from './bindingify-watch-hooks';
+import { bindingifyCloseWatcher, bindingifyWatchChange } from './bindingify-watch-hooks';
 import { extractHookUsage } from './generated/hook-usage';
-import {
-  measureHookCost,
-  type PluginTimingsRecorder,
-  type TimingOwner,
-} from '../utils/plugin-timings';
 import type { Plugin, RolldownPlugin } from './index';
-import type { PluginWithInternalHooks } from './internal-hooks';
 import type { PluginContextData } from './plugin-context-data';
 
 export interface BindingifyPluginArgs {
-  // `PluginWithInternalHooks` rather than `Plugin` so the bindingify functions
-  // can read hidden hooks (see ./internal-hooks) without casting.
-  plugin: PluginWithInternalHooks;
+  plugin: Plugin;
   options: InputOptions;
   outputOptions: OutputOptions;
   pluginContextData: PluginContextData;
@@ -64,7 +52,6 @@ export function bindingifyPlugin(
   onLog: LogHandler,
   logLevel: LogLevelOption,
   watchMode: boolean,
-  timings: PluginTimingsRecorder | undefined,
 ): BindingPluginOptions {
   const args: BindingifyPluginArgs = {
     plugin,
@@ -130,8 +117,6 @@ export function bindingifyPlugin(
 
   const { plugin: watchChange, meta: watchChangeMeta } = bindingifyWatchChange(args);
 
-  const { plugin: hotUpdate, meta: hotUpdateMeta } = bindingifyHotUpdate(args);
-
   const { plugin: closeWatcher, meta: closeWatcherMeta } = bindingifyCloseWatcher(args);
   let hookUsage = extractHookUsage(plugin).inner();
   const result: BindingPluginOptions = {
@@ -182,22 +167,14 @@ export function bindingifyPlugin(
     outroMeta,
     watchChange,
     watchChangeMeta,
-    hotUpdate,
-    hotUpdateMeta,
     closeWatcher,
     closeWatcherMeta,
     hookUsage,
   };
-  // Keyed on the user's plugin object rather than its name: the same plugin configured
-  // twice is two culprits, and `normalizePlugins` allows the duplicate name.
-  return wrapHandlers(result, { key: plugin, name: result.name, kind: 'plugin' }, timings);
+  return wrapHandlers(result);
 }
 
-function wrapHandlers(
-  plugin: BindingPluginOptions,
-  owner: TimingOwner,
-  timings: PluginTimingsRecorder | undefined,
-): BindingPluginOptions {
+function wrapHandlers(plugin: BindingPluginOptions): BindingPluginOptions {
   for (const hookName of [
     'buildStart',
     'resolveId',
@@ -219,13 +196,9 @@ function wrapHandlers(
     'intro',
     'outro',
     'watchChange',
-    'hotUpdate',
     'closeWatcher',
   ] as const) {
-    const raw = plugin[hookName] as any;
-    // Measure the handler itself, inside the error wrapper, so the span covers the
-    // plugin's own work rather than the wrapper's promise machinery.
-    const handler = raw && measureHookCost(timings, owner, hookName, raw);
+    const handler = plugin[hookName] as any;
     if (handler) {
       plugin[hookName] = async (...args: any[]) => {
         try {

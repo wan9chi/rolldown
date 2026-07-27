@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 function entry_default(x) {
 	x.foo_;
 	x.foo_?.();
@@ -17,6 +17,7 @@ function entry_default(x) {
 	x?.["foo_"].bar_;
 	x?.foo_["bar_"];
 }
+//#endregion
 export { entry_default as default };
 
 ```

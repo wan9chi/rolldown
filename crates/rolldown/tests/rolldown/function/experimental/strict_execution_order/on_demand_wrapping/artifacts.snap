@@ -15,11 +15,12 @@ export default require_dynamic();
 
 ```js
 import { t as __commonJSMin } from "./rolldown-runtime.js";
-// dynamic.js
+//#region dynamic.js
 var require_dynamic = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = 1e3;
 	globalThis.a = 1e3;
 }));
+//#endregion
 export { require_dynamic as t };
 
 ```
@@ -27,16 +28,17 @@ export { require_dynamic as t };
 ## main.js
 
 ```js
-import { n as __esmMin } from "./rolldown-runtime.js";
 import { t as require_dynamic } from "./dynamic2.js";
+import { n as __esmMin } from "./rolldown-runtime.js";
 import { strictEqual } from "node:assert";
-// sideeffects.js
+//#region sideeffects.js
 function init_sideeffects() {
 	return (init_sideeffects = __esmMin((() => {
 		globalThis.a = 2;
 	})))();
 }
-// esm.js
+//#endregion
+//#region esm.js
 var a;
 function init_esm() {
 	return (init_esm = __esmMin((() => {
@@ -46,7 +48,8 @@ function init_esm() {
 		strictEqual(a, 2);
 	})))();
 }
-// cjs.js
+//#endregion
+//#region cjs.js
 function foo() {
 	return 100;
 }
@@ -55,13 +58,15 @@ function init_cjs() {
 		init_esm();
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_cjs();
 		console.log(`mod.foo: `, foo);
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -90,11 +95,12 @@ export default require_dynamic();
 
 ```js
 import { t as __commonJSMin } from "./rolldown-runtime.js";
-// dynamic.js
+//#region dynamic.js
 var require_dynamic = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = 1e3;
 	globalThis.a = 1e3;
 }));
+//#endregion
 export { require_dynamic as t };
 
 ```
@@ -102,16 +108,17 @@ export { require_dynamic as t };
 ### main.js
 
 ```js
-import { n as __esmMin } from "./rolldown-runtime.js";
 import { t as require_dynamic } from "./dynamic2.js";
+import { n as __esmMin } from "./rolldown-runtime.js";
 import { strictEqual } from "node:assert";
-// sideeffects.js
+//#region sideeffects.js
 function init_sideeffects() {
 	return (init_sideeffects = __esmMin((() => {
 		globalThis.a = 2;
 	})))();
 }
-// esm.js
+//#endregion
+//#region esm.js
 var a;
 function init_esm() {
 	return (init_esm = __esmMin((() => {
@@ -121,7 +128,8 @@ function init_esm() {
 		strictEqual(a, 2);
 	})))();
 }
-// cjs.js
+//#endregion
+//#region cjs.js
 function foo() {
 	return 100;
 }
@@ -130,13 +138,15 @@ function init_cjs() {
 		init_esm();
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_cjs();
 		console.log(`mod.foo: `, foo);
 	})))();
 }
+//#endregion
 init_main();
 
 ```

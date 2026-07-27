@@ -1,1 +1,0 @@
-void import('node:path');

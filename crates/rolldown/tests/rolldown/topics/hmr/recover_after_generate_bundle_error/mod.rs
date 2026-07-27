@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 use rolldown::{BundlerOptions, DevModeOptions, ExperimentalOptions, InputItem};
 use rolldown_error::BatchedBuildDiagnostic;
@@ -82,7 +82,7 @@ async fn recover_after_generate_bundle_error() {
         }),
         ..Default::default()
       },
-      vec![Plugin::new_shared(FailGenerateBundleOnMarkerPlugin)],
+      vec![Arc::new(FailGenerateBundleOnMarkerPlugin)],
     )
     .await;
 }

@@ -6,15 +6,16 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## dynamic.js
 
 ```js
-import { t as __esmMin } from "./rolldown-runtime.js";
 import { n as init_read, r as read } from "./main2.js";
-// dynamic.js
+import { t as __esmMin } from "./rolldown-runtime.js";
+//#region dynamic.js
 function init_dynamic() {
 	return (init_dynamic = __esmMin((() => {
 		init_read();
 		read();
 	})))();
 }
+//#endregion
 init_dynamic();
 
 ```
@@ -32,7 +33,7 @@ init_main();
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import nodeAssert from "node:assert";
-// setup.js
+//#region setup.js
 var setup;
 function init_setup() {
 	return (init_setup = __esmMin((() => {
@@ -42,7 +43,8 @@ function init_setup() {
 		setup();
 	})))();
 }
-// read.js
+//#endregion
+//#region read.js
 var foo, read;
 function init_read() {
 	return (init_read = __esmMin((() => {
@@ -52,7 +54,8 @@ function init_read() {
 		};
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_setup();
@@ -63,6 +66,7 @@ function init_main() {
 		nodeAssert.strictEqual(globalThis.foo, "foo");
 	})))();
 }
+//#endregion
 export { init_read as n, read as r, init_main as t };
 
 ```
@@ -82,15 +86,16 @@ export { __esmMin as t };
 ### dynamic.js
 
 ```js
-import { t as __esmMin } from "./rolldown-runtime.js";
 import { n as init_read, r as read } from "./main2.js";
-// dynamic.js
+import { t as __esmMin } from "./rolldown-runtime.js";
+//#region dynamic.js
 function init_dynamic() {
 	return (init_dynamic = __esmMin((() => {
 		init_read();
 		read();
 	})))();
 }
+//#endregion
 init_dynamic();
 
 ```
@@ -108,7 +113,7 @@ init_main();
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import nodeAssert from "node:assert";
-// setup.js
+//#region setup.js
 var setup;
 function init_setup() {
 	return (init_setup = __esmMin((() => {
@@ -118,7 +123,8 @@ function init_setup() {
 		setup();
 	})))();
 }
-// read.js
+//#endregion
+//#region read.js
 var foo, read;
 function init_read() {
 	return (init_read = __esmMin((() => {
@@ -128,7 +134,8 @@ function init_read() {
 		};
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_setup();
@@ -139,6 +146,7 @@ function init_main() {
 		nodeAssert.strictEqual(globalThis.foo, "foo");
 	})))();
 }
+//#endregion
 export { init_read as n, read as r, init_main as t };
 
 ```

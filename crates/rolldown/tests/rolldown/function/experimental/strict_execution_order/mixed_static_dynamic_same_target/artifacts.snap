@@ -12,31 +12,50 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 # Assets
 
+## dep-b.js
+
+```js
+import { n as init_dep_b } from "./main2.js";
+init_dep_b();
+
+```
+
 ## main.js
 
 ```js
+import { t as init_main } from "./main2.js";
+init_main();
+
+```
+
+## main2.js
+
+```js
 // HIDDEN [\0rolldown/runtime.js]
-// dep-a.js
+//#region dep-a.js
 var require_dep_a = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const sideEffect = {};
 	globalThis.sideEffect = sideEffect;
 	module.exports = sideEffect;
 }));
-// dep-b.js
-var dep_b_exports = /* @__PURE__ */ __exportAll({});
+//#endregion
+//#region dep-b.js
 function init_dep_b() {
 	return (init_dep_b = __esmMin((() => {
 		sideEffect.touched = true;
 	})))();
 }
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		require_dep_a();
 		init_dep_b();
-		Promise.resolve().then(() => (init_dep_b(), dep_b_exports));
+		import("./dep-b.js");
 	})))();
 }
-init_main();
+//#endregion
+export { init_dep_b as n, init_main as t };
 
 ```
 
@@ -53,30 +72,49 @@ init_main();
 
 ## Assets
 
+### dep-b.js
+
+```js
+import { n as init_dep_b } from "./main2.js";
+init_dep_b();
+
+```
+
 ### main.js
 
 ```js
+import { t as init_main } from "./main2.js";
+init_main();
+
+```
+
+### main2.js
+
+```js
 // HIDDEN [\0rolldown/runtime.js]
-// dep-a.js
+//#region dep-a.js
 var require_dep_a = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const sideEffect = {};
 	globalThis.sideEffect = sideEffect;
 	module.exports = sideEffect;
 }));
-// dep-b.js
-var dep_b_exports = /* @__PURE__ */ __exportAll({});
+//#endregion
+//#region dep-b.js
 function init_dep_b() {
 	return (init_dep_b = __esmMin((() => {
 		sideEffect.touched = true;
 	})))();
 }
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		require_dep_a();
 		init_dep_b();
-		Promise.resolve().then(() => (init_dep_b(), dep_b_exports));
+		import("./dep-b.js");
 	})))();
 }
-init_main();
+//#endregion
+export { init_dep_b as n, init_main as t };
 
 ```

@@ -6,9 +6,9 @@ use oxc::{
       FormalParameterKind, FormalParameters, FunctionBody, IdentifierName, Statement,
       VariableDeclarator,
     },
-    builder::{AstBuilder, GetAstBuilder},
+    builder::{AstBuilder, GetAstBuilder, NONE},
   },
-  ast_visit::{VisitJsMut, walk_js_mut},
+  ast_visit::{VisitMut, walk_mut},
   span::SPAN,
 };
 
@@ -25,10 +25,10 @@ impl<'ast> LazyCompilationRuntimeInjector<'ast> {
   }
 }
 
-impl<'ast> VisitJsMut<'ast> for LazyCompilationRuntimeInjector<'ast> {
+impl<'ast> VisitMut<'ast> for LazyCompilationRuntimeInjector<'ast> {
   fn visit_expression(&mut self, expr: &mut Expression<'ast>) {
     // First visit children
-    walk_js_mut::walk_expression(self, expr);
+    walk_mut::walk_expression(self, expr);
 
     // Then transform import expressions
     if matches!(expr, Expression::ImportExpression(_)) {
@@ -45,7 +45,7 @@ impl<'ast> VisitJsMut<'ast> for LazyCompilationRuntimeInjector<'ast> {
           false,
           self,
         ),
-        None,
+        NONE,
         [Argument::new_identifier(SPAN, HELPER_NAME, self)],
         false,
         self,
@@ -83,22 +83,22 @@ pub fn create_unwrap_lazy_compilation_entry_helper(allocator: &Allocator) -> Sta
   let ast_builder = AstBuilder::new(allocator);
 
   // Parameter: m
-  let params = FormalParameters::boxed(
+  let params = FormalParameters::new(
     SPAN,
     FormalParameterKind::FormalParameter,
     [FormalParameter::new(
       SPAN,
       [],
       BindingPattern::new_binding_identifier(SPAN, "m", &ast_builder),
-      None,
-      None,
+      NONE,
+      NONE,
       false,
       None,
       false,
       false,
       &ast_builder,
     )],
-    None,
+    NONE,
     &ast_builder,
   );
 
@@ -108,8 +108,9 @@ pub fn create_unwrap_lazy_compilation_entry_helper(allocator: &Allocator) -> Sta
     oxc::ast::ast::VariableDeclarationKind::Var,
     [VariableDeclarator::new(
       SPAN,
+      oxc::ast::ast::VariableDeclarationKind::Var,
       BindingPattern::new_binding_identifier(SPAN, "e", &ast_builder),
-      None,
+      NONE,
       Some(Expression::new_computed_member_expression(
         SPAN,
         Expression::new_identifier(SPAN, "m", &ast_builder),
@@ -141,7 +142,7 @@ pub fn create_unwrap_lazy_compilation_entry_helper(allocator: &Allocator) -> Sta
   let mut body_stmts = oxc::allocator::Vec::with_capacity_in(2, &ast_builder);
   body_stmts.push(var_decl_stmt);
   body_stmts.push(return_stmt);
-  let body = FunctionBody::boxed(SPAN, [], body_stmts, &ast_builder);
+  let body = FunctionBody::new(SPAN, [], body_stmts, &ast_builder);
 
   // function __unwrap_lazy_compilation_entry(m) { ... }
   Statement::new_function_declaration(
@@ -151,10 +152,10 @@ pub fn create_unwrap_lazy_compilation_entry_helper(allocator: &Allocator) -> Sta
     false, // generator
     false, // async
     false, // declare
-    None,  // type_parameters
-    None,  // this_param
+    NONE,  // type_parameters
+    NONE,  // this_param
     params,
-    None, // return_type
+    NONE, // return_type
     Some(body),
     &ast_builder,
   )

@@ -6,10 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 import("./three-mesh-bvh.js").then((n) => n.t).then((res) => {
 	if (typeof res.MeshBVH !== "function") throw new Error("MeshBVH missing from dynamic namespace");
 });
+//#endregion
 
 ```
 
@@ -17,14 +18,16 @@ import("./three-mesh-bvh.js").then((n) => n.t).then((res) => {
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// three-mesh-bvh/core/MeshBVH.js
+//#region three-mesh-bvh/core/MeshBVH.js
 var MeshBVH = class {
 	constructor() {
 		this.name = "MeshBVH";
 	}
 };
-// three-mesh-bvh/index.js
+//#endregion
+//#region three-mesh-bvh/index.js
 var three_mesh_bvh_exports = /* @__PURE__ */ __exportAll({ MeshBVH: () => MeshBVH });
+//#endregion
 export { three_mesh_bvh_exports as t };
 
 ```

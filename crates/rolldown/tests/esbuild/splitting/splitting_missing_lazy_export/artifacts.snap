@@ -35,8 +35,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { n as foo } from "./common.js";
-// a.js
+//#region a.js
 console.log(foo());
+//#endregion
 
 ```
 
@@ -44,8 +45,9 @@ console.log(foo());
 
 ```js
 import { t as bar } from "./common.js";
-// b.js
+//#region b.js
 console.log(bar());
+//#endregion
 
 ```
 
@@ -53,15 +55,17 @@ console.log(bar());
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// empty.js
+//#region empty.js
 var empty_exports = /* @__PURE__ */ __exportAll({});
-// common.js
+//#endregion
+//#region common.js
 function foo() {
 	return [empty_exports, void 0];
 }
 function bar() {
 	return [void 0];
 }
+//#endregion
 export { foo as n, bar as t };
 
 ```

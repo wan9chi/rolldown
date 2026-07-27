@@ -2,12 +2,15 @@ use oxc::allocator::GetAllocator;
 use oxc::ast::builder::AstBuilder;
 use oxc::{
   allocator::{CloneIn as _, TakeIn as _},
-  ast::ast::{
-    Argument, ArrowFunctionBody, BindingPattern, BindingProperty, Expression, FormalParameterKind,
-    FormalParameters, FunctionBody, IdentifierName, ObjectPattern, PropertyKey, Statement,
-    StaticMemberExpression, VariableDeclarationKind, VariableDeclarator,
+  ast::{
+    ast::{
+      Argument, BindingPattern, BindingProperty, Expression, FormalParameterKind, FormalParameters,
+      FunctionBody, IdentifierName, ObjectPattern, PropertyKey, Statement, StaticMemberExpression,
+      VariableDeclarationKind, VariableDeclarator,
+    },
+    builder::NONE,
   },
-  ast_visit::walk_js_mut::walk_arguments,
+  ast_visit::walk_mut::walk_arguments,
   semantic::ScopeFlags,
   span::SPAN,
 };
@@ -41,16 +44,6 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
     self.scope_stack.last().is_some_and(|flags| flags.contains(ScopeFlags::Top))
   }
 
-  /// Only preload static urls: `import('foo')` or `` import(`foo`) ``.
-  #[inline]
-  pub fn is_import_with_static_specifier(expr: &Expression<'a>) -> bool {
-    matches!(
-      expr,
-      Expression::ImportExpression(import_expr)
-        if matches!(import_expr.source, Expression::StringLiteral(_) | Expression::TemplateLiteral(_))
-    )
-  }
-
   /// transform `(await import('foo')).foo`
   /// to `(await __vitePreload(async () => { let foo; return {foo} = await import('foo'); },...))).foo`
   pub fn rewrite_member_expr(&self, member_expr: &mut StaticMemberExpression<'a>) -> bool {
@@ -58,7 +51,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
     while let Expression::ParenthesizedExpression(member_expr) = await_expr {
       await_expr = &mut member_expr.expression;
     }
-    if matches!(await_expr,  Expression::AwaitExpression(expr) if Self::is_import_with_static_specifier(&expr.argument))
+    if matches!(await_expr,  Expression::AwaitExpression(expr) if matches!(expr.argument, Expression::ImportExpression(_)))
     {
       let (key, value) = match member_expr.property.name.as_str() {
         // avoid `default` keyword error
@@ -78,7 +71,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
               false,
               self,
             )],
-            None,
+            NONE,
             self,
           ),
           await_expr.take_in(self),
@@ -103,7 +96,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
     let Expression::StaticMemberExpression(ref callee) = call_expr.callee else {
       return false;
     };
-    if callee.property.name != "then" || !Self::is_import_with_static_specifier(&callee.object) {
+    if callee.property.name != "then" || !matches!(callee.object, Expression::ImportExpression(_)) {
       return false;
     }
 
@@ -146,9 +139,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
   /// transform `import('foo')`
   /// to `__vitePreload(() => import('foo'),...)`
   pub fn rewrite_import_expr(&self, expr: &mut Expression<'a>) -> bool {
-    if !Self::is_import_with_static_specifier(expr) {
-      return false;
-    }
+    let Expression::ImportExpression(_) = expr else { return false };
     *expr = self
       .vite_preload_call(Argument::from(Expression::new_arrow_returning(expr.take_in(self), self)));
     true
@@ -161,11 +152,12 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
   ) -> Expression<'a> {
     self.vite_preload_call(Argument::new_arrow_function_expression(
       SPAN,
+      false,
       true,
-      None,
-      FormalParameters::boxed(SPAN, FormalParameterKind::Signature, [], None, self),
-      None,
-      ArrowFunctionBody::FunctionBody(FunctionBody::boxed(
+      NONE,
+      FormalParameters::new(SPAN, FormalParameterKind::Signature, [], NONE, self),
+      NONE,
+      FunctionBody::new(
         SPAN,
         [],
         {
@@ -175,8 +167,9 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
             VariableDeclarationKind::Const,
             [VariableDeclarator::new(
               SPAN,
+              VariableDeclarationKind::Const,
               BindingPattern::ObjectPattern(object_pat.clone_in(self.ast_builder.allocator())),
-              None,
+              NONE,
               Some(await_expr),
               false,
               self,
@@ -192,7 +185,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
           statements
         },
         self,
-      )),
+      ),
       self,
     ))
   }
@@ -201,7 +194,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
     Expression::new_call_expression(
       SPAN,
       Expression::new_identifier(SPAN, "__vitePreload", self),
-      None,
+      NONE,
       {
         let append_import_meta_url = self.render_built_url || self.is_relative_base;
         let capacity = if append_import_meta_url { 3 } else { 2 };

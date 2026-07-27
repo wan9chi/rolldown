@@ -8,9 +8,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 // HIDDEN [\0rolldown/runtime.js]
-// inner.js
+//#region inner.js
 var inner_exports = /* @__PURE__ */ __exportAll({});
 __reExport(inner_exports, require("b"));
+//#endregion
 Object.defineProperty(exports, "inner", {
 	enumerable: true,
 	get: function() {

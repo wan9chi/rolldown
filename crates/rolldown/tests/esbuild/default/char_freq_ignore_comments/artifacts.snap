@@ -6,10 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## a.js
 
 ```js
-// a.js
+//#region a.js
 function a_default(one, two, three, four) {
 	return "the argument names must be the same";
 }
+//#endregion
 export { a_default as default };
 
 ```
@@ -17,10 +18,11 @@ export { a_default as default };
 ## b.js
 
 ```js
-// b.js
+//#region b.js
 function b_default(one, two, three, four) {
 	return "the argument names must be the same";
 }
+//#endregion
 export { b_default as default };
 
 ```
