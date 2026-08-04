@@ -22,9 +22,14 @@ __rolldown_runtime__.registerGraph({
 		[1],
 		[2]
 	],
-	entries: [3]
+	dynamicEdges: [
+		[],
+		[],
+		[],
+		[]
+	]
 });
-// c.js
+//#region c.js
 var c_exports = /* @__PURE__ */ __exportAll({ c: () => "c" });
 const c_hot = __rolldown_runtime__.createModuleHotContext("c.js");
 __rolldown_runtime__.registerModule("c.js", { exports: c_exports });
@@ -32,21 +37,25 @@ assert.strictEqual("c", "c");
 c_hot.accept((nextExports) => {
 	assert.strictEqual(nextExports.c, "cc");
 });
-// b.js
+//#endregion
+//#region b.js
 var b_exports = /* @__PURE__ */ __exportAll({ b: () => b });
 __rolldown_runtime__.createModuleHotContext("b.js");
 __rolldown_runtime__.registerModule("b.js", { exports: b_exports });
 const b = { c: "c" };
-// a.js
+//#endregion
+//#region a.js
 var a_exports = /* @__PURE__ */ __exportAll({ a: () => a });
 __rolldown_runtime__.createModuleHotContext("a.js");
 __rolldown_runtime__.registerModule("a.js", { exports: a_exports });
 const a = { b };
-// main.js
+//#endregion
+//#region main.js
 var main_exports = /* @__PURE__ */ __exportAll({});
 __rolldown_runtime__.createModuleHotContext("main.js");
 __rolldown_runtime__.registerModule("main.js", { exports: main_exports });
 assert.strictEqual(a.b.c, "c");
+//#endregion
 
 ```
 
@@ -55,23 +64,23 @@ assert.strictEqual(a.b.c, "c");
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["c.js","b.js"],localCount:1,edges:[[1]],stamps:{0:1}});
+__rolldown_runtime__.registerGraph({ids:["c.js","b.js"],localCount:1,edges:[[1]],dynamicEdges:[[]]});
 //#region c.js
 import * as import_node_assert_00 from "node:assert";
-__rolldown_runtime__.registerFactory("c.js", (function(__rolldown_module_id__) {
+__rolldown_runtime__.registerFactory("c.js", "esm", (function(__rolldown_module_id__) {
 	try {
 		var __rolldown_exports__ = __rolldown_runtime__.__exportAll({ c: () => c });
 		__rolldown_runtime__.registerModule(__rolldown_module_id__, { exports: __rolldown_exports__ });
 		__rolldown_runtime__.initModule("b.js");
-		var import_b_01 = __rolldown_runtime__.loadExports("b.js");
 		const hot_c = __rolldown_runtime__.createModuleHotContext(__rolldown_module_id__);
+		var import_b_01 = __rolldown_runtime__.loadExports("b.js");
 		const c = "cc";
 		import_node_assert_00.default.strictEqual(c, "cc");
 		hot_c.accept(() => {
 			import_node_assert_00.default.fail("the last generation has no further edit to accept");
 		});
 	} finally {}
-}), 1);
+}));
 
 //#endregion
 ```

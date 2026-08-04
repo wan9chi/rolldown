@@ -6,17 +6,18 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
-let keep1 = class {
+//#region entry.js
+(class {
 	static x = x;
-};
-let keep2 = class {
+});
+(class {
 	static ["x"] = x;
-};
+});
 x;
 x;
 x;
 x;
 x;
+//#endregion
 
 ```

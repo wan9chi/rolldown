@@ -5,47 +5,28 @@ use oxc::{
   allocator::{self, GetAllocator, ReplaceWith, TakeIn},
   ast::{
     ast::{self, BindingPattern, Expression, SimpleAssignmentTarget, Statement},
-    builder::AstBuilder,
+    builder::{AstBuilder, NONE},
     match_member_expression,
   },
   ast_visit::{VisitJsMut, walk_js_mut},
   span::{SPAN, Span},
 };
 use oxc_str::CompactStr;
-use rolldown_common::{ConcatenateWrappedModuleKind, StmtInfoIdx, SymbolRef, ThisExprReplaceKind};
+use rolldown_common::{ConcatenateWrappedModuleKind, SymbolRef, ThisExprReplaceKind};
 use rolldown_ecmascript::ToSourceString;
 use rolldown_ecmascript_utils::{
-  EsmWrapperBodyKind, EsmWrapperCallKind, EsmWrapperDeclKind, EsmWrapperStmtOptions,
+  EsmWrapperBodyKind, EsmWrapperCallKind, EsmWrapperDeclKind, EsmWrapperStmtOptions, ExpressionExt,
   ExpressionFactoryExt as _, JsxExt, JsxMemberExpressionObjectExt, StatementFactoryExt as _,
 };
 use rolldown_error::EmptyImportMetaKind;
 
-use crate::{
-  module_finalizers::{FinalizedExprProcessHint, KeepNameId, ModuleWrapperMode, TraverseState},
-  utils::renamer::cjs_wrapper_fixed_params,
+use crate::module_finalizers::{
+  FinalizedExprProcessHint, KeepNameId, ModuleWrapperMode, TraverseState,
 };
 
 use super::ScopeHoistingFinalizer;
 
 impl<'ast> ScopeHoistingFinalizer<'_, 'ast> {
-  /// Returns the parameters of the CJS closure: `cjs_wrapper_fixed_params`, then the `this`
-  /// binding.
-  fn cjs_wrapper_params(&self) -> Vec<&str> {
-    let mut params = cjs_wrapper_fixed_params(self.ctx.module).to_vec();
-    params.extend(self.cjs_this_name());
-    params
-  }
-
-  /// Returns the name that the finalizer prints for the top-level `this` of the module: the `this`
-  /// parameter of its CJS closure. An unwrapped CommonJS entry has no CJS closure. The finalizer
-  /// prints it at the top of a CJS output file, where `this` is the module `this` of Node. Thus
-  /// this function returns `None` for it.
-  fn cjs_this_name(&self) -> Option<&str> {
-    let this_ref = self.ctx.module.ecma_view.cjs_this_ref?;
-    matches!(self.ctx.wrapper_mode(), ModuleWrapperMode::InteropCjs(_))
-      .then(|| self.canonical_name_for(this_ref))
-  }
-
   fn append_order_cjs_carriers(&self, program: &mut ast::Program<'ast>) {
     let carrier_keys =
       self.ctx.order_wrap_state.order_cjs_carriers_for_importee(self.ctx.idx).to_vec();
@@ -73,7 +54,7 @@ impl<'ast> ScopeHoistingFinalizer<'_, 'ast> {
       let require_call = ast::Expression::new_call_expression(
         SPAN,
         importee_wrapper_expr,
-        None,
+        NONE,
         [],
         false,
         &ast_builder,
@@ -242,10 +223,7 @@ impl<'ast> VisitJsMut<'ast> for ScopeHoistingFinalizer<'_, 'ast> {
       self.ctx.linking_info.shimmed_missing_exports.iter().collect::<Vec<_>>();
     shimmed_exports.sort_unstable_by_key(|(name, _)| name.as_str());
     shimmed_exports.into_iter().for_each(|(_name, symbol_ref)| {
-      debug_assert_ne!(
-        self.ctx.stmt_infos.declared_stmts_by_symbol(symbol_ref),
-        [] as [StmtInfoIdx; 0]
-      );
+      debug_assert!(!self.ctx.stmt_infos.declared_stmts_by_symbol(symbol_ref).is_empty());
       let is_included: bool = self
         .ctx
         .stmt_infos
@@ -286,7 +264,7 @@ impl<'ast> VisitJsMut<'ast> for ScopeHoistingFinalizer<'_, 'ast> {
           wrap_ref_name,
           commonjs_ref_expr,
           stmts_inside_closure,
-          &self.cjs_wrapper_params(),
+          self.ctx.module.ast_usage,
           self.ctx.options.profiler_names,
           &self.ctx.module.stable_id,
           self.ctx.linking_info.is_tla_or_contains_tla_dependency,
@@ -356,8 +334,9 @@ impl<'ast> VisitJsMut<'ast> for ScopeHoistingFinalizer<'_, 'ast> {
           let decorations = self.top_level_var_bindings.iter().map(|var_name| {
             ast::VariableDeclarator::new(
               SPAN,
+              ast::VariableDeclarationKind::Var,
               ast::BindingPattern::new_binding_identifier(SPAN, *var_name, ast_builder),
-              None,
+              NONE,
               None,
               false,
               ast_builder,
@@ -560,14 +539,23 @@ impl<'ast> VisitJsMut<'ast> for ScopeHoistingFinalizer<'_, 'ast> {
         self.rewrite_hot_accept_call_deps(call_expr);
         if let Some(new_expr) = self.try_rewrite_global_require_call(call_expr) {
           *expr = new_expr;
-        } else {
-          self.rewrite_call_callee(call_expr);
-        }
-      }
-      ast::Expression::TaggedTemplateExpression(tagged) => {
-        // A tag is called like a callee: a bridge member tag keeps `this === undefined`.
-        if let Some(new_tag) = self.try_rewrite_bridge_callee(&tagged.tag) {
-          tagged.tag = new_tag;
+        } else if let Some(ident_ref) = call_expr.callee.as_identifier_mut() {
+          let is_empty_function = ident_ref
+            .reference_id
+            .get()
+            .and_then(|ref_id| self.scope.scoping().get_reference(ref_id).symbol_id())
+            .map(|id| {
+              let symbol_ref = self.ctx.symbol_db.canonical_ref_for((self.ctx.idx, id).into());
+              symbol_ref.is_side_effect_free_function(self.ctx.symbol_db, self.ctx.modules)
+                && symbol_ref.is_not_reassigned(self.ctx.symbol_db)
+            })
+            .unwrap_or(false);
+          if is_empty_function {
+            call_expr.pure = true;
+          } else if let Some(new_expr) = self.try_rewrite_identifier_reference_expr(ident_ref, true)
+          {
+            call_expr.callee = new_expr;
+          }
         }
       }
       // inline dynamic import
@@ -595,9 +583,7 @@ impl<'ast> VisitJsMut<'ast> for ScopeHoistingFinalizer<'_, 'ast> {
         {
           match kind {
             ThisExprReplaceKind::Exports => {
-              if let Some(this_name) = self.cjs_this_name() {
-                *expr = Expression::new_id_ref_expr(SPAN, this_name, self);
-              }
+              *expr = ast::Expression::new_identifier(SPAN, "exports", self);
             }
             ThisExprReplaceKind::Context if self.ctx.options.context.is_empty() => {
               *expr = ast::Expression::new_void_0(SPAN, self);
@@ -631,11 +617,6 @@ impl<'ast> VisitJsMut<'ast> for ScopeHoistingFinalizer<'_, 'ast> {
         // import.meta.hot?.accept()
         if let ast::ChainElement::CallExpression(call_expr) = &mut chain_expr.expression {
           self.rewrite_hot_accept_call_deps(call_expr);
-          // `f?.()` / `ns.f?.()` of a bridge member: the optional callee needs the same `this`
-          // guard as a plain call.
-          if let Some(new_callee) = self.try_rewrite_bridge_callee(&call_expr.callee) {
-            call_expr.callee = new_callee;
-          }
         }
         let chain_span = chain_expr.span;
         if let Some(new_expr) = chain_expr
@@ -930,8 +911,7 @@ impl<'ast> VisitJsMut<'ast> for ScopeHoistingFinalizer<'_, 'ast> {
       ast::Declaration::TSTypeAliasDeclaration(_)
       | ast::Declaration::TSInterfaceDeclaration(_)
       | ast::Declaration::TSEnumDeclaration(_)
-      | ast::Declaration::TSExternalModuleDeclaration(_)
-      | ast::Declaration::TSNamespaceDeclaration(_)
+      | ast::Declaration::TSModuleDeclaration(_)
       | ast::Declaration::TSImportEqualsDeclaration(_)
       | ast::Declaration::TSGlobalDeclaration(_) => unreachable!(),
     }

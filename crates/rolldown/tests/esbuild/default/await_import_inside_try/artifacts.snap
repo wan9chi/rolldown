@@ -6,12 +6,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 async function main(name) {
 	try {
 		return await import(name);
 	} catch {}
 }
 main("fs");
+//#endregion
 
 ```

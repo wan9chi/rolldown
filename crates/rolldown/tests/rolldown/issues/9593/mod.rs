@@ -1,6 +1,7 @@
 use std::{
   borrow::Cow,
   path::{Path, PathBuf},
+  sync::Arc,
 };
 
 use rolldown::{BundlerOptions, InputItem, OutputFormat};
@@ -67,7 +68,7 @@ async fn preserve_modules_root_with_slash_normalized_ids() {
         preserve_modules_root: Some("src".into()),
         ..Default::default()
       },
-      vec![Plugin::new_shared(SlashNormalizedResolvePlugin)],
+      vec![Arc::new(SlashNormalizedResolvePlugin)],
     )
     .await;
 }

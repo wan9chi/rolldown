@@ -32,12 +32,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 			return foo;
 		}
 	});
-	Object.defineProperty(exports, "some export", {
-		enumerable: true,
-		get: function() {
-			return foo["some import"];
-		}
-	});
+	exports["some export"] = foo["some import"];
 	return exports;
 })({}, foo);
 

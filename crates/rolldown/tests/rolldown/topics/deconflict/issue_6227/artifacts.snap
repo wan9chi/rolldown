@@ -6,22 +6,26 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// init.js
+//#region init.js
 globalThis.array = [];
-// foo.js
+//#endregion
+//#region foo.js
 {
 	const foo = "foo" + globalThis.foo;
 	setTimeout(() => {
 		globalThis.array.push(foo);
 	}, 100);
 }
-// bar.js
+//#endregion
+//#region bar.js
 {
 	const foo = "bar" + globalThis.bar;
 	globalThis.array.push(foo);
 }
-// main.js
+//#endregion
+//#region main.js
 console.log(globalThis.array);
+//#endregion
 
 ```
 
@@ -33,13 +37,14 @@ console.log(globalThis.array);
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// init.js
+//#region init.js
 function init_init() {
 	return (init_init = __esmMin((() => {
 		globalThis.array = [];
 	})))();
 }
-// foo.js
+//#endregion
+//#region foo.js
 function init_foo() {
 	return (init_foo = __esmMin((() => {
 		{
@@ -50,7 +55,8 @@ function init_foo() {
 		}
 	})))();
 }
-// bar.js
+//#endregion
+//#region bar.js
 function init_bar() {
 	return (init_bar = __esmMin((() => {
 		{
@@ -59,7 +65,8 @@ function init_bar() {
 		}
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_init();
@@ -68,6 +75,7 @@ function init_main() {
 		console.log(globalThis.array);
 	})))();
 }
+//#endregion
 init_main();
 
 ```

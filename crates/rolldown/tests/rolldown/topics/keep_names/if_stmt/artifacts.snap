@@ -8,17 +8,21 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import assert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// c.js
+//#region c.js
 var require_c = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	function Router() {}
 	module.exports = function() {
 		return { Router };
 	};
 }));
-// main.js
+//#endregion
+//#region cjs.js
+//#endregion
+//#region main.js
 var import_cjs = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_c()();
 })))();
 assert.strictEqual(import_cjs.Router.name, "Router");
+//#endregion
 
 ```

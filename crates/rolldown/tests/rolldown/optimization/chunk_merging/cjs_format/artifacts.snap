@@ -6,8 +6,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## dep.js
 
 ```js
-// dep.js
+//#region dep.js
 var dep_default = 42;
+//#endregion
 module.exports = dep_default;
 
 ```
@@ -32,8 +33,9 @@ Object.defineProperties(exports, {
 	__esModule: { value: true },
 	[Symbol.toStringTag]: { value: "Module" }
 });
-// dep.js
+//#region dep.js
 var dep_default = 42;
+//#endregion
 exports.default = dep_default;
 
 ```

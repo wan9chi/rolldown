@@ -22,12 +22,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// entry.js
+//#region entry.js
 __require();
 __require("a", "b");
 try {
 	__require();
 	__require("a", "b");
 } catch {}
+//#endregion
 
 ```

@@ -2,7 +2,6 @@ mod utils;
 
 use std::borrow::Cow;
 
-use json_escape_simd::escape;
 use rolldown_common::ModuleType;
 use rolldown_plugin::{HookTransformOutput, HookUsage, Plugin};
 use rolldown_plugin_utils::{constants, data_to_esm, is_special_query};
@@ -57,9 +56,12 @@ impl Plugin for ViteJsonPlugin {
         Cow::Borrowed(code)
       };
 
-      let json = escape(&json);
       return Ok(Some(HookTransformOutput {
-        code: Some(concat_string!("export default /*#__PURE__*/ JSON.parse(", json, ")")),
+        code: Some(concat_string!(
+          "export default /*#__PURE__*/ JSON.parse(",
+          serde_json::to_string(&json)?,
+          ")"
+        )),
         map: SourceMap::default().into(),
         module_type: Some(ModuleType::Js),
         ..Default::default()

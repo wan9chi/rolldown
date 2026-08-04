@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## input.js
 
 ```js
-// input.js
+//#region input.js
 console.log(`
   replaced
   (replaced)
@@ -14,6 +14,7 @@ console.log(`
   especial
   replaced.doSomething()
 `);
+//#endregion
 
 //# sourceMappingURL=input.js.map
 ```

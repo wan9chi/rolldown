@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// constants.js
+//#region constants.js
 const obj = {
 	nested: { deep: { value: 0 } },
 	prop: 10,
@@ -18,17 +18,18 @@ const counter = {
 	another: 0
 };
 const temp = {};
-// main.js
+//#endregion
+//#region main.js
 obj.nested.deep.value = 42;
 o.foo = 100;
 temp["bar"] = 200;
 console.log(temp);
 counter.value++;
-var T = class {
+(class {
 	static {
 		++counter.count;
 	}
-};
+});
 counter.another++;
 console.log(counter);
 obj.prop--;
@@ -38,6 +39,7 @@ obj[key] = "computed";
 const config = {};
 config.option = true;
 var main_default = { config };
+//#endregion
 export { config, main_default as default };
 
 ```

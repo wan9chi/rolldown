@@ -6,13 +6,15 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// lib.js
+//#region lib.js
 const Client = [];
-// main.js
+//#endregion
+//#region main.js
 const Config = (Client) => {
 	console.log(Client);
 };
 console.log(`Client: `, Client);
 Config();
+//#endregion
 
 ```

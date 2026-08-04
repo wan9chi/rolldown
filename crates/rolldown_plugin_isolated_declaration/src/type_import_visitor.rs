@@ -1,13 +1,12 @@
 use oxc::{
   ast::ast::{
-    ExportFromDeclaration, ImportDeclaration, ImportDeclarationSpecifier, ImportOrExportKind,
+    ExportNamedDeclaration, ImportDeclaration, ImportDeclarationSpecifier, ImportOrExportKind, Str,
   },
   ast_visit::VisitJsMut,
-  str::JSStr,
 };
 
 pub struct TypeImportVisitor<'ast> {
-  pub imported: Vec<JSStr<'ast>>,
+  pub imported: Vec<Str<'ast>>,
 }
 
 impl<'ast> VisitJsMut<'ast> for TypeImportVisitor<'ast> {
@@ -31,16 +30,18 @@ impl<'ast> VisitJsMut<'ast> for TypeImportVisitor<'ast> {
     }
   }
 
-  fn visit_export_from_declaration(&mut self, decl: &mut ExportFromDeclaration<'ast>) {
-    match decl.export_kind {
-      ImportOrExportKind::Type => {
-        self.imported.push(decl.source.value);
-      }
-      ImportOrExportKind::Value => {
-        for specifier in &decl.specifiers {
-          if matches!(specifier.export_kind, ImportOrExportKind::Type) {
-            self.imported.push(decl.source.value);
-            break;
+  fn visit_export_named_declaration(&mut self, decl: &mut ExportNamedDeclaration<'ast>) {
+    if let Some(source) = &decl.source {
+      match decl.export_kind {
+        ImportOrExportKind::Type => {
+          self.imported.push(source.value);
+        }
+        ImportOrExportKind::Value => {
+          for specifier in &decl.specifiers {
+            if matches!(specifier.export_kind, ImportOrExportKind::Type) {
+              self.imported.push(source.value);
+              break;
+            }
           }
         }
       }

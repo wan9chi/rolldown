@@ -1,7 +1,6 @@
+use rayon::iter::ParallelIterator;
 use rolldown_common::{Module, ModuleIdx, RuntimeHelper, SymbolRef};
-use rolldown_utils::{
-  index_vec_ext::IndexVecRefExt, indexmap::FxIndexSet, rayon::ParallelIterator,
-};
+use rolldown_utils::{index_vec_ext::IndexVecRefExt, indexmap::FxIndexSet};
 use rustc_hash::FxHashSet;
 
 use super::LinkStage;

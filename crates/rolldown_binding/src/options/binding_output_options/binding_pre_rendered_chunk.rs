@@ -1,7 +1,4 @@
-// `use_nullable` makes `facade_module_id: None` reach JS as `null` instead of a
-// missing property, so `RenderedChunk` stays assignable to `PreRenderedChunk`
-// like in Rollup (https://github.com/rolldown/rolldown/issues/10804).
-#[napi_derive::napi(object, object_from_js = false, use_nullable = true)]
+#[napi_derive::napi(object, object_from_js = false)]
 #[derive(Default, Debug)]
 pub struct PreRenderedChunk {
   /// The name of this chunk, which is used in naming patterns.

@@ -11,11 +11,9 @@ use rolldown_common::{
 use rolldown_devtools::{action, trace_action, trace_action_enabled};
 use rolldown_error::{BatchedBuildDiagnostic, BuildResult, Diagnostics};
 use rolldown_utils::{
-  index_vec_ext::IndexVecRefExt as _,
   indexmap::{FxIndexMap, FxIndexSet},
   rayon::{IntoParallelRefIterator, ParallelIterator},
 };
-use rustc_hash::FxHashMap;
 
 use crate::{
   BundleOutput,
@@ -30,7 +28,7 @@ use crate::{
   },
 };
 
-use super::{CarriedRender, GenerateStage};
+use super::GenerateStage;
 
 type ChunkGeneratorFuture<'a> = Pin<
   Box<
@@ -54,38 +52,22 @@ impl GenerateStage<'_> {
     // warnings vs. errors is deferred to the end of the function, where their
     // fates finally diverge (errors -> `Err`, warnings -> `BundleOutput`).
     let mut diagnostics = std::mem::take(&mut self.link_output.diagnostics);
-    let inline_renders = std::mem::take(&mut self.inline_renders);
     // `ast_table` is threaded by value into `create_chunk_to_codegen_ret_map`
     // (the last reader), where it is dropped at scope exit by the compiler —
     // releasing the per-module bumpalo arenas before `minify_chunks` and
     // `finalize_assets` allocate.
     let (mut instantiated_chunks, index_chunk_to_instances) = self
-      .instantiate_chunks(
-        chunk_graph,
-        ast_table,
-        &mut diagnostics,
-        used_symbol_refs,
-        order_state,
-        inline_renders,
-      )
+      .instantiate_chunks(chunk_graph, ast_table, &mut diagnostics, used_symbol_refs, order_state)
       .await?;
 
     self.trace_action_package_graph_ready(chunk_graph, &instantiated_chunks);
 
-    diagnostics.extend(
-      render_chunks(
-        self.plugin_driver,
-        &mut instantiated_chunks,
-        self.options,
-        &chunk_graph.chunk_table,
-        &self.link_output.module_table,
-      )
-      .await?,
-    );
+    diagnostics
+      .extend(render_chunks(self.plugin_driver, &mut instantiated_chunks, self.options).await?);
 
     augment_chunk_hash(self.plugin_driver, &mut instantiated_chunks).await?;
 
-    let mangle_cache = Self::minify_chunks(self.options, &mut instantiated_chunks)?;
+    Self::minify_chunks(self.options, &mut instantiated_chunks)?;
 
     Self::post_banner_footer(&mut instantiated_chunks)?;
 
@@ -161,7 +143,7 @@ impl GenerateStage<'_> {
     // aborts the build, otherwise the warnings ride out on the `BundleOutput`.
     // `into_result` fast-paths the common no-error case, skipping the partition.
     let warnings = diagnostics.into_result()?;
-    Ok(BundleOutput { assets: output, warnings, mangle_cache })
+    Ok(BundleOutput { assets: output, warnings })
   }
 
   #[tracing::instrument(level = "debug", skip_all)]
@@ -172,7 +154,6 @@ impl GenerateStage<'_> {
     diagnostics: &mut Diagnostics,
     used_symbol_refs: &UsedSymbolRefs,
     order_state: &super::order_wrap_state::OrderWrapState,
-    mut inline_renders: FxHashMap<ChunkIdx, Vec<CarriedRender>>,
   ) -> BuildResult<(IndexInstantiatedChunks, IndexChunkToInstances)> {
     let mut index_chunk_to_instances: IndexChunkToInstances =
       index_vec![FxIndexSet::default(); chunk_graph.chunk_table.len()];
@@ -199,17 +180,13 @@ impl GenerateStage<'_> {
         .filter_map(|(idx, module_id_to_codegen_ret)| {
           let chunk_idx =
             ChunkIdx::from_raw(u32::try_from(idx).expect("chunk index should fit in u32"));
-          // A record is no file; its modules are printed by the files that carry it.
-          if chunk_graph.post_chunk_optimization_operations.contains_key(&chunk_idx)
-            || self.inline_state.is_record(chunk_idx)
-          {
+          if chunk_graph.post_chunk_optimization_operations.contains_key(&chunk_idx) {
             return None;
           }
           let chunk = chunk_graph.chunk_table.get(chunk_idx)?;
-          let carried_renders = inline_renders.remove(&chunk_idx).unwrap_or_default();
-          Some((chunk_idx, chunk, module_id_to_codegen_ret, carried_renders))
+          Some((chunk_idx, chunk, module_id_to_codegen_ret))
         })
-        .flat_map(|(chunk_idx, chunk, module_id_to_codegen_ret, carried_renders)| {
+        .flat_map(|(chunk_idx, chunk, module_id_to_codegen_ret)| {
           let resolved_paths = self.resolved_paths.as_ref();
           let ecma_chunks_future: ChunkGeneratorFuture = Box::pin(async move {
             let mut ecma_ctx = GenerateContext {
@@ -224,8 +201,6 @@ impl GenerateStage<'_> {
               module_id_to_codegen_ret,
               render_export_items_index_vec,
               resolved_paths,
-              inline_state: &self.inline_state,
-              carried_renders,
             };
             let ecma_chunks_future = EcmaGenerator::instantiate_chunk(&mut ecma_ctx);
             let ecma_chunks = ecma_chunks_future.await?;
@@ -281,12 +256,8 @@ impl GenerateStage<'_> {
     );
     chunk_graph
       .chunk_table
-      .par_iter_enumerated()
-      .map(|(chunk_idx, item)| {
-        // A record's modules were finalized and printed per carrier; its own ASTs stay untouched.
-        if self.inline_state.is_record(chunk_idx) {
-          return vec![];
-        }
+      .par_iter()
+      .map(|item| {
         item
           .modules
           .par_iter()

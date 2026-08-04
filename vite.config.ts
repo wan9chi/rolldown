@@ -11,6 +11,7 @@ export default defineConfig({
       typeCheck: true,
     },
     plugins: ['import', 'jsdoc', 'unicorn', 'typescript', 'oxc'],
+    jsPlugins: ['./scripts/lint/index.ts'],
     ignorePatterns: [
       'crates/**',
       'packages/rollup-tests/**',
@@ -20,7 +21,6 @@ export default defineConfig({
       'packages/rolldown/tests/magic-string/*.test.ts',
       'packages/rolldown/src/binding.*',
       'packages/rolldown/src/rolldown-binding.*',
-      'packages/rolldown/src/wasi-worker*.mjs',
       'packages/test-dev-server/tests/fixtures/**',
       'packages/test-dev-server/tests/playground/**',
       'packages/vite-tests/repo/**',
@@ -100,15 +100,7 @@ export default defineConfig({
       {
         files: ['**/packages/rolldown/tests/fixtures/**/_config.ts'],
         rules: {
-          'no-restricted-properties': [
-            'error',
-            {
-              object: 'expect',
-              property: 'assertions',
-              message:
-                'Fixture tests run concurrently and `expect.assertions` does not work with global expect. Use `vi.fn()` instead.',
-            },
-          ],
+          'rolldown-custom/ban-expect-assertions': 'error',
         },
       },
     ],

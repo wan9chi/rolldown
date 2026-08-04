@@ -6,13 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## internal-cjs.js
 
 ```js
-// internal-cjs.js
+//#region internal-cjs.js
 var require_internal_cjs = /* @__PURE__ */ require("./main.js").__commonJSMin(((exports, module) => {
 	module.exports = {
 		value: 42,
 		hello: "world"
 	};
 }));
+//#endregion
 Object.defineProperty(exports, "default", {
 	enumerable: true,
 	get: function() {
@@ -25,9 +26,10 @@ Object.defineProperty(exports, "default", {
 ## internal.js
 
 ```js
-// internal.js
+//#region internal.js
 const value = 42;
 var internal_default = "hello";
+//#endregion
 exports.default = internal_default;
 exports.value = value;
 
@@ -37,10 +39,11 @@ exports.value = value;
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// main.js
+//#region main.js
 Promise.resolve().then(() => /* @__PURE__ */ __toESM(require("external"))).then(console.log);
 Promise.resolve().then(() => require("./internal.js")).then(console.log);
 Promise.resolve().then(() => /* @__PURE__ */ __toESM(require("./internal-cjs.js").default)).then(console.log);
+//#endregion
 exports.__commonJSMin = __commonJSMin;
 
 ```

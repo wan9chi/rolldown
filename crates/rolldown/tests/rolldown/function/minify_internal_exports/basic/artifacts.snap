@@ -6,8 +6,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## internal.js
 
 ```js
-// internal.js
+//#region internal.js
 const internal = "internal";
+//#endregion
 export { internal as t };
 
 ```
@@ -16,8 +17,9 @@ export { internal as t };
 
 ```js
 import { t as internal } from "./internal.js";
-// main.js
+//#region main.js
 const main = internal;
+//#endregion
 export { main };
 
 ```
@@ -26,8 +28,9 @@ export { main };
 
 ```js
 import { t as internal } from "./internal.js";
-// main2.js
+//#region main2.js
 const main2 = internal;
+//#endregion
 export { main2 };
 
 ```

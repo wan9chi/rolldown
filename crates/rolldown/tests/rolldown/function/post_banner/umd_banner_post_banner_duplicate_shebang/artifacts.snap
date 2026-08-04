@@ -20,8 +20,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 (function(factory) {
 	typeof define === "function" && define.amd ? define([], factory) : factory();
 })(function() {
-	// main.js
+	//#region main.js
 	console.log("umd duplicate shebang");
+	//#endregion
 });
 
 ```

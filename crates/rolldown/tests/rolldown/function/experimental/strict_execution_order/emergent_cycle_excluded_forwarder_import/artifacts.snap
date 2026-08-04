@@ -7,19 +7,21 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { n as __esmMin, t as __commonJSMin } from "./rolldown-runtime.js";
-// a/a-first.js
+//#region a/a-first.js
 function init_a_first() {
 	return (init_a_first = __esmMin((() => {
 		(globalThis.__events ??= []).push("a-first");
 	})))();
 }
-// a/carrier.cjs.js
+//#endregion
+//#region a/carrier.cjs.js
 var require_carrier_cjs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = function carrier() {
 		return "CARRIED";
 	};
 }));
-// a/wrapper.js
+//#endregion
+//#region a/wrapper.js
 function mkWv() {
 	return "WV";
 }
@@ -29,6 +31,7 @@ function init_wrapper() {
 		wv = /* @__PURE__ */ mkWv();
 	})))();
 }
+//#endregion
 export { init_a_first as i, wv as n, require_carrier_cjs as r, init_wrapper as t };
 
 ```
@@ -38,7 +41,7 @@ export { init_a_first as i, wv as n, require_carrier_cjs as r, init_wrapper as t
 ```js
 import { n as __esmMin, r as __toESM } from "./rolldown-runtime.js";
 import { r as require_carrier_cjs } from "./a.js";
-// c/eagerhaz.js
+//#region c/eagerhaz.js
 var import_carrier_cjs;
 function init_eagerhaz() {
 	return (init_eagerhaz = __esmMin((() => {
@@ -46,7 +49,8 @@ function init_eagerhaz() {
 		globalThis.__carried = (0, import_carrier_cjs.default)();
 	})))();
 }
-// c/t.js
+//#endregion
+//#region c/t.js
 function mkTv() {
 	return "TV";
 }
@@ -56,6 +60,7 @@ function init_t() {
 		tv = /* @__PURE__ */ mkTv();
 	})))();
 }
+//#endregion
 export { tv as n, init_eagerhaz as r, init_t as t };
 
 ```
@@ -66,13 +71,14 @@ export { tv as n, init_eagerhaz as r, init_t as t };
 import { n as __esmMin } from "./rolldown-runtime.js";
 import { i as init_a_first, n as wv, t as init_wrapper } from "./a.js";
 import { n as tv, r as init_eagerhaz, t as init_t } from "./c.js";
-// e-first.js
+//#region e-first.js
 function init_e_first() {
 	return (init_e_first = __esmMin((() => {
 		(globalThis.__events ??= []).push("e-first");
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_a_first();
@@ -87,6 +93,7 @@ function init_main() {
 		};
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -107,19 +114,21 @@ export { __esmMin as n, __toESM as r, __commonJSMin as t };
 
 ```js
 import { n as __esmMin, t as __commonJSMin } from "./rolldown-runtime.js";
-// a/a-first.js
+//#region a/a-first.js
 function init_a_first() {
 	return (init_a_first = __esmMin((() => {
 		(globalThis.__events ??= []).push("a-first");
 	})))();
 }
-// a/carrier.cjs.js
+//#endregion
+//#region a/carrier.cjs.js
 var require_carrier_cjs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = function carrier() {
 		return "CARRIED";
 	};
 }));
-// a/wrapper.js
+//#endregion
+//#region a/wrapper.js
 function mkWv() {
 	return "WV";
 }
@@ -129,6 +138,7 @@ function init_wrapper() {
 		wv = /* @__PURE__ */ mkWv();
 	})))();
 }
+//#endregion
 export { init_a_first as i, wv as n, require_carrier_cjs as r, init_wrapper as t };
 
 ```
@@ -138,7 +148,7 @@ export { init_a_first as i, wv as n, require_carrier_cjs as r, init_wrapper as t
 ```js
 import { n as __esmMin, r as __toESM } from "./rolldown-runtime.js";
 import { r as require_carrier_cjs } from "./a.js";
-// c/eagerhaz.js
+//#region c/eagerhaz.js
 var import_carrier_cjs;
 function init_eagerhaz() {
 	return (init_eagerhaz = __esmMin((() => {
@@ -146,7 +156,8 @@ function init_eagerhaz() {
 		globalThis.__carried = (0, import_carrier_cjs.default)();
 	})))();
 }
-// c/t.js
+//#endregion
+//#region c/t.js
 function mkTv() {
 	return "TV";
 }
@@ -156,6 +167,7 @@ function init_t() {
 		tv = /* @__PURE__ */ mkTv();
 	})))();
 }
+//#endregion
 export { tv as n, init_eagerhaz as r, init_t as t };
 
 ```
@@ -166,13 +178,14 @@ export { tv as n, init_eagerhaz as r, init_t as t };
 import { n as __esmMin } from "./rolldown-runtime.js";
 import { i as init_a_first, n as wv, t as init_wrapper } from "./a.js";
 import { n as tv, r as init_eagerhaz, t as init_t } from "./c.js";
-// e-first.js
+//#region e-first.js
 function init_e_first() {
 	return (init_e_first = __esmMin((() => {
 		(globalThis.__events ??= []).push("e-first");
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_a_first();
@@ -187,6 +200,7 @@ function init_main() {
 		};
 	})))();
 }
+//#endregion
 init_main();
 
 ```

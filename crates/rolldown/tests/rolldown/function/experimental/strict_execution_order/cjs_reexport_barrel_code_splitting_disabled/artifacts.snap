@@ -7,14 +7,15 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// node_modules/pure-barrel/cn.js
+//#region node_modules/pure-barrel/cn.js
 function cn(...values) {
 	return values.filter(Boolean).join(" ");
 }
 var init_cn = __esmMin((() => {
 	globalThis.__events.push("cn");
 }));
-// node_modules/pure-barrel/clone-deep.cjs
+//#endregion
+//#region node_modules/pure-barrel/clone-deep.cjs
 var require_clone_deep = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("clone-deep");
 	module.exports = function cloneDeep(value) {
@@ -27,7 +28,10 @@ function init_pure_barrel_cjs_0() {
 		import_clone_deep = /* @__PURE__ */ __toESM(require_clone_deep(), 1);
 	})))();
 }
-// route.js
+//#endregion
+//#region node_modules/pure-barrel/index.js
+//#endregion
+//#region route.js
 var route_exports = /* @__PURE__ */ __exportAll({ value: () => value });
 var value;
 var init_route = __esmMin((() => {
@@ -35,7 +39,8 @@ var init_route = __esmMin((() => {
 	globalThis.__events.push("route");
 	value = (0, import_clone_deep.default)({ value: 1 });
 }));
-// main.js
+//#endregion
+//#region main.js
 function loadRoute() {
 	return Promise.resolve().then(() => (init_route(), route_exports));
 }
@@ -45,6 +50,7 @@ function init_main() {
 		globalThis.__events.push(`main:${cn("a", "b")}`);
 	})))();
 }
+//#endregion
 init_main();
 export { loadRoute };
 
@@ -58,27 +64,30 @@ export { loadRoute };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// node_modules/pure-barrel/cn.js
+//#region node_modules/pure-barrel/cn.js
 function cn(...values) {
 	return values.filter(Boolean).join(" ");
 }
 var init_cn = __esmMin((() => {
 	globalThis.__events.push("cn");
 }));
-// node_modules/pure-barrel/clone-deep.cjs
+//#endregion
+//#region node_modules/pure-barrel/clone-deep.cjs
 var require_clone_deep = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("clone-deep");
 	module.exports = function cloneDeep(value) {
 		return JSON.parse(JSON.stringify(value));
 	};
 }));
-// node_modules/pure-barrel/index.js
+//#endregion
+//#region node_modules/pure-barrel/index.js
 var import_clone_deep;
 var init_pure_barrel = __esmMin((() => {
 	init_cn();
 	import_clone_deep = /* @__PURE__ */ __toESM(require_clone_deep(), 1);
 }));
-// route.js
+//#endregion
+//#region route.js
 var route_exports = /* @__PURE__ */ __exportAll({ value: () => value });
 var value;
 var init_route = __esmMin((() => {
@@ -86,12 +95,14 @@ var init_route = __esmMin((() => {
 	globalThis.__events.push("route");
 	value = (0, import_clone_deep.default)({ value: 1 });
 }));
-// main.js
+//#endregion
+//#region main.js
 init_pure_barrel();
 globalThis.__events.push(`main:${cn("a", "b")}`);
 function loadRoute() {
 	return Promise.resolve().then(() => (init_route(), route_exports));
 }
+//#endregion
 export { loadRoute };
 
 ```

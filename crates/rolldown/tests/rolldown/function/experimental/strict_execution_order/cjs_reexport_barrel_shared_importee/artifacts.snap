@@ -7,7 +7,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-// main.js
+//#region main.js
 var loadA, loadB;
 function init_main() {
 	return (init_main = __esmMin((() => {
@@ -16,6 +16,7 @@ function init_main() {
 		loadB = () => import("./route-b.js");
 	})))();
 }
+//#endregion
 init_main();
 export { loadA, loadB };
 
@@ -32,9 +33,11 @@ export { __esmMin as n, __toESM as r, __commonJSMin as t };
 ## route-a.js
 
 ```js
-import { n as __esmMin } from "./rolldown-runtime.js";
 import { i as init_barrel_a_cjs_0, r as import_shared } from "./shared.js";
-// route-a.js
+import { n as __esmMin } from "./rolldown-runtime.js";
+//#region node_modules/shared-importee-barrel/barrel-a.js
+//#endregion
+//#region route-a.js
 var value;
 function init_route_a() {
 	return (init_route_a = __esmMin((() => {
@@ -43,6 +46,7 @@ function init_route_a() {
 		value = import_shared.default;
 	})))();
 }
+//#endregion
 init_route_a();
 export { value };
 
@@ -51,9 +55,11 @@ export { value };
 ## route-b.js
 
 ```js
-import { n as __esmMin } from "./rolldown-runtime.js";
 import { n as init_barrel_b_cjs_1, t as import_shared } from "./shared.js";
-// route-b.js
+import { n as __esmMin } from "./rolldown-runtime.js";
+//#region node_modules/shared-importee-barrel/barrel-b.js
+//#endregion
+//#region route-b.js
 var value;
 function init_route_b() {
 	return (init_route_b = __esmMin((() => {
@@ -62,6 +68,7 @@ function init_route_b() {
 		value = import_shared.default;
 	})))();
 }
+//#endregion
 init_route_b();
 export { value };
 
@@ -71,7 +78,7 @@ export { value };
 
 ```js
 import { n as __esmMin, r as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
-// node_modules/shared-importee-barrel/shared.cjs
+//#region node_modules/shared-importee-barrel/shared.cjs
 var require_shared = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("shared-cjs");
 	module.exports = "shared";
@@ -88,6 +95,7 @@ function init_barrel_b_cjs_1() {
 		import_shared = /* @__PURE__ */ __toESM(require_shared(), 1);
 	})))();
 }
+//#endregion
 export { init_barrel_a_cjs_0 as i, init_barrel_b_cjs_1 as n, import_shared$1 as r, import_shared as t };
 
 ```
@@ -99,10 +107,11 @@ export { init_barrel_a_cjs_0 as i, init_barrel_b_cjs_1 as n, import_shared$1 as 
 ### main.js
 
 ```js
-// main.js
+//#region main.js
 globalThis.__events.push("main");
 const loadA = () => import("./route-a.js");
 const loadB = () => import("./route-b.js");
+//#endregion
 export { loadA, loadB };
 
 ```
@@ -118,9 +127,11 @@ export { __esmMin as n, __toESM as r, __commonJSMin as t };
 ### route-a.js
 
 ```js
-import { n as __esmMin } from "./rolldown-runtime.js";
 import { i as init_barrel_a_cjs_0, r as import_shared } from "./shared.js";
-// route-a.js
+import { n as __esmMin } from "./rolldown-runtime.js";
+//#region node_modules/shared-importee-barrel/barrel-a.js
+//#endregion
+//#region route-a.js
 var value;
 function init_route_a() {
 	return (init_route_a = __esmMin((() => {
@@ -129,6 +140,7 @@ function init_route_a() {
 		value = import_shared.default;
 	})))();
 }
+//#endregion
 init_route_a();
 export { value };
 
@@ -137,9 +149,11 @@ export { value };
 ### route-b.js
 
 ```js
-import { n as __esmMin } from "./rolldown-runtime.js";
 import { n as init_barrel_b_cjs_1, t as import_shared } from "./shared.js";
-// route-b.js
+import { n as __esmMin } from "./rolldown-runtime.js";
+//#region node_modules/shared-importee-barrel/barrel-b.js
+//#endregion
+//#region route-b.js
 var value;
 function init_route_b() {
 	return (init_route_b = __esmMin((() => {
@@ -148,6 +162,7 @@ function init_route_b() {
 		value = import_shared.default;
 	})))();
 }
+//#endregion
 init_route_b();
 export { value };
 
@@ -157,7 +172,7 @@ export { value };
 
 ```js
 import { n as __esmMin, r as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
-// node_modules/shared-importee-barrel/shared.cjs
+//#region node_modules/shared-importee-barrel/shared.cjs
 var require_shared = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("shared-cjs");
 	module.exports = "shared";
@@ -174,6 +189,7 @@ function init_barrel_b_cjs_1() {
 		import_shared = /* @__PURE__ */ __toESM(require_shared(), 1);
 	})))();
 }
+//#endregion
 export { init_barrel_a_cjs_0 as i, init_barrel_b_cjs_1 as n, import_shared$1 as r, import_shared as t };
 
 ```

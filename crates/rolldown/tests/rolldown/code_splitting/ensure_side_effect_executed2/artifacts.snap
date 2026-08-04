@@ -20,7 +20,8 @@ import "./shared.js";
 ## shared.js
 
 ```js
-// shared.js
+//#region shared.js
 globalThis.sideEffectExecuted = true;
+//#endregion
 
 ```

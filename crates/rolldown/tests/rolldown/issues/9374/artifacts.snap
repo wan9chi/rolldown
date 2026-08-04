@@ -10,9 +10,10 @@ import { b } from "./entry_b.js";
 
 export * from "external"
 
-// entry_a.js
+//#region entry_a.js
 const a = "a";
 
+//#endregion
 export { a, b };
 ```
 
@@ -21,9 +22,10 @@ export { a, b };
 ```js
 export * from "external"
 
-// entry_b.js
+//#region entry_b.js
 const b = "b";
 
+//#endregion
 export { b };
 ```
 
@@ -38,9 +40,10 @@ import { b } from "./entry_b.js";
 
 export * from "external"
 
-// entry_a.js
+//#region entry_a.js
 const a = "a";
 
+//#endregion
 export { a, b };
 ```
 
@@ -49,9 +52,10 @@ export { a, b };
 ```js
 export * from "external"
 
-// entry_b.js
+//#region entry_b.js
 const b = "b";
 
+//#endregion
 export { b };
 ```
 
@@ -67,7 +71,7 @@ import { n as init_entry_b, t as b } from "./entry_b2.js";
 
 export * from "external"
 
-// entry_a.js
+//#region entry_a.js
 var a;
 function init_entry_a() {
 	return (init_entry_a = __esmMin((() => {
@@ -76,6 +80,7 @@ function init_entry_a() {
 	})))();
 }
 
+//#endregion
 init_entry_a();
 export { a, b };
 ```
@@ -96,7 +101,7 @@ export { b };
 ```js
 import { n as __exportAll, r as __reExport, t as __esmMin } from "./rolldown-runtime.js";
 
-// entry_b.js
+//#region entry_b.js
 var b;
 function init_entry_b() {
 	return (init_entry_b = __esmMin((() => {
@@ -104,6 +109,7 @@ function init_entry_b() {
 	})))();
 }
 
+//#endregion
 export { init_entry_b as n, b as t };
 ```
 
