@@ -7,9 +7,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// imp.js
-var imp_exports = /* @__PURE__ */ __exportAll({ imp22: () => 22 });
+//#region imp.js
+var imp_exports = /* @__PURE__ */ __exportAll({
+	imp2: () => 2,
+	imp22: () => 22
+});
 const imp22 = 22;
+//#endregion
 export { imp_exports as n, imp22 as t };
 
 ```
@@ -19,7 +23,7 @@ export { imp_exports as n, imp22 as t };
 ```js
 import "./imp.js";
 import assert from "node:assert";
-// main.js
+//#region main.js
 assert.strictEqual(2, 2);
 assert.strictEqual(22, 22);
 const load = async () => {
@@ -28,6 +32,7 @@ const load = async () => {
 	});
 };
 load();
+//#endregion
 
 ```
 
@@ -38,9 +43,13 @@ load();
 ### imp.js
 
 ```js
-// imp.js
-var imp_exports = /* @__PURE__ */ require("./rolldown-runtime.js").__exportAll({ imp22: () => 22 });
+//#region imp.js
+var imp_exports = /* @__PURE__ */ require("./rolldown-runtime.js").__exportAll({
+	imp2: () => 2,
+	imp22: () => 22
+});
 const imp22 = 22;
+//#endregion
 Object.defineProperty(exports, "imp22", {
 	enumerable: true,
 	get: function() {
@@ -63,7 +72,7 @@ const require_rolldown_runtime = require("./rolldown-runtime.js");
 require("./imp.js");
 let node_assert = require("node:assert");
 node_assert = require_rolldown_runtime.__toESM(node_assert);
-// main.js
+//#region main.js
 node_assert.default.strictEqual(2, 2);
 node_assert.default.strictEqual(22, 22);
 const load = async () => {
@@ -72,6 +81,7 @@ const load = async () => {
 	});
 };
 load();
+//#endregion
 
 ```
 

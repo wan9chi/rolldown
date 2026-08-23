@@ -6,9 +6,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 import(name).then(pass, fail);
 import(name).then(pass).catch(fail);
 import(name).catch(fail);
+//#endregion
 
 ```

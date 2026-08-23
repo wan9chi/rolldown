@@ -21,10 +21,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// foo.js
+//#region foo.js
 const foo = { a: 0 };
-// main.js
+//#endregion
+//#region main.js
 foo.a = 1;
 (void 0).a = 1;
+//#endregion
 
 ```

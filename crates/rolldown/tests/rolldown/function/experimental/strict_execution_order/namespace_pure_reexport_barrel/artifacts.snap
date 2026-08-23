@@ -6,15 +6,16 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## ca.js
 
 ```js
-import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_cyc_b } from "./cb.js";
-// cyc-a.js
+import { t as __esmMin } from "./rolldown-runtime.js";
+//#region cyc-a.js
 function init_cyc_a() {
 	return (init_cyc_a = __esmMin((() => {
 		init_cyc_b();
 		(globalThis.__events ??= []).push("cyc-a");
 	})))();
 }
+//#endregion
 export { init_cyc_a as t };
 
 ```
@@ -22,15 +23,16 @@ export { init_cyc_a as t };
 ## cb.js
 
 ```js
-import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_cyc_a } from "./ca.js";
-// cyc-b.js
+import { t as __esmMin } from "./rolldown-runtime.js";
+//#region cyc-b.js
 function init_cyc_b() {
 	return (init_cyc_b = __esmMin((() => {
 		init_cyc_a();
 		(globalThis.__events ??= []).push("cyc-b");
 	})))();
 }
+//#endregion
 export { init_cyc_b as t };
 
 ```
@@ -38,9 +40,9 @@ export { init_cyc_b as t };
 ## dynamic-page.js
 
 ```js
-import { n as __exportAll, t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_cyc_a } from "./ca.js";
-// linear.js
+import { n as __exportAll, t as __esmMin } from "./rolldown-runtime.js";
+//#region linear.js
 function makeUnit() {
 	return { value: 7 };
 }
@@ -53,7 +55,8 @@ function init_linear() {
 		unit$1 = /* @__PURE__ */ makeUnit();
 	})))();
 }
-// pow.js
+//#endregion
+//#region pow.js
 function makePow() {
 	return { value: 3 };
 }
@@ -66,7 +69,8 @@ function init_pow() {
 		unit = /* @__PURE__ */ makePow();
 	})))();
 }
-// outer-barrel.js
+//#endregion
+//#region outer-barrel.js
 var outer_barrel_exports = /* @__PURE__ */ __exportAll({
 	scaleLinear: () => scaleLinear,
 	scalePow: () => scalePow
@@ -77,7 +81,8 @@ function init_outer_barrel() {
 		init_pow();
 	})))();
 }
-// reader.js
+//#endregion
+//#region reader.js
 function getScale(name) {
 	const factory = outer_barrel_exports[name];
 	const built = factory();
@@ -90,13 +95,15 @@ function init_reader() {
 		(globalThis.__events ??= []).push("reader");
 	})))();
 }
-// dynamic-page.js
+//#endregion
+//#region dynamic-page.js
 function init_dynamic_page() {
 	return (init_dynamic_page = __esmMin((() => {
 		init_reader();
 		(globalThis.__events ??= []).push("dynamic-page");
 	})))();
 }
+//#endregion
 init_dynamic_page();
 export { getScale };
 
@@ -106,7 +113,7 @@ export { getScale };
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// main.js
+//#region main.js
 function loadPage() {
 	return import("./dynamic-page.js");
 }
@@ -115,6 +122,7 @@ function init_main() {
 		(globalThis.__events ??= []).push("main");
 	})))();
 }
+//#endregion
 init_main();
 export { loadPage };
 
@@ -135,15 +143,16 @@ export { __exportAll as n, __esmMin as t };
 ### ca.js
 
 ```js
-import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_cyc_b } from "./cb.js";
-// cyc-a.js
+import { t as __esmMin } from "./rolldown-runtime.js";
+//#region cyc-a.js
 function init_cyc_a() {
 	return (init_cyc_a = __esmMin((() => {
 		init_cyc_b();
 		(globalThis.__events ??= []).push("cyc-a");
 	})))();
 }
+//#endregion
 export { init_cyc_a as t };
 
 ```
@@ -151,15 +160,16 @@ export { init_cyc_a as t };
 ### cb.js
 
 ```js
-import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_cyc_a } from "./ca.js";
-// cyc-b.js
+import { t as __esmMin } from "./rolldown-runtime.js";
+//#region cyc-b.js
 function init_cyc_b() {
 	return (init_cyc_b = __esmMin((() => {
 		init_cyc_a();
 		(globalThis.__events ??= []).push("cyc-b");
 	})))();
 }
+//#endregion
 export { init_cyc_b as t };
 
 ```
@@ -167,9 +177,9 @@ export { init_cyc_b as t };
 ### dynamic-page.js
 
 ```js
-import { n as __exportAll, t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_cyc_a } from "./ca.js";
-// linear.js
+import { n as __exportAll, t as __esmMin } from "./rolldown-runtime.js";
+//#region linear.js
 function makeUnit() {
 	return { value: 7 };
 }
@@ -182,7 +192,8 @@ function init_linear() {
 		unit$1 = /* @__PURE__ */ makeUnit();
 	})))();
 }
-// pow.js
+//#endregion
+//#region pow.js
 function makePow() {
 	return { value: 3 };
 }
@@ -195,7 +206,8 @@ function init_pow() {
 		unit = /* @__PURE__ */ makePow();
 	})))();
 }
-// outer-barrel.js
+//#endregion
+//#region outer-barrel.js
 var outer_barrel_exports = /* @__PURE__ */ __exportAll({
 	scaleLinear: () => scaleLinear,
 	scalePow: () => scalePow
@@ -206,7 +218,8 @@ function init_outer_barrel() {
 		init_pow();
 	})))();
 }
-// reader.js
+//#endregion
+//#region reader.js
 function getScale(name) {
 	const factory = outer_barrel_exports[name];
 	const built = factory();
@@ -219,13 +232,15 @@ function init_reader() {
 		(globalThis.__events ??= []).push("reader");
 	})))();
 }
-// dynamic-page.js
+//#endregion
+//#region dynamic-page.js
 function init_dynamic_page() {
 	return (init_dynamic_page = __esmMin((() => {
 		init_reader();
 		(globalThis.__events ??= []).push("dynamic-page");
 	})))();
 }
+//#endregion
 init_dynamic_page();
 export { getScale };
 
@@ -234,11 +249,12 @@ export { getScale };
 ### main.js
 
 ```js
-// main.js
+//#region main.js
 (globalThis.__events ??= []).push("main");
 function loadPage() {
 	return import("./dynamic-page.js");
 }
+//#endregion
 export { loadPage };
 
 ```

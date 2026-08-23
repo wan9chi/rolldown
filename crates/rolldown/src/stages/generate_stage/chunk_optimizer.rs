@@ -406,16 +406,14 @@ impl GenerateStage<'_> {
         }
         let chunk_idxs: Vec<_> = bits.index_of_one().map(ChunkIdx::from_raw).collect();
 
-        let merge_target = self
-          .try_insert_into_existing_chunk(
-            &chunk_idxs,
-            &static_entry_chunk_reference,
-            chunk_graph,
-            &dynamic_entry_to_dynamic_importers,
-            temp_chunk,
-            temp_chunk_graph,
-          )
-          .filter(|_| !self.prefers_inline_common_chunk(&temp_chunk.modules));
+        let merge_target = self.try_insert_into_existing_chunk(
+          &chunk_idxs,
+          &static_entry_chunk_reference,
+          chunk_graph,
+          &dynamic_entry_to_dynamic_importers,
+          temp_chunk,
+          temp_chunk_graph,
+        );
 
         Some((bits.clone(), *temp_chunk_idx, chunk_idxs, merge_target))
       })
@@ -993,7 +991,7 @@ impl GenerateStage<'_> {
     input_base: &ArcStr,
     module_is_assigned: &mut IndexBitSet<ModuleIdx>,
     temp_chunk_opt_graph: &ChunkOptimizationGraph,
-    used_symbol_refs_builder: &mut UsedSymbolRefsBuilder,
+    used_symbol_refs: &mut UsedSymbolRefsBuilder,
   ) {
     // Find empty dynamic entry chunks that should be merged with their target common chunks
     let (mut facade_eliminations, common_chunk_merges, emitted_chunk_groups) =
@@ -1013,15 +1011,12 @@ impl GenerateStage<'_> {
     );
 
     for elimination in &facade_eliminations {
-      self.narrow_namespace_stmt_to_used_symbols(
-        elimination.entry_module_idx,
-        used_symbol_refs_builder,
-      );
+      self.narrow_namespace_stmt_to_used_symbols(elimination.entry_module_idx, used_symbol_refs);
     }
 
     let mut runtime_dependent_chunks = FxHashSet::default();
 
-    self.replay_link_stage_inclusion(used_symbol_refs_builder, |context| {
+    self.replay_link_stage_inclusion(used_symbol_refs, |context| {
       let mut needs_export_all_helper = false;
       for elimination in &facade_eliminations {
         let FacadeChunkElimination { reason, entry_module_idx, from_chunk_idx, to_chunk_idx } =
@@ -1128,12 +1123,6 @@ impl GenerateStage<'_> {
     additional_runtime_consumers: Option<&FxHashSet<ChunkIdx>>,
     cascade: RuntimeMergeCascade,
   ) {
-    // `experimentalInlineCommonChunks` registers registry demand on the files that read records
-    // after every merge proof below has run, so a merged runtime could end up imported by files
-    // the proof never counted. The runtime stays a standalone chunk while the feature is on.
-    if self.options.inline_common_chunks.is_some() {
-      return;
-    }
     let runtime_module_idx = self.link_output.runtime.id();
     let Some(runtime_chunk_idx) = chunk_graph.module_to_chunk[runtime_module_idx] else {
       return;

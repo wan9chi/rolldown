@@ -29,13 +29,6 @@ export function transformToRollupSourceMap(map: string): SourceMap {
       ).toString('base64')}`;
     },
   };
-  // Preserve Rollup's legacy property for plugins while serializing the standard `ignoreList`.
-  Object.defineProperty(obj, 'x_google_ignoreList', {
-    get: () => obj.ignoreList,
-    set: (value: number[] | undefined) => {
-      obj.ignoreList = value;
-    },
-  });
   return obj;
 }
 
@@ -138,16 +131,12 @@ function transformToMutableRollupOutputAsset(
 
 export function transformToRollupOutput(output: BindingOutputs): RolldownOutput {
   const { chunks, assets } = output;
-  const transformed = {
+  return {
     output: [
       ...chunks.map((chunk) => transformToRollupOutputChunk(chunk)),
       ...assets.map((asset) => transformToRollupOutputAsset(asset)),
     ],
   } as RolldownOutput;
-  if (output.mangleCache !== undefined) {
-    transformed.mangleCache = output.mangleCache;
-  }
-  return transformed;
 }
 
 function transformToMutableRollupOutput(
@@ -190,7 +179,6 @@ export function transformToOutputBundle(
       if (typeof property === 'string') {
         changed.deleted.add(property);
       }
-      delete target[property as keyof typeof target];
       return true;
     },
   });

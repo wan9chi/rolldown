@@ -9,7 +9,8 @@ source: crates/rolldown_testing/src/integration_test.rs
 // HIDDEN [\0rolldown/runtime.js]
 let jsonc_parser = require("jsonc-parser");
 jsonc_parser = __toESM(jsonc_parser, 1);
-// index.ts
+//#region index.ts
 jsonc_parser.default.parse("{}");
+//#endregion
 
 ```

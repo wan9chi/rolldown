@@ -7,8 +7,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { t as setValue } from "./shared.js";
-// a.js
+//#region a.js
 setValue(123);
+//#endregion
 
 ```
 
@@ -22,6 +23,7 @@ import "./shared.js";
 ## shared.js
 
 ```js
+//#region shared.js
 var value;
 function getValue() {
 	return value;
@@ -30,6 +32,7 @@ function setValue(next) {
 	value = next;
 }
 sideEffects(getValue);
+//#endregion
 export { setValue as t };
 
 ```

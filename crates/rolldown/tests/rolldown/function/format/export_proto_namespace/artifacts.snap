@@ -7,8 +7,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// lib.js
+//#region lib.js
 var lib_exports = /* @__PURE__ */ __exportAll({ ["__proto__"]: () => 123 });
+//#endregion
 export { lib_exports as lib };
 
 ```
@@ -22,8 +23,9 @@ export { lib_exports as lib };
 ```js
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 // HIDDEN [\0rolldown/runtime.js]
-// lib.js
+//#region lib.js
 var lib_exports = /* @__PURE__ */ __exportAll({ ["__proto__"]: () => 123 });
+//#endregion
 Object.defineProperty(exports, "lib", {
 	enumerable: true,
 	get: function() {
@@ -43,8 +45,9 @@ Object.defineProperty(exports, "lib", {
 var bundle = (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
-	// lib.js
+	//#region lib.js
 	var lib_exports = /* @__PURE__ */ __exportAll({ ["__proto__"]: () => 123 });
+	//#endregion
 	Object.defineProperty(exports, "lib", {
 		enumerable: true,
 		get: function() {
@@ -69,8 +72,9 @@ globalThis.bundle = bundle;
 })(this, function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
-	// lib.js
+	//#region lib.js
 	var lib_exports = /* @__PURE__ */ __exportAll({ ["__proto__"]: () => 123 });
+	//#endregion
 	Object.defineProperty(exports, "lib", {
 		enumerable: true,
 		get: function() {

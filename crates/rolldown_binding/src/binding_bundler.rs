@@ -63,7 +63,7 @@ impl BindingBundler {
       })?;
       let cwd = bundle.options().cwd.clone();
       let options = Arc::clone(bundle.options());
-      let mut bundle_output = match bundle.generate().await {
+      let bundle_output = match bundle.generate().await {
         Ok(output) => output,
         Err(errs) => {
           let errors: Vec<BindingError> = errs
@@ -75,13 +75,12 @@ impl BindingBundler {
         }
       };
 
-      if let Err(err) = handle_warnings(std::mem::take(&mut bundle_output.warnings), &options).await
-      {
+      if let Err(err) = handle_warnings(bundle_output.warnings, &options).await {
         let error = to_binding_error(&err.into(), cwd.clone());
         return Ok(napi::Either::A(BindingErrors::new(vec![error])));
       }
 
-      Ok(napi::Either::B(bundle_output.into()))
+      Ok(napi::Either::B(bundle_output.assets.into()))
     };
     spawn_boxed_future(env, fut)
   }
@@ -112,7 +111,7 @@ impl BindingBundler {
       })?;
       let cwd = bundle.options().cwd.clone();
       let options = Arc::clone(bundle.options());
-      let mut bundle_output = match bundle.write().await {
+      let bundle_output = match bundle.write().await {
         Ok(output) => output,
         Err(errs) => {
           let errors: Vec<BindingError> = errs
@@ -124,13 +123,12 @@ impl BindingBundler {
         }
       };
 
-      if let Err(err) = handle_warnings(std::mem::take(&mut bundle_output.warnings), &options).await
-      {
+      if let Err(err) = handle_warnings(bundle_output.warnings, &options).await {
         let error = to_binding_error(&err.into(), cwd.clone());
         return Ok(napi::Either::A(BindingErrors::new(vec![error])));
       }
 
-      Ok(napi::Either::B(bundle_output.into()))
+      Ok(napi::Either::B(bundle_output.assets.into()))
     };
     spawn_boxed_future(env, fut)
   }
@@ -215,7 +213,7 @@ impl BindingBundler {
 ///
 /// The gate lives here because the clocks it needs — the build and the link stage — are only
 /// visible on this side; what the callbacks actually cost is only visible on the other. The
-/// diagnostic then goes out through the usual path, so `checks.bundlerTimings` filters it
+/// diagnostic then goes out through the usual path, so `checks.pluginTimings` filters it
 /// like any other.
 async fn report_plugin_timings(handles: &[BundleHandle]) -> anyhow::Result<()> {
   let Some(last) = handles.last() else {

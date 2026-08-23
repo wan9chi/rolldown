@@ -19,10 +19,11 @@ var reexportDefaultImportOfExternal = (function(exports, node_https) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
 	node_https = __toESM(node_https);
-	// main.js
+	//#region main.js
 	function getAgentCtor() {
 		return node_https.default.Agent;
 	}
+	//#endregion
 	exports.getAgentCtor = getAgentCtor;
 	return exports;
 })({}, node_https);
@@ -51,10 +52,11 @@ var reexportDefaultImportOfExternal = (function(exports, node_https) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
 	node_https = __toESM(node_https);
-	// main.js
+	//#region main.js
 	function getAgentCtor() {
 		return node_https.default.Agent;
 	}
+	//#endregion
 	exports.getAgentCtor = getAgentCtor;
 });
 
@@ -68,10 +70,11 @@ var reexportDefaultImportOfExternal = (function(exports, node_https) {
 
 ```js
 import node_https from "node:https";
-// main.js
+//#region main.js
 function getAgentCtor() {
 	return node_https.Agent;
 }
+//#endregion
 export { getAgentCtor };
 
 ```

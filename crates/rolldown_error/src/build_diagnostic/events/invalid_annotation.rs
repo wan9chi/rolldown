@@ -18,7 +18,6 @@ pub struct InvalidAnnotation {
   /// Whether the annotation appears immediately before a function declaration.
   /// When true, an additional hint suggests using `@__NO_SIDE_EFFECTS__`.
   pub is_before_function_declaration: bool,
-  pub is_no_side_effects: bool,
 }
 
 impl BuildEvent for InvalidAnnotation {
@@ -54,9 +53,8 @@ impl BuildEvent for InvalidAnnotation {
       ));
     }
 
-    let anchor = if self.is_no_side_effects { "no-side-effects" } else { "pure" };
-    diagnostic.add_help(format!(
-      "Correct annotation placement: https://rolldown.rs/in-depth/dead-code-elimination#{anchor}",
+    diagnostic.add_help(String::from(
+      "Correct annotation placement: https://rolldown.rs/in-depth/dead-code-elimination#pure",
     ));
     diagnostic.add_help(String::from("Disable with `checks.invalidAnnotation: false`."));
   }
@@ -76,7 +74,6 @@ mod tests {
       "/* #__PURE__ */".to_string(),
       ArcStr::from("/* #__PURE__ */ foo;"),
       Span::new(0, 15),
-      false,
       false,
     )
     .with_severity_warning()

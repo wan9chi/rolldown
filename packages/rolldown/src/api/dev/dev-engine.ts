@@ -130,7 +130,6 @@ export class DevEngine {
         include: normalizedStringOrRegex(devOptions.watch.include),
         exclude: normalizedStringOrRegex(devOptions.watch.exclude),
       },
-      hotUpdate: devOptions.hotUpdate,
     };
 
     const inner = new BindingDevEngine(options.bundlerOptions, bindingDevOptions);
@@ -181,11 +180,8 @@ export class DevEngine {
   }
 
   /**
-   * Delivery notification for the payload `filename`. Call it when the client
-   * reports that it ran the payload (Vite appends a
-   * `__rolldown_runtime__.payloadDelivered(filename)` statement to every patch
-   * and lazy chunk). A completed HTTP response is not enough: the bytes may not
-   * have evaluated yet. Records the payload's modules as shipped to that client.
+   * Delivery notification from the serving middleware: the response for
+   * `filename` completed, so record its modules as shipped to that client.
    */
   async notifyPayloadDelivered(filename: string): Promise<void> {
     await this.#inner.notifyPayloadDelivered(filename);
@@ -218,7 +214,7 @@ export class DevEngine {
    * @param moduleId - The absolute file path of the module to compile
    * @param clientId - The client ID requesting this compilation
    * @returns The compiled chunk: its code plus the filename whose delivery the
-   * dev server reports via {@link notifyPayloadDelivered}
+   * serving middleware reports via {@link notifyPayloadDelivered}
    */
   async compileEntry(moduleId: string, clientId: string): Promise<BindingLazyChunkOutput> {
     return this.#inner.compileEntry(moduleId, clientId);

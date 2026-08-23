@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 x("notKey", `notKey`);
 x(
 	/* @__KEY__ */
@@ -20,5 +20,6 @@ x(
 	/* #__KEY__ */
 	`alsoKey`
 );
+//#endregion
 
 ```

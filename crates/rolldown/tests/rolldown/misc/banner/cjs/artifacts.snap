@@ -7,8 +7,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // Banner
-// main.js
+//#region main.js
 var main_default = "banner";
+//#endregion
 module.exports = main_default;
 
 ```

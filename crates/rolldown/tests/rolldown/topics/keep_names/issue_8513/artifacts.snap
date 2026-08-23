@@ -7,9 +7,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// url.js
+//#region url.js
 var URL = class {};
-// main.js
+//#endregion
+//#region main.js
 function createURL() {
 	return class URL$1 extends URL {
 		static {
@@ -42,6 +43,7 @@ function wrapper3() {
 		myClass
 	};
 }
+//#endregion
 export { createFn, createURL, wrapper1, wrapper2, wrapper3 };
 
 ```

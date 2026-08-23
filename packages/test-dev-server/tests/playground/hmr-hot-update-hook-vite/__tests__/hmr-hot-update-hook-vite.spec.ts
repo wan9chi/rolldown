@@ -21,11 +21,7 @@ const readCustomPayload = () =>
         .__customPayload?.content ?? null,
   );
 
-// SKIPPED: the `hotUpdate` hook is off by default (`hotUpdate` dev
-// option, see rolldown/rolldown#10714). This playground runs on Vite's bundled
-// dev, which does not pass that option yet; un-skip once Vite can enable it
-// (vitejs/vite#22956).
-describe.skip('hmr-hot-update-hook-vite', () => {
+describe('hmr-hot-update-hook-vite', () => {
   test('renders the initial value', async () => {
     await waitForBuildStable();
     await expect.poll(() => page.textContent('.value')).toBe('dep-v1');

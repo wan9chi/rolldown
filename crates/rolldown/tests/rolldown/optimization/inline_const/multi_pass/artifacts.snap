@@ -6,8 +6,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## foo.js
 
 ```js
-// foo.js
+//#region foo.js
 const derived = false;
+//#endregion
 export { derived as t };
 
 ```
@@ -16,11 +17,12 @@ export { derived as t };
 
 ```js
 import { t as derived } from "./foo.js";
-// pagea.js
+//#region pagea.js
 function demo() {
 	if (derived) console.log("page-a");
 }
 demo();
+//#endregion
 
 ```
 
@@ -28,11 +30,12 @@ demo();
 
 ```js
 import { t as derived } from "./foo.js";
-// pageb.js
+//#region pageb.js
 function demo() {
 	if (derived) console.log("page-a");
 }
 demo();
+//#endregion
 
 ```
 
@@ -43,11 +46,15 @@ demo();
 ### pagea.js
 
 ```js
+//#region pagea.js
+//#endregion
 
 ```
 
 ### pageb.js
 
 ```js
+//#region pageb.js
+//#endregion
 
 ```

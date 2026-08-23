@@ -6,13 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.ts
+//#region entry.ts
 var WeakMap = class {
 	#x;
 };
 var WeakSet = class {
 	#y() {}
 };
+//#endregion
 export { WeakMap, WeakSet };
 
 ```

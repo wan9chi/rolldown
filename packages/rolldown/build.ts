@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import nodePath from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import { dts } from 'rolldown-plugin-dts';
 import * as ts from 'typescript';
@@ -108,8 +108,7 @@ if (buildMeta.target === 'browser-pkg') {
   for (const config of configs) {
     await build(config);
   }
-  await buildRuntimeEntry();
-  generateRuntimeTypes();
+  generateRuntimeEntry();
 })();
 
 function withShared({
@@ -162,7 +161,9 @@ function withShared({
       target: 'node22',
       define: {
         'import.meta.browserBuild': String(isBrowserBuild),
-        __RUNTIME_STRING__: JSON.stringify(readDefaultDevRuntimeSource()),
+        __RUNTIME_STRING__: isBrowserBuild
+          ? JSON.stringify(readDefaultDevRuntimeSource())
+          : 'undefined',
       },
     },
   };
@@ -235,7 +236,6 @@ function patchBindingJs(): Plugin {
 if (!nativeBinding && globalThis.process?.versions?.["webcontainer"]) {
   try {
     nativeBinding = require('./webcontainer-fallback.cjs');
-    __napiLoadedBindingTarget = 'wasm32-wasi';
   } catch (err) {
     loadErrors.push(err)
   }
@@ -248,30 +248,30 @@ if (!nativeBinding && globalThis.process?.versions?.["webcontainer"]) {
   };
 }
 
-// Vite serves this file to the browser as is, so it must have no imports.
-// See internal-docs/dev-engine/implementation.md
-async function buildRuntimeEntry() {
-  const helperNames = Object.keys(await import(pathToFileURL(runtimeBaseInputFile).href));
-  await build({
-    input: { 'experimental-runtime': commonRuntimeInputFile },
-    platform: 'neutral',
-    transform: {
-      inject: Object.fromEntries(helperNames.map((name) => [name, [runtimeBaseInputFile, name]])),
-    },
-    output: {
-      dir: buildMeta.buildOutputDir,
-      format: 'esm',
-      entryFileNames: '[name].mjs',
-    },
-  });
-}
-
-function generateRuntimeTypes() {
+// Prefix the common runtime with its canonical compiler-helper imports for standalone ESM use.
+// The default runtime loader removes this generated first line before injecting the source into a
+// bundle, where the same helpers are already in scope.
+function generateRuntimeEntry() {
   const outputFile = nodePath.resolve(buildMeta.buildOutputDir, 'experimental-runtime.d.ts');
 
   console.log(styleText('green', '[build:done]'), 'Generating dts from', commonRuntimeInputFile);
 
-  const commonRuntimeSource = fs.readFileSync(commonRuntimeInputFile, 'utf-8');
+  const { commonRuntimeSource, defaultRuntimeSource } = readDevRuntimeSources();
+  const runtimeHelperImport =
+    "import { __exportAll, __reExport, __toCommonJS, __toESM } from './experimental-runtime-base.mjs';\n";
+  fs.writeFileSync(
+    nodePath.resolve(buildMeta.buildOutputDir, 'experimental-runtime.mjs'),
+    runtimeHelperImport + commonRuntimeSource,
+  );
+  fs.copyFileSync(
+    runtimeBaseInputFile,
+    nodePath.resolve(buildMeta.buildOutputDir, 'experimental-runtime-base.mjs'),
+  );
+  fs.writeFileSync(
+    nodePath.resolve(buildMeta.buildOutputDir, 'experimental-default-runtime.mjs'),
+    defaultRuntimeSource,
+  );
+
   const result = ts.transpileDeclaration(commonRuntimeSource, {
     compilerOptions: {
       ...getTsconfigCompilerOptionsForFile(commonRuntimeInputFile),
@@ -292,9 +292,15 @@ function generateRuntimeTypes() {
   }
 }
 
+function readDevRuntimeSources() {
+  return {
+    commonRuntimeSource: fs.readFileSync(commonRuntimeInputFile, 'utf-8'),
+    defaultRuntimeSource: fs.readFileSync(defaultRuntimeInputFile, 'utf-8'),
+  };
+}
+
 function readDefaultDevRuntimeSource() {
-  const commonRuntimeSource = fs.readFileSync(commonRuntimeInputFile, 'utf-8');
-  const defaultRuntimeSource = fs.readFileSync(defaultRuntimeInputFile, 'utf-8');
+  const { commonRuntimeSource, defaultRuntimeSource } = readDevRuntimeSources();
   return `${commonRuntimeSource}\n${defaultRuntimeSource}`;
 }
 
