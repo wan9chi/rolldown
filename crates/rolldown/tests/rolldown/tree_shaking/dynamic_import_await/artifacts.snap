@@ -6,10 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## lib.js
 
 ```js
-// lib.js
+//#region lib.js
 var foo = "foo";
 var bar = "bar";
 var baz = "baz";
+//#endregion
 export { bar, baz, foo };
 
 ```
@@ -17,12 +18,13 @@ export { bar, baz, foo };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 const lib = await import("./lib.js");
 lib.foo;
 await import("./lib.js");
 lib.bar;
 (await import("./lib.js"))["baz"];
 await import("./lib.js");
+//#endregion
 
 ```

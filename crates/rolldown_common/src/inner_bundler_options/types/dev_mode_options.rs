@@ -22,6 +22,4 @@ pub struct DevModeOptions {
   pub skip_common_runtime_injection: Option<bool>,
   /// Enable lazy compilation for dynamic imports.
   pub lazy: Option<bool>,
-  /// Call the `hotUpdate` plugin hook. Off by default. The `hotUpdate` dev option also turns it on.
-  pub hot_update: Option<bool>,
 }

@@ -6,32 +6,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## a.js
 
 ```js
-import "./b.js";
-export { foo } from "./d.js";
-
-```
-
-## b.js
-
-```js
-import "./c.js";
-import "./d.js";
-
-```
-
-## c.js
-
-```js
-export { foo } from "./d.js";
-import "./a.js";
+import { foo } from "./d.js";
+export { foo };
 
 ```
 
 ## d.js
 
 ```js
-// d.js
+//#region d.js
 let foo = globalThis.SEED;
+//#endregion
 export { foo };
 
 ```
@@ -42,18 +27,19 @@ export { foo };
 import { foo } from "./d.js";
 import "./a.js";
 import { zfoo } from "./z.js";
-// index.js
+//#region index.js
 console.log(foo, zfoo);
+//#endregion
 
 ```
 
 ## z.js
 
 ```js
-import "./c.js";
 import { foo } from "./d.js";
-// z.js
+//#region z.js
 const zfoo = foo;
+//#endregion
 export { zfoo };
 
 ```

@@ -26,7 +26,7 @@ pub fn parse_program<'a>(
     .with_options(ParseOptions { preserve_parens: false, ..ParseOptions::default() })
     .parse();
 
-  if parser_ret.fatal_error
+  if parser_ret.panicked
     && let Some(err) =
       parser_ret.diagnostics.iter().find(|e| e.severity == oxc::diagnostics::Severity::Error)
   {

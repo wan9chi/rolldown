@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 use rolldown::{BundlerOptions, InputItem, PreserveEntrySignatures};
 use rolldown_common::{
@@ -65,7 +65,7 @@ async fn allow_extension_merge_aliased_then_locals() {
         })),
         ..Default::default()
       },
-      vec![Plugin::new_shared(EmitChunkPlugin)],
+      vec![Arc::new(EmitChunkPlugin)],
     )
     .await;
 }

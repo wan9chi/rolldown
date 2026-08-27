@@ -6,16 +6,18 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// components/Foo/fooClasses.js
+//#region components/Foo/fooClasses.js
 function getFooUtilityClass(slot) {
 	return "MuiFoo-" + slot;
 }
 const fooClasses = { root: "MuiFoo-root" };
-// components/Foo/Foo.js
+//#endregion
+//#region components/Foo/Foo.js
 const Foo = {
 	name: "Foo",
 	root: fooClasses.root
 };
+//#endregion
 export { Foo, fooClasses, getFooUtilityClass };
 
 ```
@@ -28,7 +30,7 @@ export { Foo, fooClasses, getFooUtilityClass };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// components/Foo/fooClasses.js
+//#region components/Foo/fooClasses.js
 function getFooUtilityClass(slot) {
 	return "MuiFoo-" + slot;
 }
@@ -38,7 +40,8 @@ function init_fooClasses() {
 		fooClasses = { root: "MuiFoo-root" };
 	})))();
 }
-// components/Foo/Foo.js
+//#endregion
+//#region components/Foo/Foo.js
 var Foo;
 function init_Foo() {
 	return (init_Foo = __esmMin((() => {
@@ -49,13 +52,15 @@ function init_Foo() {
 		};
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_Foo();
 		init_fooClasses();
 	})))();
 }
+//#endregion
 init_main();
 export { Foo, fooClasses, getFooUtilityClass };
 

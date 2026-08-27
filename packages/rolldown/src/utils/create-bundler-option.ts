@@ -70,8 +70,7 @@ export async function createBundlerOptions(
   // separately from the build that spawned it, and so repeated `generate`/`write` calls on
   // one build share a recorder — `close()` flushes it once, keyed on the same object.
   const timings =
-    measureTimings &&
-    (inputOptions.checks?.bundlerTimings ?? inputOptions.checks?.pluginTimings ?? true)
+    measureTimings && inputOptions.checks?.pluginTimings !== false
       ? pluginTimingsRecorderFor(inputOptions)
       : undefined;
 
@@ -130,12 +129,7 @@ export async function createBundlerOptions(
     );
 
     // Convert `OutputOptions` to `BindingOutputOptions`
-    const bindingOutputOptions = await bindingifyOutputOptions(
-      outputOptions,
-      pluginContextData,
-      onLog,
-      timings,
-    );
+    const bindingOutputOptions = bindingifyOutputOptions(outputOptions, pluginContextData, timings);
 
     return {
       bundlerOptions: {

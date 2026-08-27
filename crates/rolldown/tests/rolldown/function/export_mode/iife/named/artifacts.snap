@@ -12,7 +12,7 @@ var module = (function(exports) {
 		[Symbol.toStringTag]: { value: "Module" }
 	});
 	// HIDDEN [\0rolldown/runtime.js]
-	// mod.js
+	//#region mod.js
 	var named_exports = /* @__PURE__ */ __exportAll({
 		add: () => add,
 		subtract: () => subtract
@@ -23,10 +23,12 @@ var module = (function(exports) {
 	function subtract(a, b) {
 		return a - b;
 	}
-	// main.js
+	//#endregion
+	//#region main.js
 	function aaa() {
 		return "aaa";
 	}
+	//#endregion
 	exports.aaa = aaa;
 	Object.defineProperty(exports, "default", {
 		enumerable: true,

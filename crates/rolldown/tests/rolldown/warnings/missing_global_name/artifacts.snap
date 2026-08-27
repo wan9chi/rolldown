@@ -16,8 +16,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 (function(node_path) {
-	// main.js
+	//#region main.js
 	console.log((0, node_path.join)("a", "b"));
+	//#endregion
 })(node_path);
 
 ```

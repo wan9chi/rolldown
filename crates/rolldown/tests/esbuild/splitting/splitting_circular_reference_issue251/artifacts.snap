@@ -6,10 +6,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## a.js
 
 ```js
-// b.js
+//#region b.js
 var q = 6;
-// a.js
+//#endregion
+//#region a.js
 var p = 5;
+//#endregion
 export { p, q };
 
 ```
@@ -17,6 +19,7 @@ export { p, q };
 ## b.js
 
 ```js
-export { p, q } from "./a.js";
+import { p, q } from "./a.js";
+export { p, q };
 
 ```
