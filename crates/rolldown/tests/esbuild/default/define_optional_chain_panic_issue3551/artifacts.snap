@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## dot-define.js
 
 ```js
-// dot-define.js
+//#region dot-define.js
 1 .c;
 1 .c;
 1["c"];
@@ -21,13 +21,14 @@ delete 1 .c;
 delete 1 .c;
 delete 1["c"];
 delete 1["c"];
+//#endregion
 
 ```
 
 ## id-define.js
 
 ```js
-// id-define.js
+//#region id-define.js
 1 .y.z;
 1 .y.z;
 1 .y["z"];
@@ -42,5 +43,6 @@ delete 1 .y.z;
 delete 1 .y.z;
 delete 1 .y["z"];
 delete 1 .y["z"];
+//#endregion
 
 ```

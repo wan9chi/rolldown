@@ -23,8 +23,7 @@ impl GenerateStage<'_> {
     options: &NormalizedBundlerOptions,
     chunks: &mut IndexInstantiatedChunks,
   ) -> BuildResult<Option<BTreeMap<String, Option<String>>>> {
-    let Some((compress, minify_options, remove_whitespace, ascii_only)) =
-      chunk_minify_options(&options.minify)
+    let Some((compress, minify_options, remove_whitespace)) = chunk_minify_options(&options.minify)
     else {
       return Ok(None);
     };
@@ -40,17 +39,16 @@ impl GenerateStage<'_> {
     let source_type = options.format.source_type().with_jsx(true);
 
     let property_mangle_cache = OnceLock::new();
-    chunks.par_iter_mut().try_for_each(|chunk| -> BuildResult<()> {
+    chunks.par_iter_mut().try_for_each(|chunk| -> anyhow::Result<()> {
       if !is_minifiable_ecma_chunk(chunk) {
         return Ok(());
       }
       let codegen_options = CodegenOptions {
         minify: remove_whitespace,
-        ascii_only: options.charset.is_ascii() || ascii_only,
         comments: CommentOptions {
           normal: !remove_whitespace,
           jsdoc: options.comments.jsdoc && !remove_whitespace,
-          annotation: options.comments.annotation,
+          annotation: options.comments.annotation && !remove_whitespace,
           legal: if options.comments.legal || !remove_whitespace {
             codegen::LegalComment::Inline
           } else {
@@ -75,7 +73,7 @@ impl GenerateStage<'_> {
           compress,
           minify_options.clone(),
           codegen_options,
-        )?;
+        );
         if let Some(cache) = chunk_property_mangle_cache {
           property_mangle_cache
             .set(cache)
@@ -115,7 +113,7 @@ impl GenerateStage<'_> {
     options: &NormalizedBundlerOptions,
     outputs: &[Output],
   ) -> BuildResult<()> {
-    let Some((_, minify_options, _, _)) = chunk_minify_options(&options.minify) else {
+    let Some((_, minify_options, _)) = chunk_minify_options(&options.minify) else {
       return Ok(());
     };
     if minify_options.mangle_properties.is_some()
@@ -137,15 +135,11 @@ impl GenerateStage<'_> {
   }
 }
 
-fn chunk_minify_options(
-  options: &MinifyOptions,
-) -> Option<(bool, &OxcMinifierOptions, bool, bool)> {
+fn chunk_minify_options(options: &MinifyOptions) -> Option<(bool, &OxcMinifierOptions, bool)> {
   match options {
     MinifyOptions::Disabled => None,
-    MinifyOptions::DeadCodeEliminationOnly(options) => Some((false, options, false, false)),
-    MinifyOptions::Enabled(options) => {
-      Some((true, &options.options, options.remove_whitespace, options.ascii_only))
-    }
+    MinifyOptions::DeadCodeEliminationOnly(options) => Some((false, options, false)),
+    MinifyOptions::Enabled(options) => Some((true, &options.options, options.remove_whitespace)),
   }
 }
 

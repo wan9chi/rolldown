@@ -8,23 +8,26 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import assert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// cjs.cjs
+//#region cjs.cjs
 var require_cjs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.default = "default";
 	exports.foo = "foo";
 }));
-// cjs2.cjs
+//#endregion
+//#region cjs2.cjs
 var require_cjs2 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = "module.exports";
 }));
-// cjs3.cjs
+//#endregion
+//#region cjs3.cjs
 var require_cjs3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.default = "default";
 	exports.bar = "bar";
 }));
-// main.js
+//#endregion
+//#region main.js
 var import_cjs = /* @__PURE__ */ __toESM(require_cjs(), 1);
 var import_cjs2 = /* @__PURE__ */ __toESM(require_cjs2(), 1);
 var import_cjs3 = /* @__PURE__ */ __toESM(require_cjs3(), 1);
@@ -51,5 +54,6 @@ assert.deepStrictEqual(import_cjs3.default, {
 	default: "default",
 	bar: "bar"
 });
+//#endregion
 
 ```

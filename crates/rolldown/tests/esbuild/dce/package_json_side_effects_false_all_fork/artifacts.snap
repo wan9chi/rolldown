@@ -6,8 +6,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## a.js
 
 ```js
-// node_modules/c/index.js
+//#region node_modules/c/index.js
 let foo = "foo";
+//#endregion
 export { foo };
 
 ```
@@ -15,7 +16,8 @@ export { foo };
 ## src_entry.js
 
 ```js
-// src/entry.js
+//#region src/entry.js
 import("./a.js").then((x) => assert(x.foo === "foo"));
+//#endregion
 
 ```

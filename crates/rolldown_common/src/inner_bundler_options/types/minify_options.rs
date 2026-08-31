@@ -110,7 +110,6 @@ pub struct RawMinifyOptionsDetailed {
   pub mangle_properties: Option<Box<RawManglePropertiesOptions>>,
   pub compress: Option<RawCompressOptions>,
   pub remove_whitespace: bool,
-  pub ascii_only: bool,
 }
 
 impl RawMinifyOptions {
@@ -142,7 +141,6 @@ impl RawMinifyOptions {
               compress: Some(compress),
             },
             remove_whitespace: true,
-            ascii_only: false,
             mangle_properties_patterns: None,
           })
         } else {
@@ -162,13 +160,8 @@ impl RawMinifyOptions {
         })
       }
       RawMinifyOptions::Object(value) => {
-        let RawMinifyOptionsDetailed {
-          mangle,
-          mangle_properties,
-          compress,
-          remove_whitespace,
-          ascii_only,
-        } = value;
+        let RawMinifyOptionsDetailed { mangle, mangle_properties, compress, remove_whitespace } =
+          value;
         let mangle = mangle.map(|m| m.into_mangle_options(options.keep_names, options.format));
         let compress = compress.map(|c| {
           c.into_compress_options(
@@ -184,7 +177,6 @@ impl RawMinifyOptions {
         MinifyOptions::Enabled(EnabledMinifyOptions {
           options: oxc::minifier::MinifierOptions { mangle, mangle_properties, compress },
           remove_whitespace,
-          ascii_only,
           mangle_properties_patterns,
         })
       }
@@ -211,7 +203,6 @@ pub enum MinifyOptions {
 pub struct EnabledMinifyOptions {
   pub options: oxc::minifier::MinifierOptions,
   pub remove_whitespace: bool,
-  pub ascii_only: bool,
   pub mangle_properties_patterns: Option<ManglePropertiesPatterns>,
 }
 
@@ -239,7 +230,6 @@ mod tests {
       mangle_properties: None,
       compress: Some(RawCompressOptions::default()),
       remove_whitespace: true,
-      ascii_only: false,
     })
     .normalize(&options);
 

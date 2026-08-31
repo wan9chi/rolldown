@@ -6,12 +6,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// deep.js
+//#region deep.js
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 await sleep(100);
-// middle.js
+//#endregion
+//#region middle.js
 const manager = {
 	value: "hello",
 	ready: false
@@ -19,8 +20,10 @@ const manager = {
 function setup() {
 	manager.ready = true;
 }
-// main.js
+//#endregion
+//#region main.js
 setup();
+//#endregion
 export { manager };
 
 ```
@@ -32,12 +35,13 @@ export { manager };
 ### main.js
 
 ```js
-// deep.js
+//#region deep.js
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 await sleep(100);
-// middle.js
+//#endregion
+//#region middle.js
 const manager = {
 	value: "hello",
 	ready: false
@@ -45,8 +49,10 @@ const manager = {
 function setup() {
 	manager.ready = true;
 }
-// main.js
+//#endregion
+//#region main.js
 setup();
+//#endregion
 export { manager };
 
 ```
@@ -59,7 +65,7 @@ export { manager };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// deep.js
+//#region deep.js
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -70,7 +76,8 @@ function init_deep() {
 		value = "hello";
 	})))();
 }
-// middle.js
+//#endregion
+//#region middle.js
 function setup() {
 	manager.ready = true;
 }
@@ -84,19 +91,22 @@ function init_middle() {
 		};
 	})))();
 }
-// barrel.js
+//#endregion
+//#region barrel.js
 function init_barrel() {
 	return (init_barrel = __esmMin((async () => {
 		await init_middle();
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((async () => {
 		await init_barrel();
 		setup();
 	})))();
 }
+//#endregion
 await init_main();
 export { manager };
 

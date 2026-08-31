@@ -6,10 +6,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// setup.js
+//#region setup.js
 globalThis.globalValue = "foo";
-// main.js
+//#endregion
+//#region main.js
 console.log("main");
+//#endregion
 
 ```
 
@@ -20,10 +22,12 @@ console.log("main");
 ### main.js
 
 ```js
-// setup.js
+//#region setup.js
 globalThis.globalValue = "foo";
-// main.js
+//#endregion
+//#region main.js
 console.log("main");
+//#endregion
 
 ```
 
@@ -34,10 +38,12 @@ console.log("main");
 ### main.js
 
 ```js
-// setup.js
+//#region setup.js
 globalThis.globalValue = "foo";
-// main.js
+//#endregion
+//#region main.js
 console.log("main");
+//#endregion
 
 ```
 
@@ -49,19 +55,21 @@ console.log("main");
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// setup.js
+//#region setup.js
 function init_setup() {
 	return (init_setup = __esmMin((() => {
 		globalThis.globalValue = "foo";
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_setup();
 		console.log("main");
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -74,19 +82,21 @@ init_main();
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// setup.js
+//#region setup.js
 function init_setup() {
 	return (init_setup = __esmMin(() => {
 		globalThis.globalValue = "foo";
 	}))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin(() => {
 		init_setup();
 		console.log("main");
 	}))();
 }
+//#endregion
 init_main();
 
 ```
@@ -99,19 +109,21 @@ init_main();
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// setup.js
+//#region setup.js
 function init_setup() {
 	return (init_setup = __esmMin((() => {
 		globalThis.globalValue = "foo";
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_setup();
 		console.log("main");
 	})))();
 }
+//#endregion
 init_main();
 
 ```

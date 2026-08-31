@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region entry.js
 function outer() {
 	{
 		function inner() {
@@ -17,6 +17,7 @@ function outer() {
 	}
 }
 outer();
+//#endregion
 export { outer };
 
 ```

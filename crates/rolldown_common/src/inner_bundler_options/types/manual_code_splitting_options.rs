@@ -7,9 +7,7 @@ use schemars::JsonSchema;
 #[cfg(feature = "deserialize_bundler_options")]
 use serde::{Deserialize, Deserializer};
 
-use crate::{InvalidateJsSideCache, ModuleInfo, ModuleTag, SharedModuleInfoDashMap};
-
-use super::inline_common_chunks_options::InlineCommonChunksOptions;
+use crate::{ModuleInfo, ModuleTag, SharedModuleInfoDashMap};
 
 /// Schema-only enum for built-in module tags. Used by `schemars` to generate
 /// a restricted JSON Schema for the `tags` field. Not used at runtime.
@@ -38,10 +36,6 @@ pub struct ManualCodeSplittingOptions {
   pub max_module_size: Option<f64>,
   pub include_dependencies_recursively: Option<bool>,
   pub groups: Option<Vec<MatchGroup>>,
-  /// See internal-docs/inline-common-chunks/design.md. Experimental.
-  pub experimental_inline_common_chunks: Option<InlineCommonChunksOptions>,
-  #[cfg_attr(feature = "deserialize_bundler_options", serde(skip), schemars(skip))]
-  pub internal_invalidate_module_info_cache: Option<InvalidateJsSideCache>,
 }
 
 #[derive(Default, Debug, Clone)]

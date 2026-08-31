@@ -6,25 +6,30 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry_mjs.js
 
 ```js
-// entry.mjs
+//#region entry.mjs
 await import("./main.js");
+//#endregion
 
 ```
 
 ## main.js
 
 ```js
-// b.mjs
+//#region b.mjs
 function b() {
 	return typeof a;
 }
-// dep.mjs
+//#endregion
+//#region dep.mjs
 const tla = await Promise.resolve("x");
-// a.mjs
+//#endregion
+//#region a.mjs
 function a() {
 	return b() + tla;
 }
-// main.mjs
+//#endregion
+//#region main.mjs
 console.log(a());
+//#endregion
 
 ```

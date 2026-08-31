@@ -16,7 +16,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import "react/jsx-runtime";
-// entry.jsx
+//#region entry.jsx
 ({
 	...a,
 	...b
@@ -37,5 +37,6 @@ import "react/jsx-runtime";
 	...g,
 	...h
 };
+//#endregion
 
 ```

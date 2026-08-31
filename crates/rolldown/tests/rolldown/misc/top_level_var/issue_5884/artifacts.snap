@@ -7,6 +7,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import assert from "node:assert";
+//#region main.js
 (class Example {
 	static {
 		this.prop = new Example("bar");
@@ -16,6 +17,7 @@ import assert from "node:assert";
 		this.foo = foo;
 	}
 });
+//#endregion
 
 ```
 
@@ -27,6 +29,7 @@ import assert from "node:assert";
 
 ```js
 import assert from "node:assert";
+//#region main.js
 (class Example {
 	static {
 		this.prop = new Example("bar");
@@ -36,5 +39,6 @@ import assert from "node:assert";
 		this.foo = foo;
 	}
 });
+//#endregion
 
 ```

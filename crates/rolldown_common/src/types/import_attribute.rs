@@ -1,9 +1,8 @@
 use std::fmt::Display;
 
-use json_escape_simd::escape;
 use oxc::ast::ast;
 use oxc_str::CompactStr;
-use rolldown_utils::{ecmascript::to_usv_str, indexmap::FxIndexMap};
+use rolldown_utils::indexmap::FxIndexMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct ImportAttribute {
@@ -51,10 +50,10 @@ impl ImportAttribute {
             ImportAttributeKey::Identifier(identifier_name.name.into())
           }
           ast::ImportAttributeKey::StringLiteral(string_literal) => {
-            ImportAttributeKey::String(to_usv_str(string_literal.value).into())
+            ImportAttributeKey::String(string_literal.value.into())
           }
         };
-        (key, to_usv_str(entry.value.value).into_owned())
+        (key, entry.value.value.to_string())
       })
       .collect();
     Self { kind, entries }
@@ -67,8 +66,8 @@ impl Display for ImportAttribute {
       .entries
       .iter()
       .map(|(key, value)| match key {
-        ImportAttributeKey::String(s) => format!("{}: {}", escape(s), escape(value)),
-        ImportAttributeKey::Identifier(id) => format!("{id}: {}", escape(value)),
+        ImportAttributeKey::String(s) => format!("\"{s}\": \"{value}\""),
+        ImportAttributeKey::Identifier(id) => format!("{id}: \"{value}\""),
       })
       .collect::<Vec<_>>()
       .join(", ");

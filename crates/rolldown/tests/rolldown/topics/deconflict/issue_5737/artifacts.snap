@@ -8,9 +8,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import "./entry2.js";
 import assert from "node:assert";
-// main.js
+//#region main.js
 const foo = () => 0;
 assert.strictEqual(foo.name, "foo");
+//#endregion
 export { foo };
 
 ```
@@ -18,8 +19,9 @@ export { foo };
 ## entry2.js
 
 ```js
-// foo.js
+//#region foo.js
 const foo = 0;
+//#endregion
 export { foo };
 
 ```

@@ -8,8 +8,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 export * from "fs";
 export * from "./external";
-// internal.js
+//#region internal.js
 let foo = 123;
+//#endregion
 export { foo };
 
 ```

@@ -6,7 +6,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region data.js
+//#endregion
+//#region entry.js
 globalThis.__themes = {
 	light: {
 		base: "light",
@@ -20,6 +22,7 @@ globalThis.__themes = {
 function getProjectAnnotations() {
 	return [globalThis.__themes];
 }
+//#endregion
 export { getProjectAnnotations };
 
 ```
@@ -32,7 +35,7 @@ export { getProjectAnnotations };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// data.js
+//#region data.js
 var themes;
 function init_data() {
 	return (init_data = __esmMin((() => {
@@ -48,7 +51,8 @@ function init_data() {
 		};
 	})))();
 }
-// entry.js
+//#endregion
+//#region entry.js
 function getProjectAnnotations() {
 	return [globalThis.__themes];
 }
@@ -58,6 +62,7 @@ function init_entry() {
 		globalThis.__themes = themes;
 	})))();
 }
+//#endregion
 init_entry();
 export { getProjectAnnotations };
 

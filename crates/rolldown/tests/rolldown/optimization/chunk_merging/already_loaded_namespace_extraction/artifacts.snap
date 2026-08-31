@@ -7,17 +7,19 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// shared.js
+//#region shared.js
 function compute(x) {
 	return x * 2;
 }
-// app.js
+//#endregion
+//#region app.js
 var app_exports = /* @__PURE__ */ __exportAll({
 	done: () => done,
 	own: () => own
 });
 const own = compute(21) + 1;
 const done = import("./lazy.js").then((m) => m.lazyValue);
+//#endregion
 export { done, compute as n, own, app_exports as t };
 
 ```
@@ -26,8 +28,9 @@ export { done, compute as n, own, app_exports as t };
 
 ```js
 import { n as compute } from "./app.js";
-// lazy.js
+//#region lazy.js
 const lazyValue = compute(42);
+//#endregion
 export { lazyValue };
 
 ```
@@ -35,8 +38,9 @@ export { lazyValue };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 const app = import("./app.js").then((n) => n.t);
+//#endregion
 export { app };
 
 ```

@@ -112,18 +112,22 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## external-def.js
 
 ```js
-import def, * as ns from "external";
-// external-def.js
+import * as ns from "external";
+import def from "external";
+//#region external-def.js
 console.log(def, ns.def);
+//#endregion
 
 ```
 
 ## external-default.js
 
 ```js
-import def, * as ns from "external";
-// external-default.js
+import * as ns from "external";
+import def from "external";
+//#region external-default.js
 console.log(def, ns.default);
+//#endregion
 
 ```
 
@@ -131,59 +135,69 @@ console.log(def, ns.default);
 
 ```js
 import def from "external";
-// external-default2.js
+//#region external-default2.js
 console.log(def, def);
+//#endregion
 
 ```
 
 ## external-ns-def.js
 
 ```js
-import def, * as ns from "external";
-// external-ns-def.js
+import * as ns from "external";
+import def from "external";
+//#region external-ns-def.js
 console.log(def, ns, ns.def);
+//#endregion
 
 ```
 
 ## external-ns-default.js
 
 ```js
-import def, * as ns from "external";
-// external-ns-default.js
+import * as ns from "external";
+import def from "external";
+//#region external-ns-default.js
 console.log(def, ns, ns.default);
+//#endregion
 
 ```
 
 ## external-ns.js
 
 ```js
-import def, * as ns from "external";
-// external-ns.js
+import * as ns from "external";
+import def from "external";
+//#region external-ns.js
 console.log(def, ns);
+//#endregion
 
 ```
 
 ## internal-def.js
 
 ```js
-// internal-def.js
+//#region internal-def.js
 console.log(123, void 0);
+//#endregion
 
 ```
 
 ## internal-default.js
 
 ```js
-// internal-default.js
+//#region internal-default.js
 console.log(123, 123);
+//#endregion
 
 ```
 
 ## internal-default2.js
 
 ```js
-// internal-default2.js
+//#region internal-default2.js
 console.log(123, 123);
+//#endregion
 
 ```
 
@@ -191,8 +205,9 @@ console.log(123, 123);
 
 ```js
 import { t as internal_exports } from "./internal.js";
-// internal-ns-def.js
+//#region internal-ns-def.js
 console.log(123, internal_exports, void 0);
+//#endregion
 
 ```
 
@@ -200,8 +215,9 @@ console.log(123, internal_exports, void 0);
 
 ```js
 import { t as internal_exports } from "./internal.js";
-// internal-ns-default.js
+//#region internal-ns-default.js
 console.log(123, internal_exports, 123);
+//#endregion
 
 ```
 
@@ -209,8 +225,9 @@ console.log(123, internal_exports, 123);
 
 ```js
 import { t as internal_exports } from "./internal.js";
-// internal-ns.js
+//#region internal-ns.js
 console.log(123, internal_exports);
+//#endregion
 
 ```
 
@@ -218,8 +235,9 @@ console.log(123, internal_exports);
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// internal.js
+//#region internal.js
 var internal_exports = /* @__PURE__ */ __exportAll({ default: () => 123 });
+//#endregion
 export { internal_exports as t };
 
 ```

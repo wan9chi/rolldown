@@ -10,10 +10,11 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 let node_https = require("node:https");
 node_https = require_rolldown_runtime.__toESM(node_https);
-// entry-reader.js
+//#region entry-reader.js
 function getServerCtor() {
 	return node_https.default.Server;
 }
+//#endregion
 exports.getServerCtor = getServerCtor;
 
 ```
@@ -25,12 +26,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 let node_https = require("node:https");
 node_https = require_rolldown_runtime.__toESM(node_https);
-Object.defineProperty(exports, "d", {
-	enumerable: true,
-	get: function() {
-		return node_https.default;
-	}
-});
+exports.d = node_https.default;
 
 ```
 

@@ -1,6 +1,0 @@
-{
-  "config": {
-    "format": "cjs"
-  },
-  "expectError": true
-}
