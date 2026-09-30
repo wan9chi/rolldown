@@ -31,8 +31,6 @@ export interface SourceMap {
   sourcesContent: string[];
   version: number;
   debugId?: string;
-  ignoreList?: number[];
-  /** @deprecated Use `ignoreList` instead. */
   x_google_ignoreList?: number[];
   toString(): string;
   toUrl(): string;

@@ -7,7 +7,7 @@ use rolldown_error::{
   BatchedBuildDiagnostic, BuildDiagnostic, BuildResult, Diagnostic, DiagnosticOptions,
   filter_out_disabled_diagnostics,
 };
-use rolldown_fs_watcher::{FsWatcher, FsWatcherConfig};
+use rolldown_fs_watcher::FsWatcher;
 use rolldown_utils::pattern_filter;
 use std::path::Path;
 use std::sync::Arc;
@@ -16,7 +16,6 @@ use std::time::Instant;
 use tokio::sync::Mutex as TokioMutex;
 
 use crate::event::{BundleEndEventData, BundleStartEventData, WatchErrorEventData};
-use crate::task_fs_event_handler::TaskFsEventHandler;
 
 oxc_index::define_index_type! {
   pub struct WatchTaskIdx = u32;
@@ -34,8 +33,7 @@ pub struct WatchTask {
 impl WatchTask {
   pub(crate) fn new(
     config: BundlerConfig,
-    fs_handler: TaskFsEventHandler,
-    fs_watcher_config: &FsWatcherConfig,
+    fs_watcher: FsWatcher,
     closed: &Arc<AtomicBool>,
   ) -> BuildResult<Self> {
     // Validation: dev_mode not allowed with watch
@@ -57,14 +55,6 @@ impl WatchTask {
       .build()?;
 
     let options = Arc::clone(bundler.options());
-    let fs_watcher = FsWatcher::new(
-      fs_handler,
-      &FsWatcherConfig {
-        ignored: options.watch.exclude.clone(),
-        cwd: options.cwd.clone(),
-        ..fs_watcher_config.clone()
-      },
-    )?;
     Ok(Self {
       bundler: Arc::new(TokioMutex::new(bundler)),
       options,

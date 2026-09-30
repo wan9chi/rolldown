@@ -879,39 +879,6 @@ export interface TsconfigOptions {
   references?: 'auto'
 }
 
-/** See <https://tc39.es/ecma426/#sec-source-map-format>. */
-export interface JSONSourceMap {
-  /** The version field, must be 3. */
-  version: number
-  /** An optional name of the generated code that this source map is associated with. */
-  file?: string
-  /** A string with the encoded mapping data. */
-  mappings: string
-  /**
-   * An optional source root, useful for relocating source files on a server or removing repeated values in the "sources" entry.
-   * This value is prepended to the individual entries in the "source" field.
-   */
-  sourceRoot?: string
-  /** A list of original sources used by the "mappings" entry. */
-  sources: Array<string>
-  /**
-   * An optional list of source content, useful when the "source" can't be hosted.
-   * The contents are listed in the same order as the sources in line 5. "null" may be used if some original sources should be retrieved by name.
-   */
-  sourcesContent?: Array<string | undefined | null>
-  /** A list of symbol names used by the "mappings" entry. */
-  names: Array<string>
-  /** An optional field containing the debugId for this sourcemap. */
-  debugId?: string
-  /**
-   * Identifies third-party sources (such as framework code or bundler-generated code), allowing developers to avoid code that they don't want to see or step through, without having to configure this beforehand.
-   * The `ignoreList` field refers to the `sources` array, and lists the indices of all the known third-party sources in that source map.
-   * When parsing the source map, developer tools can use this to determine sections of the code that the browser loads and runs that could be automatically ignore-listed.
-   * JSON input falls back to the deprecated `x_google_ignoreList` when `ignoreList` is missing or null.
-   */
-  ignoreList?: Array<number>
-}
-
 export interface SourceMap {
   file?: string
   mappings: string
@@ -920,7 +887,7 @@ export interface SourceMap {
   sources: Array<string>
   sourcesContent?: Array<string>
   version: number
-  ignoreList?: Array<number>
+  x_google_ignoreList?: Array<number>
 }
 
 export interface ArrowFunctionsOptions {
@@ -1174,8 +1141,8 @@ export interface ModuleRunnerTransformResult {
    * This will be set if {@link TransformOptions#sourcemap} is `true`.
    */
   map?: SourceMap
-  deps: string[]
-  dynamicDeps: string[]
+  deps: Array<string>
+  dynamicDeps: Array<string>
   /**
    * Parse and transformation errors.
    *
@@ -1760,7 +1727,6 @@ export declare class BindingNormalizedOptions {
   get assetFilenames(): string | undefined
   get dir(): string | null
   get file(): string | null
-  get charset(): 'ascii' | 'utf8'
   get format(): 'es' | 'cjs' | 'iife' | 'umd'
   get exports(): 'default' | 'named' | 'none' | 'auto'
   get esModule(): boolean | 'if-default-prop'
@@ -2015,7 +1981,6 @@ export interface BindingChecksOptions {
   largeBarrelModules?: boolean
   sourcemapBroken?: boolean
   namespaceConflict?: boolean
-  shimmedExport?: boolean
 }
 
 export interface BindingChunkImportMap {
@@ -2287,7 +2252,6 @@ export interface BindingExperimentalDevModeOptions {
   /** @deprecated Common runtime injection will be disabled by default in the future. */
   skipCommonRuntimeInjection?: boolean
   lazy?: boolean
-  hotUpdate?: boolean
 }
 
 export interface BindingExperimentalOptions {
@@ -2457,15 +2421,6 @@ export interface BindingInjectImportNamespace {
   from: string
 }
 
-/**
- * `output.codeSplitting.experimentalInlineCommonChunks`. `exclude` entries use the same shape
- * as `BindingMatchGroup.test`, including the batched function shim.
- */
-export interface BindingInlineCommonChunksOptions {
-  maxSize?: number
-  exclude?: Array<string | RegExp | ((ids: Array<string>) => Uint8Array)>
-}
-
 export interface BindingInlineConstConfig {
   mode?: string
   pass?: number
@@ -2521,7 +2476,6 @@ export interface BindingJsonSourcemap {
   sourcesContent?: Array<string | undefined | null>
   names?: Array<string>
   debugId?: string
-  ignoreList?: Array<number>
   x_google_ignoreList?: Array<number>
 }
 
@@ -2550,7 +2504,6 @@ export interface BindingLog {
   id?: string
   code?: string
   exporter?: string
-  binding?: string
   plugin?: string
   /** Location information (line, column, file) */
   loc?: BindingLogLocation
@@ -2594,7 +2547,6 @@ export interface BindingManualCodeSplittingOptions {
   maxSize?: number
   minModuleSize?: number
   maxModuleSize?: number
-  experimentalInlineCommonChunks?: BindingInlineCommonChunksOptions
   internalInvalidateModuleInfoCache?: () => void
 }
 
@@ -2657,7 +2609,6 @@ export interface BindingOutputOptions {
   postFooter?: string | ((chunk: BindingRenderedChunk) => MaybePromise<VoidNullable<string>>)
   dir?: string
   file?: string
-  charset?: 'ascii' | 'utf8'
   esModule?: boolean | 'if-default-prop'
   exports?: 'default' | 'named' | 'none' | 'auto'
   extend?: boolean
@@ -3055,7 +3006,6 @@ export interface BindingViteResolvePluginConfig {
   tsconfig?: string
   environmentConsumer: string
   environmentName: string
-  convertExternalRequire?: boolean
   builtins: Array<BindingStringOrRegex>
   external: true | string[]
   noExternal: true | Array<string | RegExp>
@@ -3072,8 +3022,6 @@ export interface BindingViteResolvePluginConfig {
 
 export interface BindingViteResolvePluginResolveOptions {
   isBuild: boolean
-  /** Defaults to `isBuild`. */
-  isBundled?: boolean
   isProduction: boolean
   asSrc: boolean
   preferRelative: boolean

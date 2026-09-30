@@ -6,8 +6,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## barrel.js
 
 ```js
-// barrel.js
+//#region barrel.js
 var init_barrel = require("./rolldown-runtime.js").__esmMin((() => {}));
+//#endregion
 Object.defineProperty(exports, "init_barrel", {
 	enumerable: true,
 	get: function() {
@@ -22,7 +23,7 @@ Object.defineProperty(exports, "init_barrel", {
 ```js
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 require("./barrel.js");
-// a.cjs
+//#region a.cjs
 var require_a = /* @__PURE__ */ require_rolldown_runtime.__commonJSMin(((exports) => {
 	exports.a = "a";
 }));
@@ -32,13 +33,16 @@ function init_barrel_cjs_0() {
 		import_a = require_a();
 	})))();
 }
-// forwarder-a.mjs
+//#endregion
+//#region forwarder-a.mjs
 var forwarder_a_exports = /* @__PURE__ */ require_rolldown_runtime.__exportAll({ a: () => import_a.a });
-// entry-a.cjs
+//#endregion
+//#region entry-a.cjs
 const { a } = (require_rolldown_runtime.__esmMin((() => {
 	init_barrel_cjs_0();
 }))(), require_rolldown_runtime.__toCommonJS(forwarder_a_exports));
 module.exports = { a };
+//#endregion
 
 ```
 
@@ -47,7 +51,7 @@ module.exports = { a };
 ```js
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 require("./barrel.js");
-// b.cjs
+//#region b.cjs
 var require_b = /* @__PURE__ */ require_rolldown_runtime.__commonJSMin(((exports) => {
 	exports.b = "b";
 }));
@@ -57,13 +61,16 @@ function init_barrel_cjs_1() {
 		import_b = require_b();
 	})))();
 }
-// forwarder-b.mjs
+//#endregion
+//#region forwarder-b.mjs
 var forwarder_b_exports = /* @__PURE__ */ require_rolldown_runtime.__exportAll({ b: () => import_b.b });
-// entry-b.cjs
+//#endregion
+//#region entry-b.cjs
 const { b } = (require_rolldown_runtime.__esmMin((() => {
 	init_barrel_cjs_1();
 }))(), require_rolldown_runtime.__toCommonJS(forwarder_b_exports));
 module.exports = { b };
+//#endregion
 
 ```
 
@@ -105,8 +112,9 @@ Object.defineProperty(exports, "__toCommonJS", {
 ### barrel.js
 
 ```js
-// barrel.js
+//#region barrel.js
 var init_barrel = require("./rolldown-runtime.js").__esmMin((() => {}));
+//#endregion
 Object.defineProperty(exports, "init_barrel", {
 	enumerable: true,
 	get: function() {
@@ -121,7 +129,7 @@ Object.defineProperty(exports, "init_barrel", {
 ```js
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 require("./barrel.js");
-// a.cjs
+//#region a.cjs
 var require_a = /* @__PURE__ */ require_rolldown_runtime.__commonJSMin(((exports) => {
 	exports.a = "a";
 }));
@@ -131,13 +139,16 @@ function init_barrel_cjs_0() {
 		import_a = require_a();
 	})))();
 }
-// forwarder-a.mjs
+//#endregion
+//#region forwarder-a.mjs
 var forwarder_a_exports = /* @__PURE__ */ require_rolldown_runtime.__exportAll({ a: () => import_a.a });
-// entry-a.cjs
+//#endregion
+//#region entry-a.cjs
 const { a } = (require_rolldown_runtime.__esmMin((() => {
 	init_barrel_cjs_0();
 }))(), require_rolldown_runtime.__toCommonJS(forwarder_a_exports));
 module.exports = { a };
+//#endregion
 
 ```
 
@@ -146,7 +157,7 @@ module.exports = { a };
 ```js
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 require("./barrel.js");
-// b.cjs
+//#region b.cjs
 var require_b = /* @__PURE__ */ require_rolldown_runtime.__commonJSMin(((exports) => {
 	exports.b = "b";
 }));
@@ -156,13 +167,16 @@ function init_barrel_cjs_1() {
 		import_b = require_b();
 	})))();
 }
-// forwarder-b.mjs
+//#endregion
+//#region forwarder-b.mjs
 var forwarder_b_exports = /* @__PURE__ */ require_rolldown_runtime.__exportAll({ b: () => import_b.b });
-// entry-b.cjs
+//#endregion
+//#region entry-b.cjs
 const { b } = (require_rolldown_runtime.__esmMin((() => {
 	init_barrel_cjs_1();
 }))(), require_rolldown_runtime.__toCommonJS(forwarder_b_exports));
 module.exports = { b };
+//#endregion
 
 ```
 

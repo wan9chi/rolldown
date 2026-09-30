@@ -17,11 +17,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 (function() {
 	// HIDDEN [\0rolldown/runtime.js]
-	// lib.js
+	//#region lib.js
 	var lib_exports = /* @__PURE__ */ __exportAll({ default: () => 2 });
 	var init_lib = __esmMin((() => {}));
-	// main.js
+	//#endregion
+	//#region main.js
 	Promise.resolve().then(() => (init_lib(), lib_exports)).then(console.log);
+	//#endregion
 })();
 
 ```

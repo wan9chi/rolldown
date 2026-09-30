@@ -7,10 +7,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { sep } from "node:path";
-// dep.js
+//#region dep.js
 globalThis.__depRan = true;
-// main.js
+//#endregion
+//#region main.js
 const out = `dep:${sep.length > 0}`;
+//#endregion
 export { out };
 
 ```
@@ -24,7 +26,7 @@ export { out };
 ```js
 import { sep } from "node:path";
 // HIDDEN [\0rolldown/runtime.js]
-// dep.js
+//#region dep.js
 var marker;
 function init_dep() {
 	return (init_dep = __esmMin((() => {
@@ -32,7 +34,8 @@ function init_dep() {
 		marker = `dep:${sep.length > 0}`;
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 var out;
 function init_main() {
 	return (init_main = __esmMin((() => {
@@ -40,6 +43,7 @@ function init_main() {
 		out = marker;
 	})))();
 }
+//#endregion
 init_main();
 export { out };
 
@@ -53,10 +57,12 @@ export { out };
 
 ```js
 import { sep } from "node:path";
-// dep.js
+//#region dep.js
 globalThis.__depRan = true;
-// main.js
+//#endregion
+//#region main.js
 const out = `dep:${sep.length > 0}`;
+//#endregion
 export { out };
 
 ```

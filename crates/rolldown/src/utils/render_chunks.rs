@@ -4,8 +4,7 @@ use anyhow::Result;
 use arcstr::ArcStr;
 use futures::future::try_join_all;
 use rolldown_common::{
-  ChunkTable, InsChunkIdx, InstantiationKind, ModuleTable, RollupRenderedChunk,
-  SharedNormalizedBundlerOptions,
+  InsChunkIdx, InstantiationKind, RollupRenderedChunk, SharedNormalizedBundlerOptions,
 };
 use rolldown_error::BuildDiagnostic;
 use rolldown_plugin::{HookRenderChunkArgs, SharedPluginDriver};
@@ -19,8 +18,6 @@ pub async fn render_chunks(
   plugin_driver: &SharedPluginDriver,
   assets: &mut IndexInstantiatedChunks,
   options: &SharedNormalizedBundlerOptions,
-  chunk_table: &ChunkTable,
-  module_table: &ModuleTable,
 ) -> Result<Vec<BuildDiagnostic>> {
   let chunks = Arc::new(
     assets
@@ -46,8 +43,6 @@ pub async fn render_chunks(
               chunks.get(&ecma_meta.rendered_chunk.filename).expect("should have chunk"),
             ),
             options,
-            chunk_table,
-            module_table,
             chunks,
           })
           .await?;

@@ -7,10 +7,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import assert from "node:assert";
-// main.js
+//#region main.js
 const A = { A: "A" };
 const { [A.A]: foo } = { A: "foo" };
 assert.strictEqual(foo, "foo");
+//#endregion
 
 ```
 
@@ -23,7 +24,7 @@ assert.strictEqual(foo, "foo");
 ```js
 import assert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// main.js
+//#region main.js
 var A, foo;
 function init_main() {
 	return (init_main = __esmMin((() => {
@@ -32,6 +33,7 @@ function init_main() {
 		assert.strictEqual(foo, "foo");
 	})))();
 }
+//#endregion
 init_main();
 
 ```

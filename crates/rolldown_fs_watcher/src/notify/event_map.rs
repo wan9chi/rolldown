@@ -10,21 +10,17 @@ use notify::{
 use rolldown_common::WatcherChangeKind;
 use walkdir::WalkDir;
 
-use crate::{FsEvent, filter::IgnoreFilter};
+use crate::FsEvent;
 
 /// Files only, like chokidar's `add`/`change`/`unlink`; the table is in "Notify Event Mapping" of
 /// `internal-docs/watch-mode/implementation.md`.
-pub fn map_notify_event(
-  event: NotifyEvent,
-  filter: Option<&IgnoreFilter>,
-  events: &mut Vec<FsEvent>,
-) {
+pub fn map_notify_event(event: NotifyEvent, events: &mut Vec<FsEvent>) {
   match event.kind {
     // FSEvents and kqueue do not tell the side of a rename; the disk does.
     EventKind::Create(_)
     | EventKind::Modify(ModifyKind::Name(RenameMode::To | RenameMode::Any | RenameMode::Other)) => {
       for path in event.paths {
-        push_present(path, WatcherChangeKind::Create, filter, events);
+        push_present(path, WatcherChangeKind::Create, events);
       }
     }
     EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(RenameMode::From)) => {
@@ -38,7 +34,7 @@ pub fn map_notify_event(
         events.push(FsEvent::new(from, WatcherChangeKind::Delete));
       }
       if let Some(to) = paths.next() {
-        push_present(to, WatcherChangeKind::Create, filter, events);
+        push_present(to, WatcherChangeKind::Create, events);
       }
     }
     // A write can show as metadata only: `touch` everywhere, every write with polling.
@@ -46,7 +42,7 @@ pub fn map_notify_event(
       if !matches!(kind, MetadataKind::Any | MetadataKind::WriteTime) => {}
     EventKind::Modify(_) => {
       for path in event.paths {
-        push_present(path, WatcherChangeKind::Update, filter, events);
+        push_present(path, WatcherChangeKind::Update, events);
       }
     }
     // `Access` too: reading a watched file is not a change, and would loop on Linux (`IN_OPEN`).
@@ -54,17 +50,12 @@ pub fn map_notify_event(
   }
 }
 
-fn push_present(
-  path: PathBuf,
-  kind: WatcherChangeKind,
-  filter: Option<&IgnoreFilter>,
-  events: &mut Vec<FsEvent>,
-) {
+fn push_present(path: PathBuf, kind: WatcherChangeKind, events: &mut Vec<FsEvent>) {
   match fs::symlink_metadata(&path) {
     // No backend reports the files of a directory that appears, e.g. one moved in.
     Ok(metadata) if metadata.is_dir() => {
       if kind == WatcherChangeKind::Create {
-        push_files_below(&path, filter, events);
+        push_files_below(&path, events);
       }
     }
     // FSEvents repeats earlier flags of a path, and names both sides of a rename `Name(Any)`.
@@ -75,13 +66,9 @@ fn push_present(
   }
 }
 
-fn push_files_below(dir: &Path, filter: Option<&IgnoreFilter>, events: &mut Vec<FsEvent>) {
+fn push_files_below(dir: &Path, events: &mut Vec<FsEvent>) {
   let files = WalkDir::new(dir)
     .into_iter()
-    .filter_entry(|entry| {
-      entry.depth() == 0
-        || !filter.is_some_and(|filter| filter.is_ignored(entry.path(), entry.file_type().into()))
-    })
     .filter_map(Result::ok)
     .filter(|entry| !entry.file_type().is_dir())
     .map(|entry| FsEvent::new(entry.into_path(), WatcherChangeKind::Create));
@@ -101,10 +88,8 @@ mod tests {
   };
   use rolldown_common::WatcherChangeKind::{self, Create, Delete, Update};
 
-  use rolldown_utils::pattern_filter::StringOrRegex;
-
   use super::map_notify_event;
-  use crate::{FsEvent, filter::IgnoreFilter};
+  use crate::FsEvent;
 
   struct Fixture(PathBuf);
 
@@ -134,7 +119,7 @@ mod tests {
     let mut event = NotifyEvent::new(kind);
     event.paths = paths.iter().map(|path| path.to_path_buf()).collect();
     let mut events = Vec::new();
-    map_notify_event(event, None, &mut events);
+    map_notify_event(event, &mut events);
     events.sort_by(|a, b| a.path.cmp(&b.path));
     events.into_iter().map(|FsEvent { path, kind }| (path, kind)).collect()
   }
@@ -149,8 +134,8 @@ mod tests {
       [(a.clone(), Update)]
     );
     assert_eq!(map(EventKind::Remove(RemoveKind::File), &[&a]), [(a.clone(), Delete)]);
-    assert_eq!(map(EventKind::Access(AccessKind::Read), &[&a]), []);
-    assert_eq!(map(EventKind::Any, &[&a]), []);
+    assert!(map(EventKind::Access(AccessKind::Read), &[&a]).is_empty());
+    assert!(map(EventKind::Any, &[&a]).is_empty());
   }
 
   #[test]
@@ -203,22 +188,8 @@ mod tests {
       MetadataKind::Extended,
       MetadataKind::Other,
     ] {
-      assert_eq!(map(EventKind::Modify(ModifyKind::Metadata(kind)), &[&a]), []);
+      assert!(map(EventKind::Modify(ModifyKind::Metadata(kind)), &[&a]).is_empty());
     }
-  }
-
-  #[test]
-  fn directory_events_skip_ignored_files() {
-    let fixture = Fixture::new("directory_events_skip_ignored_files");
-    let filter =
-      IgnoreFilter::new(Some(&[StringOrRegex::String("nested/**".to_string())]), &fixture.0)
-        .unwrap()
-        .unwrap();
-    let mut event = NotifyEvent::new(EventKind::Create(CreateKind::Folder));
-    event.paths = vec![fixture.0.clone()];
-    let mut events = Vec::new();
-    map_notify_event(event, Some(&filter), &mut events);
-    assert_eq!(events, [FsEvent::new(fixture.path("a.js"), Create)]);
   }
 
   #[test]
@@ -234,10 +205,12 @@ mod tests {
     ] {
       assert_eq!(map(kind, &[&dir]), files_below);
     }
-    assert_eq!(map(EventKind::Create(CreateKind::Folder), &[&fixture.path("nested/empty")]), []);
+    assert!(
+      map(EventKind::Create(CreateKind::Folder), &[&fixture.path("nested/empty")]).is_empty()
+    );
 
-    assert_eq!(map(EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)), &[&dir]), []);
-    assert_eq!(map(EventKind::Modify(ModifyKind::Data(DataChange::Content)), &[&dir]), []);
+    assert!(map(EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)), &[&dir]).is_empty());
+    assert!(map(EventKind::Modify(ModifyKind::Data(DataChange::Content)), &[&dir]).is_empty());
 
     fs::remove_dir_all(&dir).unwrap();
     assert_eq!(map(EventKind::Remove(RemoveKind::Folder), &[&dir]), [(dir.clone(), Delete)]);

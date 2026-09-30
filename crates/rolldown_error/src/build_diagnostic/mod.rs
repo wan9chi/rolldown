@@ -78,10 +78,6 @@ impl BuildDiagnostic {
     self.inner.exporter()
   }
 
-  pub fn binding(&self) -> Option<String> {
-    self.inner.binding()
-  }
-
   pub fn ids(&self) -> Option<Vec<String>> {
     self.inner.ids()
   }

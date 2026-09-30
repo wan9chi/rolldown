@@ -34,8 +34,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## dep.js
 
 ```js
-// dep.js
+//#region dep.js
 const ok = true;
+//#endregion
 export { ok };
 
 ```
@@ -43,7 +44,7 @@ export { ok };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 async function f() {
 	return [
 		await import("no-such-pkg-d"),
@@ -51,6 +52,7 @@ async function f() {
 		await import("no-such-pkg-h")
 	];
 }
+//#endregion
 export { f };
 
 ```

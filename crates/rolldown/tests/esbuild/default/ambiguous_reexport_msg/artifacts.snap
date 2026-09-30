@@ -33,12 +33,15 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// a.js
+//#region a.js
 let a = 1;
-// b.js
+//#endregion
+//#region b.js
 let b = 3;
-// c.js
+//#endregion
+//#region c.js
 let c = 4;
+//#endregion
 export { a, b, c };
 
 ```
