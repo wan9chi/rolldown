@@ -7,18 +7,21 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// b.js
+//#region b.js
 function getB() {
 	return getA ? "b" : "unreachable";
 }
 var init_b = __esmMin((() => {
 	init_a();
 }));
-// leaf.js
+//#endregion
+//#region leaf.js
 function leaf() {
 	return "leaf";
 }
 var init_leaf = __esmMin((() => {}));
+//#endregion
+//#region a.js
 function getA() {
 	return getB && leaf ? "a" : "unreachable";
 }
@@ -26,7 +29,8 @@ var init_a = __esmMin((() => {
 	init_b();
 	init_leaf();
 }));
-// main.js
+//#endregion
+//#region main.js
 var result;
 function init_main() {
 	return (init_main = __esmMin((() => {
@@ -35,6 +39,7 @@ function init_main() {
 		result = getA();
 	})))();
 }
+//#endregion
 init_main();
 export { result };
 
@@ -48,18 +53,21 @@ export { result };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// b.js
+//#region b.js
 function getB() {
 	return getA ? "b" : "unreachable";
 }
 var init_b = __esmMin((() => {
 	init_a();
 }));
-// leaf.js
+//#endregion
+//#region leaf.js
 function leaf() {
 	return "leaf";
 }
 var init_leaf = __esmMin((() => {}));
+//#endregion
+//#region a.js
 function getA() {
 	return getB && leaf ? "a" : "unreachable";
 }
@@ -67,10 +75,12 @@ var init_a = __esmMin((() => {
 	init_b();
 	init_leaf();
 }));
-// main.js
+//#endregion
+//#region main.js
 init_a();
 init_a();
 const result = getA();
+//#endregion
 export { result };
 
 ```

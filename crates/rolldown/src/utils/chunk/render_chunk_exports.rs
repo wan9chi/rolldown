@@ -8,10 +8,7 @@ use rolldown_common::{
 };
 use rolldown_utils::{
   concat_string,
-  ecmascript::{
-    escape_non_ascii, property_access_str_with_ascii, to_ecma_string_literal,
-    to_module_import_export_name_with_ascii,
-  },
+  ecmascript::{property_access_str, to_module_import_export_name},
   indexmap::FxIndexSet,
 };
 use rustc_hash::FxHashSet;
@@ -33,20 +30,15 @@ pub fn render_wrapped_entry_chunk(
         ctx.chunk_idx,
         &ctx.chunk.canonical_names,
       );
-      let wrapper_ref_name = escape_non_ascii(&wrapper_ref_name, ctx.options.charset.is_ascii());
 
       return match ctx.options.format {
         OutputFormat::Esm => {
           // export default require_xxx();
-          Some(concat_string!("export default ", wrapper_ref_name.as_ref(), "();\n"))
+          Some(concat_string!("export default ", wrapper_ref_name.as_str(), "();\n"))
         }
         OutputFormat::Cjs => {
           if matches!(&export_mode, Some(OutputExports::Named)) {
-            Some(render_object_define_property(
-              "default",
-              &concat_string!(wrapper_ref_name, "()"),
-              ctx.options.charset.is_ascii(),
-            ))
+            Some(render_object_define_property("default", &concat_string!(wrapper_ref_name, "()")))
           } else {
             // module.exports = require_xxx();
             Some(concat_string!("module.exports = ", wrapper_ref_name, "();\n"))
@@ -54,11 +46,7 @@ pub fn render_wrapped_entry_chunk(
         }
         OutputFormat::Iife | OutputFormat::Umd => {
           if matches!(&export_mode, Some(OutputExports::Named)) {
-            Some(render_object_define_property(
-              "default",
-              &concat_string!(wrapper_ref_name, "()"),
-              ctx.options.charset.is_ascii(),
-            ))
+            Some(render_object_define_property("default", &concat_string!(wrapper_ref_name, "()")))
           } else {
             // return require_xxx();
             Some(concat_string!("return ", wrapper_ref_name, "();\n"))
@@ -90,7 +78,6 @@ pub fn render_wrapped_entry_chunk(
           ctx.chunk_idx,
           &ctx.chunk.canonical_names,
         );
-        let wrapper_name = escape_non_ascii(&wrapper_name, ctx.options.charset.is_ascii());
         writeln!(rendered, "{wrapper_name}();").expect("writing to a string cannot fail");
       }
       return Some(rendered);
@@ -105,7 +92,6 @@ pub fn render_wrapped_entry_chunk(
           ctx.chunk_idx,
           &ctx.chunk.canonical_names,
         );
-        let wrapper_ref_name = escape_non_ascii(&wrapper_ref_name, ctx.options.charset.is_ascii());
         let own_init_call = if target.tla_tainted {
           concat_string!("await ", wrapper_ref_name, "();")
         } else {
@@ -179,7 +165,6 @@ fn render_entry_reexported_wrapper_init_calls(
       ctx.chunk_idx,
       &ctx.chunk.canonical_names,
     );
-    let wrapper_name = escape_non_ascii(&wrapper_name, ctx.options.charset.is_ascii());
     if init.tla_tainted {
       // Defensive parity with `wrapped_esm_init_call_expr`'s `await_if_tla`; believed
       // unreachable today. Non-`esm` formats reject top-level await at scan time
@@ -202,7 +187,6 @@ pub fn render_chunk_exports(
   export_mode: Option<&OutputExports>,
 ) -> Option<String> {
   let GenerateContext { chunk, link_output, options, .. } = ctx;
-  let ascii_only = options.charset.is_ascii();
   let mut export_items: Vec<(CompactStr, SymbolRef)> = ctx.render_export_items_index_vec
     [ctx.chunk_idx]
     .iter()
@@ -246,30 +230,27 @@ pub fn render_chunk_exports(
           let canonical_name = link_output
             .symbol_db
             .canonical_name_for_or_original(canonical_ref, &chunk.canonical_names);
-          let rendered_canonical_name = escape_non_ascii(canonical_name, ascii_only);
           if let Some(ns_alias) = &symbol.namespace_alias {
             let canonical_ns_name = link_output
               .symbol_db
               .canonical_name_for_or_original(ns_alias.namespace_ref, &chunk.canonical_names);
             let property_name = &ns_alias.property_name;
             s.push_str("var ");
-            s.push_str(&rendered_canonical_name);
+            s.push_str(canonical_name);
             s.push_str(" = ");
-            s.push_str(&property_access_str_with_ascii(
-              &escape_non_ascii(canonical_ns_name, ascii_only),
-              property_name,
-              ascii_only,
-            ));
+            s.push_str(canonical_ns_name);
+            s.push('.');
+            s.push_str(property_name);
             s.push_str(";\n");
           }
 
           if canonical_name == exported_name {
-            rendered_canonical_name
+            Cow::Borrowed(canonical_name)
           } else {
             Cow::Owned(concat_string!(
-              rendered_canonical_name,
+              canonical_name,
               " as ",
-              to_module_import_export_name_with_ascii(&exported_name, ascii_only)
+              to_module_import_export_name(&exported_name)
             ))
           }
         })
@@ -306,7 +287,6 @@ pub fn render_chunk_exports(
                   ctx.chunk_idx,
                   &chunk.canonical_names,
                 );
-                let exported_value = escape_non_ascii(&exported_value, ascii_only);
 
                 match export_mode {
                   Some(OutputExports::Named) => {
@@ -339,34 +319,26 @@ pub fn render_chunk_exports(
                        freeze the pre-rebind function and re-run the module body",
                     );
                     if is_order_wrapper_ref || keep_live_binding {
-                      render_object_define_property(&exported_name, &exported_value, ascii_only)
+                      render_object_define_property(&exported_name, &exported_value)
                     } else if exported_name.as_str() == "__proto__" {
                       // `__proto__` has special semantics - assigning to it sets the prototype
                       // instead of creating a property. We must use Object.defineProperty to
                       // set an actual property named "__proto__".
-                      render_object_define_property_value(
-                        &exported_name,
-                        &exported_value,
-                        ascii_only,
-                      )
+                      render_object_define_property_value(&exported_name, &exported_value)
                     } else {
                       concat_string!(
-                        property_access_str_with_ascii(
-                          "exports",
-                          exported_name.as_str(),
-                          ascii_only
-                        ),
+                        property_access_str("exports", exported_name.as_str()),
                         " = ",
-                        exported_value.as_ref(),
+                        exported_value.as_str(),
                         ";"
                       )
                     }
                   }
                   Some(OutputExports::Default) => {
                     if matches!(options.format, OutputFormat::Cjs) {
-                      concat_string!("module.exports = ", exported_value.as_ref(), ";")
+                      concat_string!("module.exports = ", exported_value.as_str(), ";")
                     } else {
-                      concat_string!("return ", exported_value.as_ref(), ";")
+                      concat_string!("return ", exported_value.as_str(), ";")
                     }
                   }
                   Some(OutputExports::None) => String::new(),
@@ -410,7 +382,6 @@ pub fn render_chunk_exports(
             .link_output
             .symbol_db
             .canonical_name_for_or_original(external.namespace_ref, &ctx.chunk.canonical_names);
-          let binding_ref_name = escape_non_ascii(binding_ref_name, ascii_only);
           let import_stmt = concat_string!(
             "Object.keys(",binding_ref_name, ").forEach(function (k) {\n",
             "  if (k !== 'default' && !Object.prototype.hasOwnProperty.call(exports, k)) Object.defineProperty(exports, k, {\n",
@@ -423,11 +394,7 @@ pub fn render_chunk_exports(
           s.push('\n');
           // Only generate require statement if this external module hasn't been imported yet
           if imported_external_modules.insert(external.namespace_ref) {
-            let import_path = to_ecma_string_literal(
-              &external.get_import_path(chunk, ctx.resolved_paths),
-              ascii_only,
-            );
-            writeln!(s, "var {binding_ref_name} = require({import_path});").unwrap();
+            writeln!(s, "var {} = require(\"{}\");", binding_ref_name, external.get_import_path(chunk, ctx.resolved_paths)).unwrap();
           }
           s.push_str(&import_stmt);
         });
@@ -436,16 +403,25 @@ pub fn render_chunk_exports(
           let rendered_items = export_items
             .into_iter()
             .map(|(exported_name, export_ref)| {
-              let exported_value = ctx.finalized_string_pattern_for_symbol_ref(
-                export_ref,
-                ctx.chunk_idx,
-                &chunk.canonical_names,
-              );
-              render_object_define_property(
-                &exported_name,
-                &escape_non_ascii(&exported_value, ascii_only),
-                ascii_only,
-              )
+              let canonical_ref = link_output.symbol_db.canonical_ref_for(export_ref);
+              let symbol = link_output.symbol_db.get(canonical_ref);
+              let canonical_name = link_output
+                .symbol_db
+                .canonical_name_for_or_original(canonical_ref, &chunk.canonical_names);
+
+              match &symbol.namespace_alias {
+                Some(ns_alias) => {
+                  let canonical_ns_name = link_output
+                    .symbol_db
+                    .canonical_name_for_or_original(ns_alias.namespace_ref, &chunk.canonical_names);
+                  let property_name = &ns_alias.property_name;
+                  render_object_define_property(
+                    &exported_name,
+                    &concat_string!(canonical_ns_name, ".", property_name),
+                  )
+                }
+                _ => render_object_define_property(&exported_name, canonical_name),
+              }
             })
             .collect::<Vec<_>>();
           s.push_str(&rendered_items.join("\n"));
@@ -461,11 +437,10 @@ pub fn render_chunk_exports(
 }
 
 #[inline]
-pub fn render_object_define_property(key: &str, value: &str, ascii_only: bool) -> String {
-  let key = to_ecma_string_literal(key, ascii_only);
+pub fn render_object_define_property(key: &str, value: &str) -> String {
   concat_string!(
     "Object.defineProperty(exports, ",
-    key,
+    serde_json::to_string(key).unwrap(),
     ", {
   enumerable: true,
   get: function () {
@@ -478,11 +453,10 @@ pub fn render_object_define_property(key: &str, value: &str, ascii_only: bool) -
 }
 
 #[inline]
-pub fn render_object_define_property_value(key: &str, value: &str, ascii_only: bool) -> String {
-  let key = to_ecma_string_literal(key, ascii_only);
+pub fn render_object_define_property_value(key: &str, value: &str) -> String {
   concat_string!(
     "Object.defineProperty(exports, ",
-    key,
+    serde_json::to_string(key).unwrap(),
     ", {
   enumerable: true,
   value: ",
@@ -536,17 +510,18 @@ fn must_keep_live_binding(
 ) -> bool {
   let canonical_ref = symbol_db.canonical_ref_for(export_ref);
 
-  // Local write analysis cannot prove an external export is immutable.
-  if canonical_ref.is_created_by_import_stmt_that_target_external(symbol_db, modules) {
-    return options.external_live_bindings;
-  }
-
   if canonical_ref.is_declared_by_const(symbol_db) {
     return false;
   }
 
   if canonical_ref.is_not_reassigned(symbol_db) {
     // For unknown case, we consider it as reassigned.
+    return false;
+  }
+
+  if !options.external_live_bindings
+    && canonical_ref.is_created_by_import_stmt_that_target_external(symbol_db, modules)
+  {
     return false;
   }
 

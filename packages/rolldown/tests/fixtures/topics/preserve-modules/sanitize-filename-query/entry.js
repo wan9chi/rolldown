@@ -1,1 +1,0 @@
-import './components/TestComp.vue';

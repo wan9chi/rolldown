@@ -6,9 +6,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 Promise.resolve().then(() => /* @__PURE__ */ Object.freeze({ __proto__: null })).then(({ foo: x, thing: a }) => []);
 Promise.resolve().then(() => /* @__PURE__ */ Object.freeze({ __proto__: null }));
 await Promise.resolve().then(() => /* @__PURE__ */ Object.freeze({ __proto__: null }));
+//#endregion
 
 ```

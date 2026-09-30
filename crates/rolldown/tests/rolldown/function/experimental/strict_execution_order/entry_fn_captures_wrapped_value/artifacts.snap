@@ -8,17 +8,19 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { n as init_facade, t as getPref } from "./pref.js";
-// first.js
+//#region first.js
 function init_first() {
 	return (init_first = __esmMin((() => {
 		(globalThis.__events ??= []).push("first");
 	})))();
 }
-// node_modules/pref-pkg/index.js
+//#endregion
+//#region node_modules/pref-pkg/index.js
 function tag(value) {
 	return `tag:${value}`;
 }
-// main.js
+//#endregion
+//#region main.js
 function boot() {
 	return tag(getPref());
 }
@@ -34,6 +36,7 @@ function init_main() {
 		globalThis.__ready = initApplication();
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -42,7 +45,7 @@ init_main();
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// node_modules/pref-pkg/manager.js
+//#region node_modules/pref-pkg/manager.js
 function makePref() {
 	return () => "PREF_OK";
 }
@@ -51,7 +54,8 @@ function init_manager() {
 		(globalThis.__events ??= []).push("manager");
 	})))();
 }
-// node_modules/pref-pkg/facade.js
+//#endregion
+//#region node_modules/pref-pkg/facade.js
 var getPref;
 function init_facade() {
 	return (init_facade = __esmMin((() => {
@@ -59,6 +63,7 @@ function init_facade() {
 		getPref = makePref();
 	})))();
 }
+//#endregion
 export { init_facade as n, getPref as t };
 
 ```
@@ -80,13 +85,15 @@ export { __esmMin as t };
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { n as init_facade, t as getPref } from "./pref.js";
-// first.js
+//#region first.js
 (globalThis.__events ??= []).push("first");
-// node_modules/pref-pkg/index.js
+//#endregion
+//#region node_modules/pref-pkg/index.js
 function tag(value) {
 	return `tag:${value}`;
 }
-// main.js
+//#endregion
+//#region main.js
 function boot() {
 	return tag(getPref());
 }
@@ -101,6 +108,7 @@ function init_main() {
 		globalThis.__ready = initApplication();
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -109,7 +117,7 @@ init_main();
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// node_modules/pref-pkg/manager.js
+//#region node_modules/pref-pkg/manager.js
 function makePref() {
 	return () => "PREF_OK";
 }
@@ -118,7 +126,8 @@ function init_manager() {
 		(globalThis.__events ??= []).push("manager");
 	})))();
 }
-// node_modules/pref-pkg/facade.js
+//#endregion
+//#region node_modules/pref-pkg/facade.js
 var getPref;
 function init_facade() {
 	return (init_facade = __esmMin((() => {
@@ -126,6 +135,7 @@ function init_facade() {
 		getPref = makePref();
 	})))();
 }
+//#endregion
 export { init_facade as n, getPref as t };
 
 ```

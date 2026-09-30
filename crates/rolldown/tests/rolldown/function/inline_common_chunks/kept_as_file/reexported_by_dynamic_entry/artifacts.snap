@@ -8,7 +8,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_shared } from "./shared.js";
-// a.js
+//#region a.js
 var m;
 function init_a() {
 	return (init_a = __esmMin((async () => {
@@ -17,6 +17,7 @@ function init_a() {
 		globalThis.events.push("A S" + m.s);
 	})))();
 }
+//#endregion
 await init_a();
 
 ```
@@ -26,13 +27,14 @@ await init_a();
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_shared } from "./shared.js";
-// b.js
+//#region b.js
 function init_b() {
 	return (init_b = __esmMin((() => {
 		init_shared();
 		globalThis.events.push("B S");
 	})))();
 }
+//#endregion
 init_b();
 
 ```
@@ -42,12 +44,13 @@ init_b();
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { n as s, t as init_shared } from "./shared.js";
-// lazy.js
+//#region lazy.js
 function init_lazy() {
 	return (init_lazy = __esmMin((() => {
 		init_shared();
 	})))();
 }
+//#endregion
 init_lazy();
 export { s };
 
@@ -65,13 +68,14 @@ export { __esmMin as t };
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// shared.js
+//#region shared.js
 var s;
 function init_shared() {
 	return (init_shared = __esmMin((() => {
 		s = "S";
 	})))();
 }
+//#endregion
 export { s as n, init_shared as t };
 
 ```

@@ -6,10 +6,16 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// normal-lib.js
+//#region normal-dep.js
+//#endregion
+//#region normal-lib.js
 const value = "normal-dep+normal-lib";
-// tla-lib.js
+//#endregion
+//#region tla-dep.js
+//#endregion
+//#region tla-lib.js
 const value$1 = await Promise.resolve("tla-dep") + "+tla-lib";
+//#endregion
 export { value as normalLibValue, value$1 as tlaLibValue };
 
 ```
@@ -22,14 +28,15 @@ export { value as normalLibValue, value$1 as tlaLibValue };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// normal-dep.js
+//#region normal-dep.js
 var value$3;
 function init_normal_dep() {
 	return (init_normal_dep = __esmMin((() => {
 		value$3 = "normal-dep";
 	})))();
 }
-// normal-lib.js
+//#endregion
+//#region normal-lib.js
 var value;
 function init_normal_lib() {
 	return (init_normal_lib = __esmMin((() => {
@@ -37,14 +44,16 @@ function init_normal_lib() {
 		value = value$3 + "+normal-lib";
 	})))();
 }
-// tla-dep.js
+//#endregion
+//#region tla-dep.js
 var value$2;
 function init_tla_dep() {
 	return (init_tla_dep = __esmMin((async () => {
 		value$2 = await Promise.resolve("tla-dep");
 	})))();
 }
-// tla-lib.js
+//#endregion
+//#region tla-lib.js
 var value$1;
 function init_tla_lib() {
 	return (init_tla_lib = __esmMin((async () => {
@@ -52,13 +61,15 @@ function init_tla_lib() {
 		value$1 = value$2 + "+tla-lib";
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((async () => {
 		init_normal_lib();
 		await init_tla_lib();
 	})))();
 }
+//#endregion
 await init_main();
 export { value as normalLibValue, value$1 as tlaLibValue };
 
@@ -71,10 +82,16 @@ export { value as normalLibValue, value$1 as tlaLibValue };
 ### main.js
 
 ```js
-// normal-lib.js
+//#region normal-dep.js
+//#endregion
+//#region normal-lib.js
 const value = "normal-dep+normal-lib";
-// tla-lib.js
+//#endregion
+//#region tla-dep.js
+//#endregion
+//#region tla-lib.js
 const value$1 = await Promise.resolve("tla-dep") + "+tla-lib";
+//#endregion
 export { value as normalLibValue, value$1 as tlaLibValue };
 
 ```

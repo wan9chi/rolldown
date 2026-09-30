@@ -7,13 +7,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// main.js
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((async () => {
 		await import("./page-b.js");
 		await import("./page-a.js");
 	})))();
 }
+//#endregion
 await init_main();
 
 ```
@@ -23,7 +24,7 @@ await init_main();
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import assert from "node:assert";
-// default-only.js
+//#region default-only.js
 function mark$1() {
 	globalThis.defaultValue = typeof globalThis.defaultValue === "number" ? globalThis.defaultValue + 1 : 0;
 	return 42;
@@ -34,7 +35,8 @@ function init_default_only() {
 		default_only_default = /* @__PURE__ */ mark$1();
 	})))();
 }
-// shadowed.js
+//#endregion
+//#region shadowed.js
 function mark() {
 	globalThis.shadowedValue = typeof globalThis.shadowedValue === "number" ? globalThis.shadowedValue + 1 : 0;
 	return 2;
@@ -45,7 +47,8 @@ function init_shadowed() {
 		x = /* @__PURE__ */ mark();
 	})))();
 }
-// page-a.js
+//#endregion
+//#region page-a.js
 function init_page_a() {
 	return (init_page_a = __esmMin((() => {
 		init_default_only();
@@ -56,6 +59,7 @@ function init_page_a() {
 		assert.strictEqual(x, 2);
 	})))();
 }
+//#endregion
 init_page_a();
 
 ```
@@ -65,7 +69,7 @@ init_page_a();
 ```js
 import { n as __exportAll, t as __esmMin } from "./rolldown-runtime.js";
 import assert from "node:assert";
-// bridge.js
+//#region bridge.js
 var bridge_exports = /* @__PURE__ */ __exportAll({ x: () => x });
 function x() {
 	return 1;
@@ -73,7 +77,8 @@ function x() {
 function init_bridge() {
 	return (init_bridge = __esmMin((() => {})))();
 }
-// page-b.js
+//#endregion
+//#region page-b.js
 function init_page_b() {
 	return (init_page_b = __esmMin((() => {
 		init_bridge();
@@ -82,6 +87,7 @@ function init_page_b() {
 		assert.strictEqual(globalThis.shadowedValue, void 0);
 	})))();
 }
+//#endregion
 init_page_b();
 
 ```
@@ -101,9 +107,10 @@ export { __exportAll as n, __esmMin as t };
 ### main.js
 
 ```js
-// main.js
+//#region main.js
 await import("./page-b.js");
 await import("./page-a.js");
+//#endregion
 
 ```
 
@@ -112,7 +119,7 @@ await import("./page-a.js");
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import assert from "node:assert";
-// default-only.js
+//#region default-only.js
 function mark$1() {
 	globalThis.defaultValue = typeof globalThis.defaultValue === "number" ? globalThis.defaultValue + 1 : 0;
 	return 42;
@@ -123,7 +130,8 @@ function init_default_only() {
 		default_only_default = /* @__PURE__ */ mark$1();
 	})))();
 }
-// shadowed.js
+//#endregion
+//#region shadowed.js
 function mark() {
 	globalThis.shadowedValue = typeof globalThis.shadowedValue === "number" ? globalThis.shadowedValue + 1 : 0;
 	return 2;
@@ -134,7 +142,8 @@ function init_shadowed() {
 		x = /* @__PURE__ */ mark();
 	})))();
 }
-// page-a.js
+//#endregion
+//#region page-a.js
 function init_page_a() {
 	return (init_page_a = __esmMin((() => {
 		init_default_only();
@@ -145,6 +154,7 @@ function init_page_a() {
 		assert.strictEqual(x, 2);
 	})))();
 }
+//#endregion
 init_page_a();
 
 ```
@@ -154,12 +164,13 @@ init_page_a();
 ```js
 import { n as __exportAll, t as __esmMin } from "./rolldown-runtime.js";
 import assert from "node:assert";
-// bridge.js
+//#region bridge.js
 var bridge_exports = /* @__PURE__ */ __exportAll({ x: () => x });
 function x() {
 	return 1;
 }
-// page-b.js
+//#endregion
+//#region page-b.js
 function init_page_b() {
 	return (init_page_b = __esmMin((() => {
 		assert.strictEqual(bridge_exports[globalThis.__bridgeKey || "x"](), 1);
@@ -167,6 +178,7 @@ function init_page_b() {
 		assert.strictEqual(globalThis.shadowedValue, void 0);
 	})))();
 }
+//#endregion
 init_page_b();
 
 ```

@@ -14,11 +14,8 @@ use rolldown_plugin_utils::{
   to_string_literal,
 };
 use rolldown_std_utils::relative_path_to_slash;
-use rolldown_utils::ecmascript::to_usv_str;
 use string_wizard::MagicString;
 use sugar_path::SugarPath;
-
-use crate::matcher::GlobMatcher;
 
 pub struct GlobImportVisit<'a> {
   pub ctx: &'a PluginContext,
@@ -30,8 +27,6 @@ pub struct GlobImportVisit<'a> {
   pub magic_string: Option<MagicString<'a>>,
   pub import_decls: Vec<String>,
   pub errors: Vec<anyhow::Error>,
-  pub is_dev_mode: bool,
-  pub matchers: Vec<GlobMatcher>,
 }
 
 impl<'ast> VisitJs<'ast> for GlobImportVisit<'_> {
@@ -79,19 +74,6 @@ impl<'a> PathWithGlob<'a> {
     let i = Self::find_glob_syntax(&glob[glob.len() - j..]);
     path.truncate(path.len() - i);
     Self { path, glob: &glob[glob.len() - i..] }
-  }
-
-  /// `path` is literal, so its glob syntax is escaped, like vite's `globSafeResolvedPath`.
-  fn to_absolute_glob(&self) -> String {
-    let mut glob = String::with_capacity(self.path.len() + self.glob.len());
-    for char in self.path.chars() {
-      if matches!(char, '\\' | '*' | '?' | '[' | ']' | '{' | '}') {
-        glob.push('\\');
-      }
-      glob.push(char);
-    }
-    glob.push_str(self.glob);
-    glob
   }
 
   fn find_glob_syntax(path: &str) -> usize {
@@ -425,19 +407,19 @@ impl GlobImportVisit<'_> {
 
     let mut values = vec![];
     match arg {
-      Argument::StringLiteral(str) => values.push(to_usv_str(str.value)),
+      Argument::StringLiteral(str) => values.push(str.value.as_str()),
       Argument::TemplateLiteral(lit) => {
         if let Some(str) = lit.single_quasi() {
-          values.push(to_usv_str(str));
+          values.push(str.as_str());
         }
       }
       Argument::ArrayExpression(array_expr) => {
         for expr in &array_expr.elements {
           match expr {
-            ArrayExpressionElement::StringLiteral(str) => values.push(to_usv_str(str.value)),
+            ArrayExpressionElement::StringLiteral(str) => values.push(&str.value),
             ArrayExpressionElement::TemplateLiteral(lit) => {
               if let Some(str) = lit.single_quasi() {
-                values.push(to_usv_str(str));
+                values.push(str.as_str());
               }
             }
             _ => {}
@@ -447,7 +429,7 @@ impl GlobImportVisit<'_> {
       _ => {}
     }
 
-    for value in &values {
+    for value in values {
       if let Some(glob) = value.strip_prefix('!') {
         negated_globs.push(self.to_absolute_glob(
           glob,
@@ -492,30 +474,8 @@ impl GlobImportVisit<'_> {
       return None;
     }
 
-    // Nothing can match, and the common base would be the whole root.
-    if positive_globs.is_empty() {
-      return Some(());
-    }
-
-    let common = self.get_common_base(&positive_globs).into_owned();
-    let common_path = Path::new(&common);
-
-    if self.is_dev_mode {
-      self.watch_walk_root(common_path);
-      let to_absolute_globs =
-        |globs: &[PathWithGlob]| globs.iter().map(PathWithGlob::to_absolute_glob).collect();
-      // A glob that globstar rejects gets no matcher. The walk does not fail on it either.
-      if let Ok(matcher) = GlobMatcher::new(
-        to_absolute_globs(&positive_globs),
-        to_absolute_globs(&negated_globs),
-        options.exhaustive,
-        case_sensitive,
-      ) {
-        self.matchers.push(matcher);
-      }
-    }
-
-    let entries = walkdir::WalkDir::new(common_path)
+    let common = self.get_common_base(&positive_globs);
+    let entries = walkdir::WalkDir::new(common.as_ref())
       .follow_links(true)
       .sort_by(|a, b| a.file_name().cmp(b.file_name()))
       .into_iter()
@@ -587,19 +547,7 @@ impl GlobImportVisit<'_> {
 
       files.push(ImportGlobFileData { file_path, import_path });
     }
-
     Some(())
-  }
-
-  /// A directory is watched with everything below it, so the walk root covers all the walk
-  /// reads. The watcher can only wait for a missing path whose parent exists.
-  fn watch_walk_root(&self, walk_root: &Path) {
-    // The id of a virtual module can make it relative.
-    if walk_root.is_absolute() {
-      let path =
-        walk_root.ancestors().take_while(|path| !path.exists()).last().unwrap_or(walk_root);
-      self.ctx.add_watch_file(&path.to_slash_lossy());
-    }
   }
 
   fn update_options(arg: &Argument, options: &mut ImportGlobOptions) {
@@ -616,8 +564,8 @@ impl GlobImportVisit<'_> {
         continue;
       };
 
-      let key: &str = match &p.key {
-        PropertyKey::StringLiteral(str) => &to_usv_str(str.value),
+      let key = match &p.key {
+        PropertyKey::StringLiteral(str) => str.value.as_str(),
         PropertyKey::StaticIdentifier(id) => id.name.as_str(),
         _ => continue,
       };
@@ -625,7 +573,7 @@ impl GlobImportVisit<'_> {
       match key {
         "base" => match &p.value {
           Expression::StringLiteral(str) if !str.value.is_empty() => {
-            options.base = Some(to_usv_str(str.value).into_owned());
+            options.base = Some(str.value.as_str().to_string());
           }
           Expression::TemplateLiteral(str)
             if str.is_no_substitution_template() && !str.quasis[0].value.raw.is_empty() =>
@@ -636,7 +584,7 @@ impl GlobImportVisit<'_> {
         },
         "import" => {
           if let Expression::StringLiteral(str) = &p.value {
-            options.import = Some(to_usv_str(str.value).into_owned());
+            options.import = Some(str.value.as_str().to_string());
           }
         }
         "eager" => {
@@ -656,11 +604,10 @@ impl GlobImportVisit<'_> {
         }
         "query" => match &p.value {
           Expression::StringLiteral(str) => {
-            let query = to_usv_str(str.value);
-            options.query = if query.starts_with('?') {
-              Some(query.into_owned())
+            options.query = if str.value.starts_with('?') {
+              Some(str.value.to_string())
             } else {
-              Some(format!("?{query}"))
+              Some(format!("?{}", str.value))
             }
           }
           Expression::ObjectExpression(expr) => {
@@ -668,14 +615,14 @@ impl GlobImportVisit<'_> {
             for prop in &expr.properties {
               let ObjectPropertyKind::ObjectProperty(p) = prop else { continue };
 
-              let key: &str = match &p.key {
-                PropertyKey::StringLiteral(key) => &to_usv_str(key.value),
+              let key = match &p.key {
+                PropertyKey::StringLiteral(key) => key.value.as_str(),
                 PropertyKey::StaticIdentifier(ident) => ident.name.as_str(),
                 _ => continue,
               };
 
-              let value: &str = match &p.value {
-                Expression::StringLiteral(v) => &to_usv_str(v.value),
+              let value = match &p.value {
+                Expression::StringLiteral(v) => v.value.as_str(),
                 Expression::BooleanLiteral(v) => {
                   if v.value {
                     "true"

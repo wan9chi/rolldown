@@ -6,11 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// b.js
+//#region b.js
 var Base = class {};
-// a.js
+//#endregion
+//#region a.js
 var Keep = class extends Base {};
-// entry.js
+//#endregion
+//#region entry.js
 new Keep();
+//#endregion
 
 ```

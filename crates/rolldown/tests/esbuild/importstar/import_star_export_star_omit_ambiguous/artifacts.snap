@@ -29,15 +29,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import assert from "node:assert/strict";
 // HIDDEN [\0rolldown/runtime.js]
-// common.js
+//#region common.js
 var common_exports = /* @__PURE__ */ __exportAll({
 	x: () => 1,
 	z: () => 4
 });
-// entry.js
+//#endregion
+//#region entry.js
 assert.deepEqual(common_exports, Object.defineProperty({
 	x: 1,
 	z: 4
 }, Symbol.toStringTag, { value: "Module" }));
+//#endregion
 
 ```

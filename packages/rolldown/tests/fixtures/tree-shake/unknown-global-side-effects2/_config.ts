@@ -12,8 +12,9 @@ export default defineTest({
     let code = output.output[0].code;
 
     expect(code).toMatchInlineSnapshot(`
-      "// main.js
+      "//#region main.js
       angular.element;
+      //#endregion
       "
     `);
   },

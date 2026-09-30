@@ -23,9 +23,13 @@ allowBuilds:
   vue-demi: true
   workerd: true
 
-overrides:
-  # 12.10 dropped the Node 20 prebuilds, which the CI matrix still covers
-  better-sqlite3: 12.9.0
+# Kept for pnpm 10 (used on Node 20 in CI). pnpm 11 reads `allowBuilds` instead.
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - esbuild
+  - oxc-resolver
+  - sharp
+  - tree-sitter
 
 catalog:
   '@babel/core': ^7.29.7
@@ -35,11 +39,11 @@ catalog:
   '@emnapi/runtime': 2.0.0-alpha.5
   '@jridgewell/trace-mapping': ^0.3.31
   '@napi-rs/cli': ^3.10.0
-  '@napi-rs/wasm-runtime': ~1.2.5
+  '@napi-rs/wasm-runtime': ~1.2.2
   '@oxc-node/cli': ^0.1.0
   '@oxc-node/core': ^0.1.0
-  '@oxc-project/runtime': '=0.155.0'
-  '@oxc-project/types': '=0.155.0'
+  '@oxc-project/runtime': '=0.152.0'
+  '@oxc-project/types': '=0.152.0'
   '@pnpm/find-workspace-packages': ^6.0.9
   '@rolldown/pluginutils': ^1.0.0
   '@rollup/plugin-commonjs': ^29.0.0
@@ -72,8 +76,8 @@ catalog:
   glob: ^13.0.0
   lodash-es: ^4.17.21
   micromatch: ^4.0.8
-  oxc-parser: '=0.155.0'
-  oxc-transform: '=0.155.0'
+  oxc-parser: '=0.152.0'
+  oxc-transform: '=0.152.0'
   pathe: ^2.0.3
   react: ^19.0.0
   react-dom: ^19.0.0
@@ -95,8 +99,7 @@ catalog:
   vitest: ^4.1.6
   vue: ^3.5.45
   web-tree-sitter: ^0.27.0
-  ws: ^8.22.0
-  yaml: ^2.9.1
+  ws: ^8.20.1
   zx: ^8.1.2
 
 catalogs:
@@ -123,7 +126,6 @@ shellEmulator: true
 
 trustPolicy: no-downgrade
 
-trustPolicyExcludePrune: true
 trustPolicyExclude:
   # vite-plus preview builds from the registry bridge have no provenance.
   - '@voidzero-dev/vite-plus-*'
@@ -132,13 +134,14 @@ trustPolicyExclude:
   - rxjs@7.8.2
 
 verifyDepsBeforeRun: install
-minimumReleaseAgeExcludePrune: true
+
 minimumReleaseAgeExclude:
   - '@napi-rs/cli'
   - '@oxc-minify/*'
   - '@oxc-parser/*'
   - '@oxc-transform/*'
   - '@oxc-project/*'
+  - oxc-minify
   - oxc-parser
   - oxc-transform
   - '@voidzero-dev/*'

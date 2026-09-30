@@ -48,21 +48,22 @@ __rolldown_runtime__.registerGraph({
 			4,
 			5
 		]
-	],
-	entries: [6]
+	]
 });
-// self_accept.js
+//#region self_accept.js
 var self_accept_exports = /* @__PURE__ */ __exportAll({ foo: () => "foo" });
 const self_accept_hot = __rolldown_runtime__.createModuleHotContext("self_accept.js");
 __rolldown_runtime__.registerModule("self_accept.js", { exports: self_accept_exports });
 self_accept_hot.accept((mod) => {
 	assert.strictEqual(mod.foo, "foo2");
 });
-// single_accept/child.js
+//#endregion
+//#region single_accept/child.js
 var child_exports$1 = /* @__PURE__ */ __exportAll({ count: () => 0 });
 __rolldown_runtime__.createModuleHotContext("single_accept/child.js");
 __rolldown_runtime__.registerModule("single_accept/child.js", { exports: child_exports$1 });
-// single_accept/parent.js
+//#endregion
+//#region single_accept/parent.js
 var parent_exports$1 = /* @__PURE__ */ __exportAll({});
 const parent_hot$1 = __rolldown_runtime__.createModuleHotContext("single_accept/parent.js");
 __rolldown_runtime__.registerModule("single_accept/parent.js", { exports: parent_exports$1 });
@@ -80,11 +81,13 @@ process.on("beforeExit", (code) => {
 	if (code !== 0) return;
 	assert.strictEqual(globalThis.singleAcceptAcceptCount, 2);
 });
-// array_accept/child.js
+//#endregion
+//#region array_accept/child.js
 var child_exports = /* @__PURE__ */ __exportAll({ count: () => 0 });
 __rolldown_runtime__.createModuleHotContext("array_accept/child.js");
 __rolldown_runtime__.registerModule("array_accept/child.js", { exports: child_exports });
-// array_accept/parent.js
+//#endregion
+//#region array_accept/parent.js
 var parent_exports = /* @__PURE__ */ __exportAll({});
 const parent_hot = __rolldown_runtime__.createModuleHotContext("array_accept/parent.js");
 __rolldown_runtime__.registerModule("array_accept/parent.js", { exports: parent_exports });
@@ -102,17 +105,20 @@ process.on("beforeExit", (code) => {
 	if (code !== 0) return;
 	assert.strictEqual(globalThis.arrayAcceptAcceptCount, 2);
 });
-// optional_chaining.js
+//#endregion
+//#region optional_chaining.js
 var optional_chaining_exports = /* @__PURE__ */ __exportAll({ foo: () => "foo" });
 const optional_chaining_hot = __rolldown_runtime__.createModuleHotContext("optional_chaining.js");
 __rolldown_runtime__.registerModule("optional_chaining.js", { exports: optional_chaining_exports });
 optional_chaining_hot?.accept((mod) => {
 	assert.strictEqual(mod.foo, "foo2");
 });
-// main.js
+//#endregion
+//#region main.js
 var main_exports = /* @__PURE__ */ __exportAll({});
 __rolldown_runtime__.createModuleHotContext("main.js");
 __rolldown_runtime__.registerModule("main.js", { exports: main_exports });
+//#endregion
 
 ```
 
@@ -121,7 +127,7 @@ __rolldown_runtime__.registerModule("main.js", { exports: main_exports });
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["self_accept.js"],localCount:1,edges:[[]],stamps:{0:1}});
+__rolldown_runtime__.registerGraph({ids:["self_accept.js"],localCount:1,edges:[[]]});
 //#region self_accept.js
 import * as import_node_assert_00 from "node:assert";
 __rolldown_runtime__.registerFactory("self_accept.js", (function(__rolldown_module_id__) {
@@ -134,7 +140,7 @@ __rolldown_runtime__.registerFactory("self_accept.js", (function(__rolldown_modu
 			import_node_assert_00.default.strictEqual(mod.foo, "foo3");
 		});
 	} finally {}
-}), 1);
+}));
 
 //#endregion
 ```
@@ -152,7 +158,7 @@ __rolldown_runtime__.registerFactory("self_accept.js", (function(__rolldown_modu
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["self_accept.js"],localCount:1,edges:[[]],stamps:{0:2}});
+__rolldown_runtime__.registerGraph({ids:["self_accept.js"],localCount:1,edges:[[]]});
 //#region self_accept.js
 import * as import_node_assert_00 from "node:assert";
 __rolldown_runtime__.registerFactory("self_accept.js", (function(__rolldown_module_id__) {
@@ -165,7 +171,7 @@ __rolldown_runtime__.registerFactory("self_accept.js", (function(__rolldown_modu
 			import_node_assert_00.default.fail("the last generation has no further edit to accept");
 		});
 	} finally {}
-}), 2);
+}));
 
 //#endregion
 ```
@@ -183,7 +189,7 @@ __rolldown_runtime__.registerFactory("self_accept.js", (function(__rolldown_modu
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["single_accept/child.js"],localCount:1,edges:[[]],stamps:{0:3}});
+__rolldown_runtime__.registerGraph({ids:["single_accept/child.js"],localCount:1,edges:[[]]});
 //#region single_accept/child.js
 __rolldown_runtime__.registerFactory("single_accept/child.js", (function(__rolldown_module_id__) {
 	try {
@@ -192,7 +198,7 @@ __rolldown_runtime__.registerFactory("single_accept/child.js", (function(__rolld
 		const hot_child = __rolldown_runtime__.createModuleHotContext(__rolldown_module_id__);
 		const count = 1;
 	} finally {}
-}), 3);
+}));
 
 //#endregion
 ```
@@ -210,7 +216,7 @@ __rolldown_runtime__.registerFactory("single_accept/child.js", (function(__rolld
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["single_accept/child.js"],localCount:1,edges:[[]],stamps:{0:4}});
+__rolldown_runtime__.registerGraph({ids:["single_accept/child.js"],localCount:1,edges:[[]]});
 //#region single_accept/child.js
 __rolldown_runtime__.registerFactory("single_accept/child.js", (function(__rolldown_module_id__) {
 	try {
@@ -219,7 +225,7 @@ __rolldown_runtime__.registerFactory("single_accept/child.js", (function(__rolld
 		const hot_child = __rolldown_runtime__.createModuleHotContext(__rolldown_module_id__);
 		const count = 2;
 	} finally {}
-}), 4);
+}));
 
 //#endregion
 ```
@@ -237,7 +243,7 @@ __rolldown_runtime__.registerFactory("single_accept/child.js", (function(__rolld
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["array_accept/child.js"],localCount:1,edges:[[]],stamps:{0:5}});
+__rolldown_runtime__.registerGraph({ids:["array_accept/child.js"],localCount:1,edges:[[]]});
 //#region array_accept/child.js
 __rolldown_runtime__.registerFactory("array_accept/child.js", (function(__rolldown_module_id__) {
 	try {
@@ -246,7 +252,7 @@ __rolldown_runtime__.registerFactory("array_accept/child.js", (function(__rolldo
 		const hot_child = __rolldown_runtime__.createModuleHotContext(__rolldown_module_id__);
 		const count = 1;
 	} finally {}
-}), 5);
+}));
 
 //#endregion
 ```
@@ -264,7 +270,7 @@ __rolldown_runtime__.registerFactory("array_accept/child.js", (function(__rolldo
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["array_accept/child.js"],localCount:1,edges:[[]],stamps:{0:6}});
+__rolldown_runtime__.registerGraph({ids:["array_accept/child.js"],localCount:1,edges:[[]]});
 //#region array_accept/child.js
 __rolldown_runtime__.registerFactory("array_accept/child.js", (function(__rolldown_module_id__) {
 	try {
@@ -273,7 +279,7 @@ __rolldown_runtime__.registerFactory("array_accept/child.js", (function(__rolldo
 		const hot_child = __rolldown_runtime__.createModuleHotContext(__rolldown_module_id__);
 		const count = 2;
 	} finally {}
-}), 6);
+}));
 
 //#endregion
 ```
@@ -291,7 +297,7 @@ __rolldown_runtime__.registerFactory("array_accept/child.js", (function(__rolldo
 ## Code
 
 ```js
-__rolldown_runtime__.registerGraph({ids:["optional_chaining.js"],localCount:1,edges:[[]],stamps:{0:7}});
+__rolldown_runtime__.registerGraph({ids:["optional_chaining.js"],localCount:1,edges:[[]]});
 //#region optional_chaining.js
 import * as import_node_assert_00 from "node:assert";
 __rolldown_runtime__.registerFactory("optional_chaining.js", (function(__rolldown_module_id__) {
@@ -304,7 +310,7 @@ __rolldown_runtime__.registerFactory("optional_chaining.js", (function(__rolldow
 			import_node_assert_00.default.fail("the last generation has no further edit to accept");
 		});
 	} finally {}
-}), 7);
+}));
 
 //#endregion
 ```

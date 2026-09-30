@@ -2,7 +2,6 @@
 
 mod config;
 mod event;
-mod filter;
 mod notify;
 mod watcher;
 

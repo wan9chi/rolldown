@@ -7,16 +7,20 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import assert from "node:assert";
-// src/demo-pkg/no-ext-browser/index.js
+//#region src/demo-pkg/no-ext-browser/index.js
 let browser$1 = "browser";
-// src/demo-pkg/no-ext/index.js
+//#endregion
+//#region src/demo-pkg/no-ext/index.js
 let node = "node";
-// src/demo-pkg/ext-browser/index.js
+//#endregion
+//#region src/demo-pkg/ext-browser/index.js
 let browser = "browser";
-// src/entry.js
+//#endregion
+//#region src/entry.js
 assert.equal(browser$1, "browser");
 assert.equal(node, "node");
 assert.equal(browser, "browser");
 assert.equal(browser, "browser");
+//#endregion
 
 ```

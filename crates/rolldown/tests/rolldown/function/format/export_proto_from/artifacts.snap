@@ -6,7 +6,8 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-export { __proto__ } from "x";
+import { __proto__ } from "x";
+export { __proto__ };
 
 ```
 

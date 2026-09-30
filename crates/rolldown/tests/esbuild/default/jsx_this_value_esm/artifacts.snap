@@ -6,20 +6,22 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## factory.js
 
 ```js
-// factory.jsx
+//#region factory.jsx
 console.log([/* @__PURE__ */ (void 0)("x", null), /* @__PURE__ */ (void 0)("x", null)]);
 f = function() {
 	console.log([/* @__PURE__ */ this("y", null), /* @__PURE__ */ this("y", null)]);
 };
+//#endregion
 
 ```
 
 ## fragment.js
 
 ```js
-// fragment.jsx
+//#region fragment.jsx
 console.log([/* @__PURE__ */ (void 0)(void 0, null, "x"), /* @__PURE__ */ (void 0)(void 0, null, "x")]), f = function() {
 	console.log([/* @__PURE__ */ this(this, null, "y"), /* @__PURE__ */ this(this, null, "y")]);
 };
+//#endregion
 
 ```

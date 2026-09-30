@@ -8,9 +8,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import { t as f0 } from "./vendor.js";
 export * from "ext-then";
-// app.js
+//#region app.js
 console.log(f0(1));
 const done = import("./lazy.js").then((m) => m.value);
+//#endregion
 export { done };
 
 ```
@@ -19,8 +20,9 @@ export { done };
 
 ```js
 import { t as f0 } from "./vendor.js";
-// lazy.js
+//#region lazy.js
 const value = f0(3);
+//#endregion
 export { value };
 
 ```
@@ -28,8 +30,9 @@ export { value };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 const app = import("./app.js");
+//#endregion
 export { app };
 
 ```
@@ -37,10 +40,11 @@ export { app };
 ## vendor.js
 
 ```js
-// vendor.js
+//#region vendor.js
 function f0(x) {
 	return x * 2 + 1;
 }
+//#endregion
 export { f0 as t };
 
 ```

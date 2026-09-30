@@ -7,11 +7,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-// main.js
+//#region main.js
 let value = 1;
 function update() {
 	value++;
 }
+//#endregion
 Object.defineProperty(exports, "\n\"\\'", {
 	enumerable: true,
 	get: function() {

@@ -7,13 +7,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// src/node_modules/sub/bar.js
+//#region src/node_modules/sub/bar.js
 var require_bar = /* @__PURE__ */ __commonJSMin((() => {
 	works();
 }));
-// src/entry.js
+//#endregion
+//#region src/node_modules/pkg/sub/foo.js
+//#endregion
+//#region src/entry.js
 (/* @__PURE__ */ __commonJSMin((() => {
 	require_bar();
 })))();
+//#endregion
 
 ```
