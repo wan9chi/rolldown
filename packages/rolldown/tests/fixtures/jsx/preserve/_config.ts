@@ -11,6 +11,8 @@ export default defineTest({
   },
   afterTest: (output) => {
     const chunk = getOutputChunk(output)[0];
-    expect(chunk.code.replace(/\s+/g, '')).toBe(`//main.jsxconsole.log(<div>test</div>);`);
+    expect(chunk.code.replace(/\s+/g, '')).toBe(
+      `//#regionmain.jsxconsole.log(<div>test</div>);//#endregion`,
+    );
   },
 });

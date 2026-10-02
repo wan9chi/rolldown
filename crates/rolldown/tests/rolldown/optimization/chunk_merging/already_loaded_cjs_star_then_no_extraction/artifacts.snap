@@ -8,9 +8,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import { t as compute } from "./shared.js";
 // HIDDEN [\0rolldown/runtime.js]
-// app.js
+//#region thenable.cjs
+//#endregion
+//#region app.js
 const own = compute(21) + 1;
 const lazyLoaded = import("./lazy.js").then((m) => m.lazyValue);
+//#endregion
 export { lazyLoaded, own };
 
 ```
@@ -19,8 +22,9 @@ export { lazyLoaded, own };
 
 ```js
 import { t as compute } from "./shared.js";
-// lazy.js
+//#region lazy.js
 const lazyValue = compute(42);
+//#endregion
 export { lazyValue };
 
 ```
@@ -28,8 +32,9 @@ export { lazyValue };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 const app = import("./app.js");
+//#endregion
 export { app };
 
 ```
@@ -37,10 +42,11 @@ export { app };
 ## shared.js
 
 ```js
-// shared.js
+//#region shared.js
 function compute(x) {
 	return x * 2;
 }
+//#endregion
 export { compute as t };
 
 ```

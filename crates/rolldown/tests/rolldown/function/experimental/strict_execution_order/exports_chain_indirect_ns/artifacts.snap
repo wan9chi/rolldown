@@ -7,8 +7,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import nodeAssert from "node:assert";
-// main.js
+//#region lib-foo.js
+//#endregion
+//#region main.js
 nodeAssert.equal("foo", "foo");
+//#endregion
 
 ```
 
@@ -21,20 +24,22 @@ nodeAssert.equal("foo", "foo");
 ```js
 import nodeAssert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// lib-foo.js
+//#region lib-foo.js
 var value;
 function init_lib_foo() {
 	return (init_lib_foo = __esmMin((() => {
 		value = "foo";
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_lib_foo();
 		nodeAssert.equal(value, "foo");
 	})))();
 }
+//#endregion
 init_main();
 
 ```

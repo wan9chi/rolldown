@@ -7,8 +7,7 @@
       }
     ],
     "format": "iife",
-    "banner": "#! from banner",
-    "minify": false
+    "banner": "#! from banner"
   },
   "expectExecuted": false,
   "skipSyntaxValidation": true,

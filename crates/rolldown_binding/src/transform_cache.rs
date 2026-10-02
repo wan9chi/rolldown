@@ -12,10 +12,9 @@ use oxc_resolver::{
 use rolldown_utils::dashmap::FxDashMap;
 
 #[napi]
-#[derive(Clone)]
 pub struct TsconfigCache {
   resolver: Arc<Resolver>,
-  cache: Arc<FxDashMap<PathBuf, Arc<TsConfig>>>,
+  cache: FxDashMap<PathBuf, Arc<TsConfig>>,
 }
 
 #[napi]
@@ -34,7 +33,7 @@ impl TsconfigCache {
         yarn_pnp,
         ..Default::default()
       })),
-      cache: Arc::default(),
+      cache: FxDashMap::default(),
     }
   }
 

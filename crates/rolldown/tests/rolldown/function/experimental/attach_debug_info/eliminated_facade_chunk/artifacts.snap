@@ -26,16 +26,19 @@ source: crates/rolldown_testing/src/integration_test.rs
 //! Eliminated Facade Chunk: [Chunk-Name: unnamed] [Entry-Module-Id: dynamic-a.js] [Reason: Dynamic entry chunk merged into user-defined entry chunk]
 //! Eliminated Facade Chunk: [Chunk-Name: unnamed] [Entry-Module-Id: dynamic-b.js] [Reason: Dynamic entry chunk merged into user-defined entry chunk]
 // HIDDEN [\0rolldown/runtime.js]
-// dynamic-a.js
+//#region dynamic-a.js
 var dynamic_a_exports = /* @__PURE__ */ __exportAll({ a: () => a });
 const a = "dynamic-a";
-// dynamic-b.js
+//#endregion
+//#region dynamic-b.js
 var dynamic_b_exports = /* @__PURE__ */ __exportAll({ b: () => b });
 const b = "dynamic-b";
-// main.js
+//#endregion
+//#region main.js
 Promise.resolve().then(() => dynamic_a_exports).then(console.log);
 Promise.resolve().then(() => dynamic_b_exports).then(console.log);
 console.log(a, b);
+//#endregion
 
 ```
 
@@ -47,7 +50,8 @@ console.log(a, b);
 
 ```js
 //! Dynamic Entry: [Entry-Module-Id: dynamic-a.js] [Name: <none>]
-export { t as a } from "./dynamic-a2.js";
+import { t as a } from "./dynamic-a2.js";
+export { a };
 
 ```
 
@@ -55,8 +59,9 @@ export { t as a } from "./dynamic-a2.js";
 
 ```js
 //! Common Chunk: [Shared-By: main.js, dynamic-a.js]
-// dynamic-a.js
+//#region dynamic-a.js
 const a = "dynamic-a";
+//#endregion
 export { a as t };
 
 ```
@@ -65,7 +70,8 @@ export { a as t };
 
 ```js
 //! Dynamic Entry: [Entry-Module-Id: dynamic-b.js] [Name: <none>]
-export { t as b } from "./dynamic-b2.js";
+import { t as b } from "./dynamic-b2.js";
+export { b };
 
 ```
 
@@ -73,8 +79,9 @@ export { t as b } from "./dynamic-b2.js";
 
 ```js
 //! Common Chunk: [Shared-By: main.js, dynamic-b.js]
-// dynamic-b.js
+//#region dynamic-b.js
 const b = "dynamic-b";
+//#endregion
 export { b as t };
 
 ```
@@ -85,9 +92,10 @@ export { b as t };
 //! User-defined Entry: [Entry-Module-Id: main.js] [Name: main]
 import { t as a } from "./dynamic-a2.js";
 import { t as b } from "./dynamic-b2.js";
-// main.js
+//#region main.js
 import("./dynamic-a.js").then(console.log);
 import("./dynamic-b.js").then(console.log);
 console.log(a, b);
+//#endregion
 
 ```

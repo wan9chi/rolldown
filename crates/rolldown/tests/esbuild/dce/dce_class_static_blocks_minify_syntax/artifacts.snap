@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.ts
+//#region entry.ts
 var A_keep = class {
 	static {
 		foo;
@@ -29,5 +29,6 @@ var D_keep = class {
 		foo;
 	}
 };
+//#endregion
 
 ```

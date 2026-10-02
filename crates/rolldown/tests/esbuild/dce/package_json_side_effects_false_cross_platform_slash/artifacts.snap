@@ -6,9 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## src_entry.js
 
 ```js
-// node_modules/demo-pkg/foo.js
+//#region node_modules/demo-pkg/foo.js
 console.log("foo");
-// node_modules/demo-pkg/bar/index.js
+//#endregion
+//#region node_modules/demo-pkg/bar/index.js
 console.log("bar");
+//#endregion
 
 ```

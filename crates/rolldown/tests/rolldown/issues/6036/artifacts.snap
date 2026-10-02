@@ -7,7 +7,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// component/hello.tsx
+//#region react.ts
+//#endregion
+//#region component/hello.tsx
 var Import_react = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {};
 })))());
@@ -16,6 +18,7 @@ function Hello() {
       <h1>Hello</h1>
     </Import_react.default.Fragment>;
 }
+//#endregion
 export { Hello };
 
 ```

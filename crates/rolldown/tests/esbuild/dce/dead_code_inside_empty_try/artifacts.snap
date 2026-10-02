@@ -7,13 +7,16 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// a.js
+//#region a.js
 var require_a = /* @__PURE__ */ __commonJSMin((() => {}));
-// b.js
+//#endregion
+//#region b.js
 var require_b = /* @__PURE__ */ __commonJSMin((() => {}));
-// d.js
+//#endregion
+//#region d.js
 var require_d = /* @__PURE__ */ __commonJSMin((() => {}));
-// entry.js
+//#endregion
+//#region entry.js
 try {
 	foo();
 } catch {
@@ -22,5 +25,6 @@ try {
 	require_b();
 }
 require_d();
+//#endregion
 
 ```

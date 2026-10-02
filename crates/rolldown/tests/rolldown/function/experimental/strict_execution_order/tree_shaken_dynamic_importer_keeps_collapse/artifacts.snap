@@ -7,9 +7,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { r as load } from "./dyn.js";
-// a.js
+//#region a.js
 (globalThis.log ??= []).push("a");
 const targetPromise = load();
+//#endregion
 export { targetPromise };
 
 ```
@@ -17,12 +18,14 @@ export { targetPromise };
 ## b.js
 
 ```js
-// helpers.js
+//#region helpers.js
 function used() {
 	(globalThis.log ??= []).push("used");
 }
-// b.js
+//#endregion
+//#region b.js
 used();
+//#endregion
 
 ```
 
@@ -30,15 +33,17 @@ used();
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// loader.js
+//#region loader.js
 const load = () => Promise.resolve().then(() => (init_target(), target_exports));
-// target.js
+//#endregion
+//#region target.js
 var target_exports = /* @__PURE__ */ __exportAll({ value: () => 1 });
 function init_target() {
 	return (init_target = __esmMin((() => {
 		(globalThis.log ??= []).push("target");
 	})))();
 }
+//#endregion
 export { target_exports as n, load as r, init_target as t };
 
 ```
@@ -52,7 +57,7 @@ export { target_exports as n, load as r, init_target as t };
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { i as load, r as init_loader } from "./dyn.js";
-// a.js
+//#region a.js
 var targetPromise;
 function init_a() {
 	return (init_a = __esmMin((() => {
@@ -61,6 +66,7 @@ function init_a() {
 		targetPromise = load();
 	})))();
 }
+//#endregion
 init_a();
 export { targetPromise };
 
@@ -70,16 +76,18 @@ export { targetPromise };
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// helpers.js
+//#region helpers.js
 function used() {
 	(globalThis.log ??= []).push("used");
 }
-// b.js
+//#endregion
+//#region b.js
 function init_b() {
 	return (init_b = __esmMin((() => {
 		used();
 	})))();
 }
+//#endregion
 init_b();
 
 ```
@@ -88,20 +96,22 @@ init_b();
 
 ```js
 import { n as __exportAll, t as __esmMin } from "./rolldown-runtime.js";
-// loader.js
+//#region loader.js
 var load;
 function init_loader() {
 	return (init_loader = __esmMin((() => {
 		load = () => Promise.resolve().then(() => (init_target(), target_exports));
 	})))();
 }
-// target.js
+//#endregion
+//#region target.js
 var target_exports = /* @__PURE__ */ __exportAll({ value: () => 1 });
 function init_target() {
 	return (init_target = __esmMin((() => {
 		(globalThis.log ??= []).push("target");
 	})))();
 }
+//#endregion
 export { load as i, target_exports as n, init_loader as r, init_target as t };
 
 ```

@@ -7,16 +7,19 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// test.json
+//#region test.json
 var invalid_identifier$1 = true;
-// test2.json
+//#endregion
+//#region test2.json
 var test2_exports = /* @__PURE__ */ __exportAll({
 	default: () => test2_default,
 	"invalid-identifier": () => invalid_identifier
 });
 var invalid_identifier = true;
 var test2_default = { "invalid-identifier": invalid_identifier };
-// entry.js
+//#endregion
+//#region entry.js
 console.log(invalid_identifier$1, test2_exports);
+//#endregion
 
 ```

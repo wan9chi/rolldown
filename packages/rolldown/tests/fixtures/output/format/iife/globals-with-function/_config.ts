@@ -20,6 +20,7 @@ export default defineTest({
   afterTest: (output) => {
     expect(output.output[0].code).toMatchInlineSnapshot(`
       "var module = (function(node_path) {
+      	//#endregion
       	return node_path.join;
       })(path);
       "

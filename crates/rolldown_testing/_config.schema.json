@@ -189,16 +189,6 @@
             "null"
           ]
         },
-        "charset": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/OutputCharset"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "format": {
           "anyOf": [
             {
@@ -646,13 +636,6 @@
           "type": "string",
           "const": "node"
         }
-      ]
-    },
-    "OutputCharset": {
-      "type": "string",
-      "enum": [
-        "ascii",
-        "utf8"
       ]
     },
     "OutputFormat": {
@@ -1107,13 +1090,6 @@
         },
         "lazy": {
           "description": "Enable lazy compilation for dynamic imports.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "hotUpdate": {
-          "description": "Call the `hotUpdate` plugin hook. Off by default. The `hotUpdate` dev option also turns it on.",
           "type": [
             "boolean",
             "null"
@@ -1592,12 +1568,6 @@
           ]
         },
         "namespaceConflict": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "shimmedExport": {
           "type": [
             "boolean",
             "null"
@@ -2209,7 +2179,7 @@
           ]
         },
         "hotUpdate": {
-          "description": "Whether the `hotUpdate` plugin hook is called. Off by default. `DevModeOptions::hot_update`\nalso turns it on.",
+          "description": "Whether the `hotUpdate` plugin hook is called. Off by default until Vite supports it.",
           "type": [
             "boolean",
             "null"

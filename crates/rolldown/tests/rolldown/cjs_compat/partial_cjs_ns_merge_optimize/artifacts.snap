@@ -7,30 +7,35 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// cjs.js
+//#region cjs.js
 var require_cjs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = 1e4;
 }));
-// util.js
+//#endregion
+//#region util.js
 var require_util = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = function() {
 		console.log("util");
 	};
 }));
-// a.js
+//#endregion
+//#region a.js
 var import_cjs = /* @__PURE__ */ __toESM(require_cjs());
 var import_util = /* @__PURE__ */ __toESM(require_util());
 function test$1() {
 	(0, import_util.default)();
 	return import_cjs.default;
 }
-// b.js
+//#endregion
+//#region b.js
 function test() {
 	return import_cjs.default;
 }
-// main.js
+//#endregion
+//#region main.js
 const aa = test$1();
 const bb = test();
+//#endregion
 export { aa, bb };
 
 ```

@@ -7,10 +7,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// main.js
+//#region main.js
 var require_main = /* @__PURE__ */ __commonJSMin((() => {
 	require_main();
 }));
+//#endregion
 export default require_main();
 
 ```
@@ -23,10 +24,11 @@ export default require_main();
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// main.js
+//#region main.js
 var require_main = /* @__PURE__ */ __commonJSMin((() => {
 	require_main();
 }));
+//#endregion
 Object.defineProperty(exports, "default", {
 	enumerable: true,
 	get: function() {
@@ -45,10 +47,11 @@ Object.defineProperty(exports, "default", {
 ```js
 (function(exports) {
 	// HIDDEN [\0rolldown/runtime.js]
-	// main.js
+	//#region main.js
 	var require_main = /* @__PURE__ */ __commonJSMin((() => {
 		require_main();
 	}));
+	//#endregion
 	Object.defineProperty(exports, "default", {
 		enumerable: true,
 		get: function() {
@@ -70,10 +73,11 @@ Object.defineProperty(exports, "default", {
 	typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global = typeof globalThis !== "undefined" ? globalThis : global || self, factory(global.module = global.module || {}));
 })(this, function(exports) {
 	// HIDDEN [\0rolldown/runtime.js]
-	// main.js
+	//#region main.js
 	var require_main = /* @__PURE__ */ __commonJSMin((() => {
 		require_main();
 	}));
+	//#endregion
 	Object.defineProperty(exports, "default", {
 		enumerable: true,
 		get: function() {

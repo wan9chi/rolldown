@@ -45,8 +45,7 @@ pub struct DevOptions {
   pub on_additional_assets: Option<OnAdditionalAssetsCallback>,
   pub rebuild_strategy: Option<RebuildStrategy>,
   pub watch: Option<DevWatchOptions>,
-  /// Whether the `hotUpdate` plugin hook is called. Off by default. `DevModeOptions::hot_update`
-  /// also turns it on.
+  /// Whether the `hotUpdate` plugin hook is called. Off by default until Vite supports it.
   pub hot_update: Option<bool>,
 }
 

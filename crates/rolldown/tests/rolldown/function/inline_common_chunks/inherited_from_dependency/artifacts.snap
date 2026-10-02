@@ -9,7 +9,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 import { i as __share_require, t as __esmMin } from "./rolldown-runtime.js";
 import { n as viaV, t as init_v } from "./vendor.js";
 var share_s = __share_require("s-v3kGiqU-");
-// a.js
+//#region a.js
 function init_a() {
 	return (init_a = __esmMin((() => {
 		init_v();
@@ -17,6 +17,7 @@ function init_a() {
 		globalThis.events.push("A " + viaV() + " " + (0, share_s.t)() + " " + share_s.r);
 	})))();
 }
+//#endregion
 init_a();
 
 ```
@@ -26,13 +27,14 @@ init_a();
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { n as viaV, t as init_v } from "./vendor.js";
-// b.js
+//#region b.js
 function init_b() {
 	return (init_b = __esmMin((() => {
 		init_v();
 		globalThis.events.push("B " + viaV());
 	})))();
 }
+//#endregion
 init_b();
 
 ```
@@ -50,7 +52,7 @@ export { __share_require as i, __share as n, __share_export as r, __esmMin as t 
 ```js
 import { i as __share_require, n as __share, r as __share_export, t as __esmMin } from "./rolldown-runtime.js";
 __share("s-v3kGiqU-", (exports) => {
-	// s.js
+	//#region s.js
 	function bump() {
 		n += 1;
 		return n;
@@ -62,6 +64,7 @@ __share("s-v3kGiqU-", (exports) => {
 			n = 0;
 		})))();
 	}
+	//#endregion
 	__share_export(exports, {
 		n: () => init_s,
 		r: () => n,
@@ -69,7 +72,7 @@ __share("s-v3kGiqU-", (exports) => {
 	});
 });
 var share_s = __share_require("s-v3kGiqU-");
-// v.js
+//#region v.js
 function viaV() {
 	return (0, share_s.t)();
 }
@@ -79,6 +82,7 @@ function init_v() {
 		globalThis.events.push("V body");
 	})))();
 }
+//#endregion
 export { viaV as n, init_v as t };
 
 ```

@@ -473,9 +473,6 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
     stmt: &mut Statement<'ast>,
     rec_idx: ImportRecordIdx,
   ) -> bool {
-    if self.ctx.order_wrap_state.is_consumer_local_reexport_route(self.ctx.idx) {
-      return true;
-    }
     let rec = &self.ctx.module.import_records[rec_idx];
     let Some(resolved_module_idx) = rec.resolved_module else { return true };
     let Module::Normal(importee) = &self.ctx.modules[resolved_module_idx] else {
@@ -850,12 +847,7 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
       (OutputExports::Default, true) => Expression::new_id_ref_expr(SPAN, require_binding, self),
       // Cases #5, #8, #10, #12, #14: Named + default → require_binding.default
       // Cases #6, #9, #11, #13, #15: Named + named → require_binding.exportName
-      _ => Expression::new_member_expr_or_ident_ref(
-        Expression::new_id_ref_expr(SPAN, require_binding, self),
-        &[MemberExprProp { name: exported_name.clone(), span: SPAN, optional: false }],
-        SPAN,
-        self,
-      ),
+      _ => Expression::new_member_access_expr(require_binding, exported_name, self),
     };
 
     (expr, FinalizedExprProcessHint::empty())
@@ -916,7 +908,7 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
       ast::MemberExpression::StaticMemberExpression(m) => (&m.object, m.property.name.as_str()),
       ast::MemberExpression::ComputedMemberExpression(m) => {
         let ast::Expression::StringLiteral(prop) = &m.expression else { return None };
-        (&m.object, prop.value.as_str()?)
+        (&m.object, prop.value.as_str())
       }
       ast::MemberExpression::PrivateFieldExpression(_) => return None,
     };
@@ -1068,20 +1060,12 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
         .requires_semantic_namespace(self.ctx.module.namespace_object_ref, |importer_idx| {
           self.ctx.chunk_graph.module_is_in_live_chunk(importer_idx)
         });
-    let dynamic_export_names = self
-      .ctx
-      .linking_info
-      .module_namespace_included_reason
-      .contains(ModuleNamespaceIncludedReason::SimulateFacadeChunk)
-      .then(|| self.ctx.linking_info.dynamically_read_export_names(self.ctx.dynamic_import_usage))
-      .flatten();
     let simulated_facade_export_names = (!namespace_is_semantically_observed)
       .then(|| {
         self
           .ctx
           .order_wrap_state
           .simulated_facade_export_names(self.ctx.module.namespace_object_ref)
-          .or(dynamic_export_names)
       })
       .flatten();
 
@@ -1268,19 +1252,7 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
       let original_expr_span = member_expr.span();
       let can_polyfill_import_meta_url = self.can_polyfill_import_meta_url();
 
-      let name = member_expr.static_property_name()?;
-      let Some(property_name) = name.as_str() else {
-        // Reference ids are ASCII, so a file URL name with a lone surrogate matches no emitted
-        // file. It is reported like any unknown reference id.
-        if let Some(file_url) = utils::file_url::strip_file_url_prefix(&name.display().to_string())
-        {
-          self
-            .missing_file_reference_ids
-            .entry(CompactStr::new(file_url.reference_id))
-            .or_insert(original_expr_span);
-        }
-        return None;
-      };
+      let property_name = member_expr.static_property_name()?;
       match property_name {
         // Try to polyfill `import.meta.url`
         "url" => {
@@ -2112,9 +2084,6 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
             }
           } else {
             // "export * from 'path'"
-            if self.ctx.order_wrap_state.is_consumer_local_reexport_route(self.ctx.idx) {
-              return;
-            }
             let rec = &self.ctx.module.import_records[rec_idx];
             let Some(module_idx) = rec.resolved_module else { return };
             match &self.ctx.modules[module_idx] {
@@ -2790,7 +2759,7 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
     }
   }
 
-  fn try_rewrite_import_expression(&mut self, node: &mut ast::Expression<'ast>) -> bool {
+  fn try_rewrite_import_expression(&self, node: &mut ast::Expression<'ast>) -> bool {
     let ast::Expression::ImportExpression(expr) = node else {
       return false;
     };
@@ -2807,10 +2776,7 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
         && !self.ctx.options.dynamic_import_in_cjs
         && expr.options.is_none()
       {
-        // Transform `import(expr)` to `Promise.resolve().then(() => __toESM(require(expr)))`.
-        // The specifier moves into the `require()` call, and the walker does not visit a rewritten
-        // node, so finalize the references in the specifier now.
-        oxc::ast_visit::VisitJsMut::visit_expression(self, &mut expr.source);
+        // Transform `import(expr)` to `Promise.resolve().then(() => __toESM(require(expr)))`
         let to_esm_fn_name = self.finalized_expr_for_runtime_symbol("__toESM");
         node.replace_with(|old| {
           let ast::Expression::ImportExpression(import_expr) = old else { unreachable!() };
@@ -2942,7 +2908,7 @@ impl<'me, 'ast> ScopeHoistingFinalizer<'me, 'ast> {
           return false;
         }
         let import_path = importee.get_import_path(self.ctx.chunk, self.ctx.resolved_paths);
-        if str != import_path.as_str() {
+        if str != import_path {
           expr.source = Expression::new_string_literal(
             expr.source.span(),
             oxc::ast::ast::Str::from_str_in(&import_path, self),

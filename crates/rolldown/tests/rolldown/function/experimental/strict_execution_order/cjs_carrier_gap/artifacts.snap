@@ -8,15 +8,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
 import { t as init_p } from "./p.js";
-// e.js
+//#region e.js
 console.log("E");
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_p();
 		console.log("MAIN");
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -25,16 +27,19 @@ init_main();
 
 ```js
 import { n as __esmMin, t as __commonJSMin } from "./rolldown-runtime.js";
-// c.js
+//#region c.js
 var require_c = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	console.log("C");
 	module.exports = {};
 }));
+//#endregion
+//#region p.js
 function init_p() {
 	return (init_p = __esmMin((() => {
 		require_c();
 	})))();
 }
+//#endregion
 export { init_p as t };
 
 ```
@@ -42,7 +47,7 @@ export { init_p as t };
 ## rolldown-runtime.js
 
 ```js
-// \0rolldown/runtime.js
+//#region \0rolldown/runtime.js
 var __esmMin = (fn, res, err) => () => {
 	if (err) throw err[0];
 	try {
@@ -51,7 +56,8 @@ var __esmMin = (fn, res, err) => () => {
 		throw err = [e], e;
 	}
 };
-var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
+var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod), cb = null), mod.exports);
+//#endregion
 export { __esmMin as n, __commonJSMin as t };
 
 ```
@@ -61,12 +67,13 @@ export { __esmMin as n, __commonJSMin as t };
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
 import { t as init_p } from "./p.js";
-// second.js
+//#region second.js
 function init_second() {
 	return (init_second = __esmMin((() => {
 		init_p();
 	})))();
 }
+//#endregion
 init_second();
 
 ```
@@ -80,13 +87,14 @@ init_second();
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
 import { t as init_p } from "./p.js";
-// e.js
+//#region e.js
 function init_e() {
 	return (init_e = __esmMin((() => {
 		console.log("E");
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_e();
@@ -94,6 +102,7 @@ function init_main() {
 		console.log("MAIN");
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -102,16 +111,19 @@ init_main();
 
 ```js
 import { n as __esmMin, t as __commonJSMin } from "./rolldown-runtime.js";
-// c.js
+//#region c.js
 var require_c = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	console.log("C");
 	module.exports = {};
 }));
+//#endregion
+//#region p.js
 function init_p() {
 	return (init_p = __esmMin((() => {
 		require_c();
 	})))();
 }
+//#endregion
 export { init_p as t };
 
 ```
@@ -119,7 +131,7 @@ export { init_p as t };
 ### rolldown-runtime.js
 
 ```js
-// \0rolldown/runtime.js
+//#region \0rolldown/runtime.js
 var __esmMin = (fn, res, err) => () => {
 	if (err) throw err[0];
 	try {
@@ -128,7 +140,8 @@ var __esmMin = (fn, res, err) => () => {
 		throw err = [e], e;
 	}
 };
-var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
+var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod), cb = null), mod.exports);
+//#endregion
 export { __esmMin as n, __commonJSMin as t };
 
 ```
@@ -138,12 +151,13 @@ export { __esmMin as n, __commonJSMin as t };
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
 import { t as init_p } from "./p.js";
-// second.js
+//#region second.js
 function init_second() {
 	return (init_second = __esmMin((() => {
 		init_p();
 	})))();
 }
+//#endregion
 init_second();
 
 ```

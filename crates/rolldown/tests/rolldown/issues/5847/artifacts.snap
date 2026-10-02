@@ -6,19 +6,22 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## compromise.js
 
 ```js
-// compromise/nlp.js
+//#region compromise/nlp.js
 const nlp = function() {
 	console.log(666);
 };
 nlp.plugin = function() {
 	return this;
 };
-// compromise/one.js
+//#endregion
+//#region compromise/one.js
 nlp.extend = function() {
 	return 666;
 };
-// compromise/index.js
+//#endregion
+//#region compromise/index.js
 var compromise_default = nlp;
+//#endregion
 export { compromise_default as default };
 
 ```
@@ -27,8 +30,9 @@ export { compromise_default as default };
 
 ```js
 import assert from "node:assert";
-// main.js
+//#region main.js
 const nlp = (await import("./compromise.js")).default;
 assert.strictEqual(nlp.extend(), 666);
+//#endregion
 
 ```

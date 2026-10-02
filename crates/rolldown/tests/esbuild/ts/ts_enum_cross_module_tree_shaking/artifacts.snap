@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// enums.ts
+//#region enums.ts
 let a_keep = /* @__PURE__ */ function(a_keep) {
 	a_keep[a_keep["x"] = false] = "x";
 	return a_keep;
@@ -24,7 +24,8 @@ let d_keep = /* @__PURE__ */ function(d_keep) {
 	return d_keep;
 }({});
 let e_keep = {};
-// entry.ts
+//#endregion
+//#region entry.ts
 console.log([
 	1,
 	2,
@@ -37,5 +38,6 @@ console.log([
 	d_keep.y,
 	e_keep.x
 ]);
+//#endregion
 
 ```

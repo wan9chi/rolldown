@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## function-nested.js
 
 ```js
-// function-nested.js
+//#region function-nested.js
 function x() {
 	for (var e of []);
 	for (var { f, x: [g] } of []);
@@ -14,13 +14,14 @@ function x() {
 	for (var { j, x: [k] } in {});
 }
 x();
+//#endregion
 
 ```
 
 ## function.js
 
 ```js
-// function.js
+//#region function.js
 function x() {
 	for (var e of []);
 	for (var { f, x: [g] } of []);
@@ -28,38 +29,42 @@ function x() {
 	for (var { j, x: [k] } in {});
 }
 x();
+//#endregion
 
 ```
 
 ## let.js
 
 ```js
-// let.js
+//#region let.js
 for (let e of []);
 for (let { f, x: [g] } of []);
 for (let h in {});
 for (let { j, x: [k] } in {});
+//#endregion
 
 ```
 
 ## nested.js
 
 ```js
-// nested.js
+//#region nested.js
 for (var e of []);
 for (var { f, x: [g] } of []);
 for (var h in {});
 for (var { j, x: [k] } in {});
+//#endregion
 
 ```
 
 ## top-level.js
 
 ```js
-// top-level.js
+//#region top-level.js
 for (var e of []);
 for (var { f, x: [g] } of []);
 for (var h in {});
 for (var { j, x: [k] } in {});
+//#endregion
 
 ```

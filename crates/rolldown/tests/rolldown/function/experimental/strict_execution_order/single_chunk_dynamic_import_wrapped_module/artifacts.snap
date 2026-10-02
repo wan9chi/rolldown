@@ -9,7 +9,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 var singleChunkDynamicImportWrappedModule = (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
-	// shared.js
+	//#region shared.js
 	function mark(entry) {
 		globalThis.log.push(entry);
 	}
@@ -18,11 +18,13 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		globalThis.log.push("shared");
 		label = "shared";
 	}));
-	// lazy-dep.js
+	//#endregion
+	//#region lazy-dep.js
 	var init_lazy_dep = __esmMin((() => {
 		globalThis.log.push("lazy-dep");
 	}));
-	// lazy.js
+	//#endregion
+	//#region lazy.js
 	var lazy_exports = /* @__PURE__ */ __exportAll({
 		sharedLabel: () => sharedLabel,
 		value: () => value
@@ -35,7 +37,8 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		value = "dep";
 		sharedLabel = label;
 	}));
-	// main.js
+	//#endregion
+	//#region main.js
 	var ready;
 	function init_main() {
 		return (init_main = __esmMin((() => {
@@ -49,6 +52,7 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 			mark(`lazy-pending:${!globalThis.log.includes("lazy-body")}`);
 		})))();
 	}
+	//#endregion
 	init_main();
 	exports.ready = ready;
 	return exports;
@@ -66,7 +70,7 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 var singleChunkDynamicImportWrappedModule = (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
-	// shared.js
+	//#region shared.js
 	function mark(entry) {
 		globalThis.log.push(entry);
 	}
@@ -75,11 +79,13 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		globalThis.log.push("shared");
 		label = "shared";
 	}));
-	// lazy-dep.js
+	//#endregion
+	//#region lazy-dep.js
 	var init_lazy_dep = __esmMin((() => {
 		globalThis.log.push("lazy-dep");
 	}));
-	// lazy.js
+	//#endregion
+	//#region lazy.js
 	var lazy_exports = /* @__PURE__ */ __exportAll({
 		sharedLabel: () => sharedLabel,
 		value: () => value
@@ -92,7 +98,8 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		value = "dep";
 		sharedLabel = label;
 	}));
-	// main.js
+	//#endregion
+	//#region main.js
 	init_shared();
 	mark("main-body");
 	const ready = Promise.all([Promise.resolve().then(() => (init_lazy(), lazy_exports)), Promise.resolve().then(() => (init_lazy(), lazy_exports))]).then(([first, second]) => {
@@ -101,6 +108,7 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 	});
 	globalThis.ready = ready;
 	mark(`lazy-pending:${!globalThis.log.includes("lazy-body")}`);
+	//#endregion
 	exports.ready = ready;
 	return exports;
 })({});
@@ -119,7 +127,7 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 })(this, function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
-	// shared.js
+	//#region shared.js
 	function mark(entry) {
 		globalThis.log.push(entry);
 	}
@@ -128,11 +136,13 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		globalThis.log.push("shared");
 		label = "shared";
 	}));
-	// lazy-dep.js
+	//#endregion
+	//#region lazy-dep.js
 	var init_lazy_dep = __esmMin((() => {
 		globalThis.log.push("lazy-dep");
 	}));
-	// lazy.js
+	//#endregion
+	//#region lazy.js
 	var lazy_exports = /* @__PURE__ */ __exportAll({
 		sharedLabel: () => sharedLabel,
 		value: () => value
@@ -145,7 +155,8 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		value = "dep";
 		sharedLabel = label;
 	}));
-	// main.js
+	//#endregion
+	//#region main.js
 	var ready;
 	function init_main() {
 		return (init_main = __esmMin((() => {
@@ -159,6 +170,7 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 			mark(`lazy-pending:${!globalThis.log.includes("lazy-body")}`);
 		})))();
 	}
+	//#endregion
 	init_main();
 	exports.ready = ready;
 });
@@ -177,7 +189,7 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 })(this, function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	// HIDDEN [\0rolldown/runtime.js]
-	// shared.js
+	//#region shared.js
 	function mark(entry) {
 		globalThis.log.push(entry);
 	}
@@ -186,11 +198,13 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		globalThis.log.push("shared");
 		label = "shared";
 	}));
-	// lazy-dep.js
+	//#endregion
+	//#region lazy-dep.js
 	var init_lazy_dep = __esmMin((() => {
 		globalThis.log.push("lazy-dep");
 	}));
-	// lazy.js
+	//#endregion
+	//#region lazy.js
 	var lazy_exports = /* @__PURE__ */ __exportAll({
 		sharedLabel: () => sharedLabel,
 		value: () => value
@@ -203,7 +217,8 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 		value = "dep";
 		sharedLabel = label;
 	}));
-	// main.js
+	//#endregion
+	//#region main.js
 	init_shared();
 	mark("main-body");
 	const ready = Promise.all([Promise.resolve().then(() => (init_lazy(), lazy_exports)), Promise.resolve().then(() => (init_lazy(), lazy_exports))]).then(([first, second]) => {
@@ -212,6 +227,7 @@ var singleChunkDynamicImportWrappedModule = (function(exports) {
 	});
 	globalThis.ready = ready;
 	mark(`lazy-pending:${!globalThis.log.includes("lazy-body")}`);
+	//#endregion
 	exports.ready = ready;
 });
 

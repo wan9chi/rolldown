@@ -3,13 +3,6 @@ source: crates/rolldown_testing/src/integration_test.rs
 ---
 # warnings
 
-## SHIMMED_EXPORT
-
-```text
-[SHIMMED_EXPORT] Missing export "undef" has been shimmed in module "empty.js".
-
-```
-
 ## UNRESOLVED_IMPORT
 
 ```text
@@ -29,9 +22,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { imported } from "somewhere";
-// empty.js
+//#region empty.js
 var undef = void 0;
-// entry.js
+//#endregion
+//#region entry.js
 _ = class Outer {
 	#bar;
 	classes = [
@@ -61,5 +55,6 @@ _ = class Outer {
 		}
 	];
 };
+//#endregion
 
 ```

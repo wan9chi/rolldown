@@ -40,8 +40,9 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 "use client";
 import { MyPage } from "./mod.js";
-// main.js
+//#region main.js
 console.log(MyPage);
+//#endregion
 
 ```
 
@@ -49,10 +50,11 @@ console.log(MyPage);
 
 ```js
 "use client";
-// mod.js
+//#region mod.js
 function MyPage() {
 	return null;
 }
+//#endregion
 export { MyPage };
 
 ```
