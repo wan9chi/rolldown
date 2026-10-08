@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry1.js
 
 ```js
-// entry1.js
+//#region entry1.js
 function shouldMangle() {
 	let foo = {
 		bar_: 0,
@@ -43,6 +43,7 @@ function shouldNotMangle() {
 		"foo_": foo_
 	};
 }
+//#endregion
 export { shouldMangle, shouldNotMangle };
 
 ```
@@ -50,11 +51,12 @@ export { shouldMangle, shouldNotMangle };
 ## entry2.js
 
 ```js
-// entry2.js
+//#region entry2.js
 var entry2_default = {
 	bar_: 0,
 	"baz_": 1
 };
+//#endregion
 export { entry2_default as default };
 
 ```

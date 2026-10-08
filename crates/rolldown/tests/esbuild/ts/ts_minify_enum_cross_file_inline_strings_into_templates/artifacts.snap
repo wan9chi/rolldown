@@ -6,12 +6,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.ts
+//#region entry.ts
 console.log(`
 	SameFile.STR = str 1
 	SameFile.NUM = 123
 	CrossFile.STR = str 2
 	CrossFile.NUM = 321
 `);
+//#endregion
 
 ```

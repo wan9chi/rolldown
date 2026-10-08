@@ -122,7 +122,11 @@ impl<'text> MagicString<'text> {
   /// This is what the reference `magic-string` `length()` returns, since JavaScript string
   /// length is measured in UTF-16 code units.
   pub fn len_utf16(&self) -> usize {
-    self.iter_chunks().flat_map(|c| c.fragments(&self.source)).map(simd_utf16_len::utf16_len).sum()
+    self
+      .iter_chunks()
+      .flat_map(|c| c.fragments(&self.source))
+      .map(|f| f.chars().map(char::len_utf16).sum::<usize>())
+      .sum()
   }
 
   /// Returns the length in UTF-8 bytes of the whole generated output, including the global

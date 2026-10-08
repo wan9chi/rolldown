@@ -6,13 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## a.js
 
 ```js
-// a.js
+//#region a.js
 var require_a = /* @__PURE__ */ require("./main.js").__commonJSMin(((exports, module) => {
 	module.exports = {
 		value: 42,
 		hello: "world"
 	};
 }));
+//#endregion
 Object.defineProperty(exports, "default", {
 	enumerable: true,
 	get: function() {
@@ -26,8 +27,9 @@ Object.defineProperty(exports, "default", {
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// main.js
+//#region main.js
 Promise.resolve().then(() => /* @__PURE__ */ __toESM(require("./a.js").default)).then((m) => console.log(m.default));
+//#endregion
 exports.__commonJSMin = __commonJSMin;
 
 ```

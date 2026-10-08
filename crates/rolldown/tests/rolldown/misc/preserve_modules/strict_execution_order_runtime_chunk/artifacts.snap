@@ -7,7 +7,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { __esmMin } from "./rolldown-runtime.js";
-// dep.js
+//#region dep.js
 function dep() {
 	return "D";
 }
@@ -16,6 +16,7 @@ function init_dep() {
 		globalThis.__events.push("dep");
 	})))();
 }
+//#endregion
 init_dep();
 export { dep as default, init_dep };
 
@@ -25,7 +26,7 @@ export { dep as default, init_dep };
 
 ```js
 import { __esmMin } from "./rolldown-runtime.js";
-// lazy.js
+//#region lazy.js
 var lazy;
 function init_lazy() {
 	return (init_lazy = __esmMin((() => {
@@ -33,6 +34,7 @@ function init_lazy() {
 		lazy = "L";
 	})))();
 }
+//#endregion
 init_lazy();
 export { lazy };
 
@@ -43,7 +45,7 @@ export { lazy };
 ```js
 import { __esmMin } from "./rolldown-runtime.js";
 import dep, { init_dep } from "./dep.js";
-// main.js
+//#region main.js
 var mod;
 function init_main() {
 	return (init_main = __esmMin((async () => {
@@ -53,6 +55,7 @@ function init_main() {
 		globalThis.__events.push("after " + mod.lazy);
 	})))();
 }
+//#endregion
 await init_main();
 
 ```
@@ -72,11 +75,12 @@ export { __esmMin };
 ### dep.js
 
 ```js
-// dep.js
+//#region dep.js
 globalThis.__events.push("dep");
 function dep() {
 	return "D";
 }
+//#endregion
 export { dep as default };
 
 ```
@@ -84,9 +88,10 @@ export { dep as default };
 ### lazy.js
 
 ```js
-// lazy.js
+//#region lazy.js
 globalThis.__events.push("lazy");
 const lazy = "L";
+//#endregion
 export { lazy };
 
 ```
@@ -95,9 +100,10 @@ export { lazy };
 
 ```js
 import dep from "./dep.js";
-// main.js
+//#region main.js
 globalThis.__events.push("main " + dep() + "N");
 const mod = await import("./lazy.js");
 globalThis.__events.push("after " + mod.lazy);
+//#endregion
 
 ```

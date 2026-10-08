@@ -11,10 +11,9 @@ import assert from "node:assert";
 __rolldown_runtime__.registerGraph({
 	ids: ["mod.js", "main.js"],
 	localCount: 2,
-	edges: [[], [0]],
-	entries: [1]
+	edges: [[], [0]]
 });
-// mod.js
+//#region mod.js
 var hmr_temp_exports = /* @__PURE__ */ __exportAll({ value: () => value });
 const hmr_temp_hot = __rolldown_runtime__.createModuleHotContext("mod.js");
 __rolldown_runtime__.registerModule("mod.js", { exports: hmr_temp_exports });
@@ -22,10 +21,12 @@ const value = "hello";
 hmr_temp_hot.accept((mod) => {
 	assert.strictEqual(mod.value, "world");
 });
-// main.js
+//#endregion
+//#region main.js
 var main_exports = /* @__PURE__ */ __exportAll({});
 __rolldown_runtime__.createModuleHotContext("main.js");
 __rolldown_runtime__.registerModule("main.js", { exports: main_exports });
+//#endregion
 
 ```
 

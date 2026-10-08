@@ -7,11 +7,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import assert from "node:assert";
-// node_modules/demo-pkg/main.esm.js
+//#region node_modules/demo-pkg/main.esm.js
 function main_esm_default() {
 	return 123;
 }
-// src/entry.js
+//#endregion
+//#region src/entry.js
 assert.equal(main_esm_default(), 123);
+//#endregion
 
 ```

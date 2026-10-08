@@ -30,8 +30,9 @@ import "./a.js";
 ## d.js
 
 ```js
-// d.js
+//#region d.js
 let foo = globalThis.SEED;
+//#endregion
 export { foo };
 
 ```
@@ -40,8 +41,9 @@ export { foo };
 
 ```js
 import { zfoo } from "./z.js";
-// index.js
+//#region index.js
 console.log(zfoo);
+//#endregion
 
 ```
 
@@ -50,8 +52,9 @@ console.log(zfoo);
 ```js
 import { foo } from "./d.js";
 import "./c.js";
-// z.js
+//#region z.js
 const zfoo = foo;
+//#endregion
 export { zfoo };
 
 ```

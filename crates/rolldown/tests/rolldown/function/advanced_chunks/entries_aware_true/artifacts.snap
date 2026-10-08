@@ -34,8 +34,9 @@ import "./vendor~entry-a~entry-b~entry-c.js";
 
 ```js
 //! ManualCodeSplitting: [Group-Name: vendor] [Entries: entry-a.js]
-// shared-by-a.js
+//#region shared-by-a.js
 console.log("shared-by-a");
+//#endregion
 
 ```
 
@@ -43,8 +44,9 @@ console.log("shared-by-a");
 
 ```js
 //! ManualCodeSplitting: [Group-Name: vendor] [Entries: entry-a.js, entry-b.js]
-// shared-by-ab.js
+//#region shared-by-ab.js
 console.log("shared-by-ab");
+//#endregion
 
 ```
 
@@ -52,7 +54,8 @@ console.log("shared-by-ab");
 
 ```js
 //! ManualCodeSplitting: [Group-Name: vendor] [Entries: entry-a.js, entry-b.js, entry-c.js]
-// shared-by-abc.js
+//#region shared-by-abc.js
 console.log("shared-by-abc");
+//#endregion
 
 ```

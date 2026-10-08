@@ -17,11 +17,13 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import assert from "node:assert";
 // HIDDEN [\0rolldown/runtime.js]
-// bar.mjs
+//#region bar.mjs
 var bar_exports = /* @__PURE__ */ __exportAll({ default: () => "bar" });
-// main.js
+//#endregion
+//#region main.js
 const glob = { "./bar.css": () => Promise.resolve().then(() => bar_exports) };
 assert.strictEqual({ "./bar.css": "bar" }["./bar.css"], "bar");
+//#endregion
 export { glob };
 
 ```

@@ -6,13 +6,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.ts
+//#region entry.ts
 function before() {
 	console.log(0);
 }
 function after() {
 	console.log(0);
 }
+//#endregion
 export { after, before };
 
 ```

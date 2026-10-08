@@ -6,21 +6,24 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## 40max-size.js
 
 ```js
-// size-15.js
+//#region size-15.js
 console.log(10);
 
-// size-20.js
+//#endregion
+//#region size-20.js
 console.log(1e6);
 
+//#endregion
 ```
 
 ## 40max-size2.js
 
 ```js
-// size-41.js
+//#region size-41.js
 console.log(1e6);
 console.log(1e6);
 
+//#endregion
 ```
 
 ## main.js

@@ -6,7 +6,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## entry.js
 
 ```js
-// entry.js
+//#region (ignored) 
+//#endregion
+//#region entry.js
 (void 0)();
+//#endregion
 
 ```

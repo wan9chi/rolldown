@@ -31,11 +31,14 @@ import "./vendor.js";
 
 ```js
 //! ManualCodeSplitting: [Group-Name: vendor]
-// shared-by-abc.js
+//#region shared-by-abc.js
 console.log("shared-by-abc");
-// shared-by-ab.js
+//#endregion
+//#region shared-by-ab.js
 console.log("shared-by-ab");
-// shared-by-a.js
+//#endregion
+//#region shared-by-a.js
 console.log("shared-by-a");
+//#endregion
 
 ```
