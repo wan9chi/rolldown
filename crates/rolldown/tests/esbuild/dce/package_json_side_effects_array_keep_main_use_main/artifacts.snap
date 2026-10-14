@@ -6,9 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## src_entry.js
 
 ```js
-// node_modules/demo-pkg/index-main.js
+//#region node_modules/demo-pkg/index-main.js
 console.log("this should be kept");
-// src/entry.js
+//#endregion
+//#region src/entry.js
 console.log("unused import");
+//#endregion
 
 ```

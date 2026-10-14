@@ -3,29 +3,32 @@ source: crates/rolldown_testing/src/integration_test.rs
 ---
 # Assets
 
-## a-FPStWFLZ.js
+## a-C-4L9xJi.js
 
 ```js
-import { t as shared } from "./shared-Bp3FXjT9.js";
-// a.js
+import { t as shared } from "./shared-CnOBP72w.js";
+//#region a.js
 console.log("a", shared);
+//#endregion
 
 ```
 
-## b-CdSDPGyX.js
+## b-IfP5aka_.js
 
 ```js
-import { t as shared } from "./shared-Bp3FXjT9.js";
-// b.js
+import { t as shared } from "./shared-CnOBP72w.js";
+//#region b.js
 console.log("b", shared);
+//#endregion
 
 ```
 
-## shared-Bp3FXjT9.js
+## shared-CnOBP72w.js
 
 ```js
-// shared.js
+//#region shared.js
 const shared = "shared_value";
+//#endregion
 export { shared as t };
 
 ```

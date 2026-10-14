@@ -30,8 +30,7 @@ class Module {
  * only some rows; a missing row, or a missing or `null` entry, means the whole namespace.
  * `dynamicEdges` also holds only some rows; a missing row means no dynamic edges.
  * `stamps[i]` is the rebuild stamp of `ids[i]`; a missing row means 0.
- * `entries` lists the rows whose module is an entry.
- * @typedef {{ ids: string[], localCount: number, edges: number[][], bindings?: Record<number, (string[] | null)[]>, dynamicEdges?: Record<number, number[]>, stamps?: Record<number, number>, entries?: number[] }} ModuleGraphDelta
+ * @typedef {{ ids: string[], localCount: number, edges: number[][], bindings?: Record<number, (string[] | null)[]>, dynamicEdges?: Record<number, number[]>, stamps?: Record<number, number> }} ModuleGraphDelta
  * @typedef {{ createModuleHotContext(moduleId: string): any, onModuleCacheRemoval(moduleId: string): void }} DevRuntimeHooks
  */
 
@@ -82,8 +81,6 @@ export class DevRuntime {
    * @type {Map<string, Set<string>>}
    */
   dynamicImporters = new Map();
-  /** @type {Set<string>} */
-  entries = new Set();
   /**
    * The module cache. Membership means "this module's side effects ran in this tab" —
    * registration is emitted ahead of every module body, and nothing un-registers on
@@ -158,12 +155,6 @@ export class DevRuntime {
         importerSet.add(id);
       }
       this.dynamicImports.set(id, { edges: dynamicEdges });
-
-      if (delta.entries?.includes(i)) {
-        this.entries.add(id);
-      } else {
-        this.entries.delete(id);
-      }
     }
   }
 
@@ -218,13 +209,6 @@ export class DevRuntime {
     }
     if (!names) return ['*'];
     return names.includes('*') ? names : [...names, '*'];
-  }
-
-  /**
-   * @param {string} id
-   */
-  isEntry(id) {
-    return this.entries.has(id);
   }
 
   /**

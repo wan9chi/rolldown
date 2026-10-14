@@ -41,16 +41,6 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
     self.scope_stack.last().is_some_and(|flags| flags.contains(ScopeFlags::Top))
   }
 
-  /// Only preload static urls: `import('foo')` or `` import(`foo`) ``.
-  #[inline]
-  pub fn is_import_with_static_specifier(expr: &Expression<'a>) -> bool {
-    matches!(
-      expr,
-      Expression::ImportExpression(import_expr)
-        if matches!(import_expr.source, Expression::StringLiteral(_) | Expression::TemplateLiteral(_))
-    )
-  }
-
   /// transform `(await import('foo')).foo`
   /// to `(await __vitePreload(async () => { let foo; return {foo} = await import('foo'); },...))).foo`
   pub fn rewrite_member_expr(&self, member_expr: &mut StaticMemberExpression<'a>) -> bool {
@@ -58,7 +48,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
     while let Expression::ParenthesizedExpression(member_expr) = await_expr {
       await_expr = &mut member_expr.expression;
     }
-    if matches!(await_expr,  Expression::AwaitExpression(expr) if Self::is_import_with_static_specifier(&expr.argument))
+    if matches!(await_expr,  Expression::AwaitExpression(expr) if matches!(expr.argument, Expression::ImportExpression(_)))
     {
       let (key, value) = match member_expr.property.name.as_str() {
         // avoid `default` keyword error
@@ -103,7 +93,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
     let Expression::StaticMemberExpression(ref callee) = call_expr.callee else {
       return false;
     };
-    if callee.property.name != "then" || !Self::is_import_with_static_specifier(&callee.object) {
+    if callee.property.name != "then" || !matches!(callee.object, Expression::ImportExpression(_)) {
       return false;
     }
 
@@ -146,9 +136,7 @@ impl<'a> BuildImportAnalysisVisitor<'a> {
   /// transform `import('foo')`
   /// to `__vitePreload(() => import('foo'),...)`
   pub fn rewrite_import_expr(&self, expr: &mut Expression<'a>) -> bool {
-    if !Self::is_import_with_static_specifier(expr) {
-      return false;
-    }
+    let Expression::ImportExpression(_) = expr else { return false };
     *expr = self
       .vite_preload_call(Argument::from(Expression::new_arrow_returning(expr.take_in(self), self)));
     true

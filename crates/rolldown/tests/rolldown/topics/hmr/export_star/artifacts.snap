@@ -28,29 +28,31 @@ __rolldown_runtime__.registerGraph({
 		],
 		[3],
 		[4]
-	],
-	entries: [5]
+	]
 });
-// sub/foo.js
+//#region sub/foo.js
 var foo_exports = /* @__PURE__ */ __exportAll({
 	foo: () => "foo",
 	named: () => "foo"
 });
 __rolldown_runtime__.createModuleHotContext("sub/foo.js");
 __rolldown_runtime__.registerModule("sub/foo.js", { exports: foo_exports });
-// sub/bar.js
+//#endregion
+//#region sub/bar.js
 var bar_exports = /* @__PURE__ */ __exportAll({
 	bar: () => "bar",
 	named: () => "bar"
 });
 __rolldown_runtime__.createModuleHotContext("sub/bar.js");
 __rolldown_runtime__.registerModule("sub/bar.js", { exports: bar_exports });
-// sub/named.js
+//#endregion
+//#region sub/named.js
 var named_exports = /* @__PURE__ */ __exportAll({ named: () => named });
 __rolldown_runtime__.createModuleHotContext("sub/named.js");
 __rolldown_runtime__.registerModule("sub/named.js", { exports: named_exports });
 const named = "named";
-// sub/index.js
+//#endregion
+//#region sub/index.js
 var sub_exports = /* @__PURE__ */ __exportAll({
 	bar: () => "bar",
 	foo: () => "foo",
@@ -58,13 +60,15 @@ var sub_exports = /* @__PURE__ */ __exportAll({
 });
 __rolldown_runtime__.createModuleHotContext("sub/index.js");
 __rolldown_runtime__.registerModule("sub/index.js", { exports: sub_exports });
-// hmr.js
+//#endregion
+//#region hmr.js
 var hmr_exports = /* @__PURE__ */ __exportAll({});
 const hmr_hot = __rolldown_runtime__.createModuleHotContext("hmr.js");
 __rolldown_runtime__.registerModule("hmr.js", { exports: hmr_exports });
 console.log("foo", "bar");
 hmr_hot.accept();
-// main.js
+//#endregion
+//#region main.js
 var main_exports = /* @__PURE__ */ __exportAll({});
 __rolldown_runtime__.createModuleHotContext("main.js");
 __rolldown_runtime__.registerModule("main.js", { exports: main_exports });
@@ -72,6 +76,7 @@ text(".app", "hello");
 function text(el, text) {
 	console.log(el, text);
 }
+//#endregion
 
 ```
 

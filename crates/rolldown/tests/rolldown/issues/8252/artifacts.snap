@@ -7,7 +7,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { t as createSorter } from "./sorter2.js";
-// index.js
+//#region index.js
 async function main() {
 	const v3 = await import("./v3.js");
 	return {
@@ -15,6 +15,7 @@ async function main() {
 		v3
 	};
 }
+//#endregion
 export { main };
 
 ```
@@ -29,22 +30,25 @@ export { t as createSorter } from "./sorter2.js";
 ## sorter2.js
 
 ```js
-// resolve.js
+//#region resolve.js
 const counter = new SomethingNew();
 function resolveJsFrom(base, id) {
 	return counter;
 }
-// sorting.js
+//#endregion
+//#region sorting.js
 function sort(input) {
 	return resolveJsFrom(input, "some-pkg");
 }
-// sorter.js
+//#endregion
+//#region sorter.js
 function createSorter() {
 	return {
 		sort,
 		resolveJsFrom
 	};
 }
+//#endregion
 export { resolveJsFrom as n, createSorter as t };
 
 ```
@@ -53,10 +57,11 @@ export { resolveJsFrom as n, createSorter as t };
 
 ```js
 import { n as resolveJsFrom } from "./sorter2.js";
-// v3.js
+//#region v3.js
 function loadV3() {
 	return resolveJsFrom("v3-dir", "v3-config");
 }
+//#endregion
 export { loadV3 };
 
 ```

@@ -73,12 +73,8 @@ impl BareBridgeCallee<'_> {
       return None;
     }
     match member.static_property_name() {
-      Some(name)
-        if name.as_str().is_some_and(|name| self.callees.is_wrapper(&object.name, name)) =>
-      {
-        None
-      }
-      Some(name) => Some(format!("{}.{}", object.name, name.display())),
+      Some(name) if self.callees.is_wrapper(&object.name, name) => None,
+      Some(name) => Some(format!("{}.{name}", object.name)),
       None => Some(format!("{}[...]", object.name)),
     }
   }

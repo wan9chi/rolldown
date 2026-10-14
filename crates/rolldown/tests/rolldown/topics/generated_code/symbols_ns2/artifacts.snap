@@ -8,16 +8,19 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import assert from "assert";
 // HIDDEN [\0rolldown/runtime.js]
-// lib.js
+//#region lib.js
 var lib_exports = /* @__PURE__ */ __exportAll({ a: () => a });
 const a = 1e3;
-// a.js
+//#endregion
+//#region a.js
 var a_exports = /* @__PURE__ */ __exportAll({ ns: () => lib_exports });
-// main.js
+//#endregion
+//#region main.js
 assert.deepStrictEqual(Object.getOwnPropertyNames(a_exports), ["ns"]);
 assert.deepStrictEqual(Object.getOwnPropertyNames(lib_exports), ["a"]);
 assert.equal(String(a_exports), "[object Module]");
 assert.equal(String(lib_exports), "[object Module]");
+//#endregion
 
 ```
 
@@ -31,16 +34,19 @@ assert.equal(String(lib_exports), "[object Module]");
 // HIDDEN [\0rolldown/runtime.js]
 let assert = require("assert");
 assert = __toESM(assert);
-// lib.js
+//#region lib.js
 var lib_exports = /* @__PURE__ */ __exportAll({ a: () => a });
 const a = 1e3;
-// a.js
+//#endregion
+//#region a.js
 var a_exports = /* @__PURE__ */ __exportAll({ ns: () => lib_exports });
-// main.js
+//#endregion
+//#region main.js
 assert.default.deepStrictEqual(Object.getOwnPropertyNames(a_exports), ["ns"]);
 assert.default.deepStrictEqual(Object.getOwnPropertyNames(lib_exports), ["a"]);
 assert.default.equal(String(a_exports), "[object Module]");
 assert.default.equal(String(lib_exports), "[object Module]");
+//#endregion
 
 ```
 
@@ -63,16 +69,19 @@ assert.default.equal(String(lib_exports), "[object Module]");
 (function(assert) {
 	// HIDDEN [\0rolldown/runtime.js]
 	assert = __toESM(assert);
-	// lib.js
+	//#region lib.js
 	var lib_exports = /* @__PURE__ */ __exportAll({ a: () => a });
 	const a = 1e3;
-	// a.js
+	//#endregion
+	//#region a.js
 	var a_exports = /* @__PURE__ */ __exportAll({ ns: () => lib_exports });
-	// main.js
+	//#endregion
+	//#region main.js
 	assert.default.deepStrictEqual(Object.getOwnPropertyNames(a_exports), ["ns"]);
 	assert.default.deepStrictEqual(Object.getOwnPropertyNames(lib_exports), ["a"]);
 	assert.default.equal(String(a_exports), "[object Module]");
 	assert.default.equal(String(lib_exports), "[object Module]");
+	//#endregion
 })(assert);
 
 ```

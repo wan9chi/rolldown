@@ -10,8 +10,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 let mock_cjs = require("mock-cjs");
 mock_cjs = require_rolldown_runtime.__toESM(mock_cjs, 1);
-// src/from-ts.ts
+//#region src/from-ts.ts
 const result = mock_cjs.default.div``;
+//#endregion
 exports.result = result;
 
 ```
@@ -23,8 +24,9 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const require_rolldown_runtime = require("./rolldown-runtime.js");
 let mock_cjs = require("mock-cjs");
 mock_cjs = require_rolldown_runtime.__toESM(mock_cjs, 1);
-// src/from-tsx.tsx
+//#region src/from-tsx.tsx
 const result = mock_cjs.default.div``;
+//#endregion
 exports.result = result;
 
 ```

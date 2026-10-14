@@ -6,11 +6,16 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// library/kept.effect.js
+//#region library/kept.effect.js
 console.log("kept-side-effect-marker");
-// library/excluded/dead.effect.js
+//#endregion
+//#region library/excluded/dead.effect.js
 console.log("excluded-side-effect-marker");
-// main.js
+//#endregion
+//#region library/used.js
+//#endregion
+//#region main.js
 console.log("used-value");
+//#endregion
 
 ```

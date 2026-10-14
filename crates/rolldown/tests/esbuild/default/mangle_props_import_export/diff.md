@@ -7,8 +7,9 @@ import { bar_ } from "xyz";
 ### rolldown
 ```js
 import "xyz";
-// esm.js
+//#region esm.js
 let foo_ = 123;
+//#endregion
 export { foo_ };
 
 ```
@@ -34,11 +35,12 @@ let bar_ = require("xyz").b;
 ### rolldown
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// cjs.js
+//#region cjs.js
 var require_cjs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.foo_ = 123;
 	__require("xyz").bar_;
 }));
+//#endregion
 export default require_cjs();
 
 ```

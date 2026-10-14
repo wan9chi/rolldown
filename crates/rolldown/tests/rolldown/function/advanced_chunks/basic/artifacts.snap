@@ -20,10 +20,12 @@ export { t as b } from "./common.js";
 ## common.js
 
 ```js
-// a.js
+//#region a.js
 const a = "a";
-// b.js
+//#endregion
+//#region b.js
 const b = "a";
+//#endregion
 export { a as n, b as t };
 
 ```
@@ -49,10 +51,12 @@ export { t as b } from "./common.js";
 ### common.js
 
 ```js
-// a.js
+//#region a.js
 const a = "a";
-// b.js
+//#endregion
+//#region b.js
 const b = "a";
+//#endregion
 export { a as n, b as t };
 
 ```

@@ -7,14 +7,16 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// b.js
+//#region b.js
 var b_exports = /* @__PURE__ */ __exportAll({ bImpl: () => bImpl });
 function bImpl() {
 	return "b-result";
 }
-// a.js
+//#endregion
+//#region a.js
 var a_exports = /* @__PURE__ */ __exportAll({});
 globalThis.__9320_single_export_ref = bImpl;
+//#endregion
 export { b_exports as n, a_exports as t };
 
 ```
@@ -22,7 +24,7 @@ export { b_exports as n, a_exports as t };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 async function main() {
 	const aNs = await import("./a.js").then((n) => n.t);
 	const bNs = await import("./a.js").then((n) => n.n);
@@ -30,5 +32,6 @@ async function main() {
 	globalThis.__9320_single_export_bNs = bNs;
 }
 globalThis.__9320_single_export_done = main();
+//#endregion
 
 ```

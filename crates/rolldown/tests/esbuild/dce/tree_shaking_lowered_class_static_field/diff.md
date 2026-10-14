@@ -20,7 +20,7 @@ new KeepMe2();
 // HIDDEN [\0@oxc-project+runtime@0.0.0/file.js]
 // HIDDEN [\0@oxc-project+runtime@0.0.0/file.js]
 // HIDDEN [\0@oxc-project+runtime@0.0.0/file.js]
-// entry.js
+//#region entry.js
 var REMOVE_ME = class {};
 _defineProperty(REMOVE_ME, "x", "x");
 _defineProperty(REMOVE_ME, "y", "y");
@@ -34,6 +34,7 @@ _defineProperty(KeepMe2, "x", "x");
 _defineProperty(KeepMe2, "y", "y");
 _defineProperty(KeepMe2, "z", "z");
 new KeepMe2();
+//#endregion
 
 ```
 ### diff

@@ -7,15 +7,17 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// core/setupWorker.js
+//#region core/setupWorker.js
 function setupWorker(handler) {
 	return { handler };
 }
-// core/http.js
+//#endregion
+//#region core/http.js
 function http() {
 	return "http";
 }
-// main.js
+//#endregion
+//#region main.js
 var worker;
 function init_main() {
 	return (init_main = __esmMin((() => {
@@ -23,6 +25,7 @@ function init_main() {
 		console.log(worker);
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -34,16 +37,19 @@ init_main();
 ### main.js
 
 ```js
-// core/setupWorker.js
+//#region core/setupWorker.js
 function setupWorker(handler) {
 	return { handler };
 }
-// core/http.js
+//#endregion
+//#region core/http.js
 function http() {
 	return "http";
 }
-// main.js
+//#endregion
+//#region main.js
 const worker = setupWorker(http());
 console.log(worker);
+//#endregion
 
 ```

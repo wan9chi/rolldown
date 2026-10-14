@@ -7,18 +7,22 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// form-exports.js
+//#region form-exports.js
 function formImpl() {
 	return "form-result";
 }
-// form.js
+//#endregion
+//#region form.js
 var form_exports = /* @__PURE__ */ __exportAll({ formImpl: () => formImpl });
-// action-exports.js
+//#endregion
+//#region action-exports.js
 function actionImpl() {
 	return "action-result";
 }
-// action.js
+//#endregion
+//#region action.js
 var action_exports = /* @__PURE__ */ __exportAll({ actionImpl: () => actionImpl });
+//#endregion
 export { form_exports as n, action_exports as t };
 
 ```
@@ -26,7 +30,7 @@ export { form_exports as n, action_exports as t };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 async function main() {
 	const formNs = await import("./action.js").then((n) => n.n);
 	const actionNs = await import("./action.js").then((n) => n.t);
@@ -34,5 +38,6 @@ async function main() {
 	globalThis.__9320_star_actionNs = actionNs;
 }
 globalThis.__9320_star_done = main();
+//#endregion
 
 ```

@@ -6,7 +6,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## main.js
 
 ```js
-// constants.js
+//#region constants.js
 const API_ENDPOINTS = {
 	USERS: "/api/users",
 	POSTS: "/api/posts"
@@ -19,7 +19,8 @@ const someObject = {
 	e: 5,
 	nested: { deep: "value" }
 };
-// main.js
+//#endregion
+//#region main.js
 function test() {
 	console.log("test function called");
 }
@@ -32,6 +33,7 @@ const { e } = (() => {
 	return someObject;
 })();
 var main_default = {};
+//#endregion
 export { main_default as default };
 
 ```

@@ -7,12 +7,14 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// sharedDynamic.js
+//#region sharedDynamic.js
 const sharedDynamic = true;
-// dynamic1.js
+//#endregion
+//#region dynamic1.js
 var dynamic1_exports = /* @__PURE__ */ __exportAll({ promise: () => promise });
 console.log(true);
 const promise = import("./dynamic2.js");
+//#endregion
 export { sharedDynamic as n, promise, dynamic1_exports as t };
 
 ```
@@ -27,7 +29,8 @@ export { n as sharedDynamic } from "./dynamic1.js";
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 import("./dynamic1.js").then((n) => n.t).then(({ promise, ...ns }) => ns);
+//#endregion
 
 ```

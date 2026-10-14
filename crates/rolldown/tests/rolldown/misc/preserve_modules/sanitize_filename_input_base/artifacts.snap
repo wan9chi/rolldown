@@ -6,10 +6,11 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## dep.js
 
 ```js
-// src+x/dep.js
+//#region src+x/dep.js
 function dep() {
 	return 1;
 }
+//#endregion
 export { dep };
 
 ```
@@ -18,7 +19,8 @@ export { dep };
 
 ```js
 import { dep } from "./dep.js";
-// src+x/main.js
+//#region src+x/main.js
 console.log(dep());
+//#endregion
 
 ```

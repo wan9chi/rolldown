@@ -8,7 +8,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as hasExpectedValue } from "./utilities.js";
-// shared-identity.js
+//#region shared-identity.js
 function isSame(left, right) {
 	return is(left, right);
 }
@@ -18,7 +18,8 @@ function init_shared_identity() {
 		is = Object.is;
 	})))();
 }
-// shared-equality.js
+//#endregion
+//#region shared-equality.js
 function isEqual(left, right) {
 	return left === right || typeof left === "object" && hasOwnProperty.call(left, right);
 }
@@ -28,7 +29,8 @@ function init_shared_equality() {
 		hasOwnProperty = Object.prototype.hasOwnProperty;
 	})))();
 }
-// toast.js
+//#endregion
+//#region toast.js
 function showToast(value) {
 	if (hasExpectedValue(value) && isEqual({ [value]: true }, "expected") && isSame(value, "expected")) console.log("The expected value was received");
 }
@@ -38,13 +40,15 @@ function init_toast() {
 		init_shared_equality();
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_toast();
 		showToast("expected");
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -61,13 +65,14 @@ export { __esmMin as t };
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// utilities/index.js
+//#region utilities/index.js
 function hasExpectedValue(actual) {
 	return actual === "expected";
 }
 function init_utilities() {
 	return (init_utilities = __esmMin((() => {})))();
 }
+//#endregion
 export { init_utilities as n, hasExpectedValue as t };
 
 ```
@@ -77,12 +82,13 @@ export { init_utilities as n, hasExpectedValue as t };
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as hasExpectedValue } from "./utilities.js";
-// utilities-page.js
+//#region utilities-page.js
 function init_utilities_page() {
 	return (init_utilities_page = __esmMin((() => {
 		console.log(hasExpectedValue("utilities"));
 	})))();
 }
+//#endregion
 init_utilities_page();
 
 ```
@@ -96,20 +102,21 @@ init_utilities_page();
 ```js
 import { i as __share_require, n as __share, r as __share_export, t as __esmMin } from "./rolldown-runtime.js";
 __share("utilities-I-4Ibty4", (exports) => {
-	// utilities/index.js
+	//#region utilities/index.js
 	function hasExpectedValue(actual) {
 		return actual === "expected";
 	}
 	function init_utilities() {
 		return (init_utilities = __esmMin((() => {})))();
 	}
+	//#endregion
 	__share_export(exports, {
 		n: () => init_utilities,
 		t: () => hasExpectedValue
 	});
 });
 var share_utilities = __share_require("utilities-I-4Ibty4");
-// shared-identity.js
+//#region shared-identity.js
 function isSame(left, right) {
 	return is(left, right);
 }
@@ -119,7 +126,8 @@ function init_shared_identity() {
 		is = Object.is;
 	})))();
 }
-// shared-equality.js
+//#endregion
+//#region shared-equality.js
 function isEqual(left, right) {
 	return left === right || typeof left === "object" && hasOwnProperty.call(left, right);
 }
@@ -129,7 +137,8 @@ function init_shared_equality() {
 		hasOwnProperty = Object.prototype.hasOwnProperty;
 	})))();
 }
-// toast.js
+//#endregion
+//#region toast.js
 function showToast(value) {
 	if ((0, share_utilities.t)(value) && isEqual({ [value]: true }, "expected") && isSame(value, "expected")) console.log("The expected value was received");
 }
@@ -139,13 +148,15 @@ function init_toast() {
 		init_shared_equality();
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_toast();
 		showToast("expected");
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -163,25 +174,27 @@ export { __share_require as i, __share as n, __share_export as r, __esmMin as t 
 ```js
 import { i as __share_require, n as __share, r as __share_export, t as __esmMin } from "./rolldown-runtime.js";
 __share("utilities-I-4Ibty4", (exports) => {
-	// utilities/index.js
+	//#region utilities/index.js
 	function hasExpectedValue(actual) {
 		return actual === "expected";
 	}
 	function init_utilities() {
 		return (init_utilities = __esmMin((() => {})))();
 	}
+	//#endregion
 	__share_export(exports, {
 		n: () => init_utilities,
 		t: () => hasExpectedValue
 	});
 });
 var share_utilities = __share_require("utilities-I-4Ibty4");
-// utilities-page.js
+//#region utilities-page.js
 function init_utilities_page() {
 	return (init_utilities_page = __esmMin((() => {
 		console.log((0, share_utilities.t)("utilities"));
 	})))();
 }
+//#endregion
 init_utilities_page();
 
 ```
@@ -195,7 +208,7 @@ init_utilities_page();
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as hasExpectedValue } from "./utilities.js";
-// shared-identity.js
+//#region shared-identity.js
 function isSame(left, right) {
 	return is(left, right);
 }
@@ -205,7 +218,8 @@ function init_shared_identity() {
 		is = Object.is;
 	})))();
 }
-// shared-equality.js
+//#endregion
+//#region shared-equality.js
 function isEqual(left, right) {
 	return left === right || typeof left === "object" && hasOwnProperty.call(left, right);
 }
@@ -215,7 +229,8 @@ function init_shared_equality() {
 		hasOwnProperty = Object.prototype.hasOwnProperty;
 	})))();
 }
-// toast.js
+//#endregion
+//#region toast.js
 function showToast(value) {
 	if (hasExpectedValue(value) && isEqual({ [value]: true }, "expected") && isSame(value, "expected")) console.log("The expected value was received");
 }
@@ -225,13 +240,15 @@ function init_toast() {
 		init_shared_equality();
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_toast();
 		showToast("expected");
 	})))();
 }
+//#endregion
 init_main();
 
 ```
@@ -247,10 +264,11 @@ export { __esmMin as t };
 ### utilities.js
 
 ```js
-// utilities/index.js
+//#region utilities/index.js
 function hasExpectedValue(actual) {
 	return actual === "expected";
 }
+//#endregion
 export { hasExpectedValue as t };
 
 ```
@@ -260,12 +278,13 @@ export { hasExpectedValue as t };
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as hasExpectedValue } from "./utilities.js";
-// utilities-page.js
+//#region utilities-page.js
 function init_utilities_page() {
 	return (init_utilities_page = __esmMin((() => {
 		console.log(hasExpectedValue("utilities"));
 	})))();
 }
+//#endregion
 init_utilities_page();
 
 ```

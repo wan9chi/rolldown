@@ -13,8 +13,9 @@ export { a } from "./mod.js";
 ## dynamic2.js
 
 ```js
-// dynamic2.js
+//#region dynamic2.js
 const a = "a";
+//#endregion
 export { a };
 
 ```
@@ -22,8 +23,9 @@ export { a };
 ## entry2.js
 
 ```js
-// entry2.js
+//#region entry2.js
 var entry2_default = import("./dynamic.js");
+//#endregion
 export { entry2_default as default };
 
 ```
@@ -31,9 +33,10 @@ export { entry2_default as default };
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 const mod = () => import("./dynamic.js");
 const { a } = await import("./dynamic2.js");
+//#endregion
 export { a, mod };
 
 ```
@@ -41,8 +44,9 @@ export { a, mod };
 ## mod.js
 
 ```js
-// mod.js
+//#region mod.js
 const a = 1e3;
+//#endregion
 export { a };
 
 ```

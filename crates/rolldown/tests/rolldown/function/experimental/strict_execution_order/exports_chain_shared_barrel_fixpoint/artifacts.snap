@@ -7,13 +7,15 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// leaf.js
+//#region leaf.js
 let foo;
 foo = 1;
 
-// inner.js
+//#endregion
+//#region inner.js
 var inner_exports = /* @__PURE__ */ __exportAll({ foo: () => foo });
 
+//#endregion
 export { inner_exports as star };
 ```
 
@@ -25,7 +27,7 @@ export { inner_exports as star };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// leaf.js
+//#region leaf.js
 var foo;
 function init_leaf() {
 	return (init_leaf = __esmMin((() => {
@@ -34,7 +36,8 @@ function init_leaf() {
 	})))();
 }
 
-// inner.js
+//#endregion
+//#region inner.js
 var inner_exports = /* @__PURE__ */ __exportAll({ foo: () => foo });
 function init_inner() {
 	return (init_inner = __esmMin((() => {
@@ -42,13 +45,15 @@ function init_inner() {
 	})))();
 }
 
-// main.js
+//#endregion
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((() => {
 		init_inner();
 	})))();
 }
 
+//#endregion
 init_main();
 export { inner_exports as star };
 ```

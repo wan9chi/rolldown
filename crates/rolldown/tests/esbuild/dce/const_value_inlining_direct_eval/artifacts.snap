@@ -53,61 +53,67 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## nested-eval.js
 
 ```js
-// nested-eval.js
+//#region nested-eval.js
 (() => {
 	const x = 1;
 	console.log(x, eval("x"));
 })();
+//#endregion
 
 ```
 
 ## nested-no-eval.js
 
 ```js
-// nested-no-eval.js
+//#region nested-no-eval.js
 (() => {
 	console.log(1, evil("x"));
 })();
+//#endregion
 
 ```
 
 ## top-level-eval.js
 
 ```js
-// top-level-eval.js
+//#region top-level-eval.js
 const x = 1;
 console.log(x, eval("x"));
+//#endregion
 
 ```
 
 ## top-level-no-eval.js
 
 ```js
-// top-level-no-eval.js
+//#region top-level-no-eval.js
 console.log(1, evil("x"));
+//#endregion
 
 ```
 
 ## ts-namespace-eval.js
 
 ```js
-// ts-namespace-eval.ts
+//#region ts-namespace-eval.ts
 let z;
 (function(_z) {
 	const x = _z.x = 1;
 	console.log(x, eval("x"));
 })(z || (z = {}));
+//#endregion
 
 ```
 
 ## ts-namespace-no-eval.js
 
 ```js
-// ts-namespace-no-eval.ts
+//#region ts-namespace-no-eval.ts
 let y;
 (function(_y) {
 	const x = _y.x = 1;
 	console.log(x, evil("x"));
 })(y || (y = {}));
+//#endregion
 
 ```

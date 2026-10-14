@@ -6,10 +6,12 @@ source: crates/rolldown_testing/src/integration_test.rs
 ## css.js
 
 ```js
-// color.js
+//#region color.js
 const setOpacity = (color, opacity) => `${color}:${opacity}`;
-// css.js
+//#endregion
+//#region css.js
 globalThis.cssResult = setOpacity("a", 1);
+//#endregion
 
 ```
 
@@ -18,17 +20,19 @@ globalThis.cssResult = setOpacity("a", 1);
 ```js
 import "./css.js";
 import assert from "node:assert";
-// first.js
+//#region first.js
 assert.strictEqual(globalThis.cssResult, "a:1");
+//#endregion
 
 ```
 
 ## main.js
 
 ```js
-// main.js
+//#region main.js
 await import("./first.js");
 await import("./second.js");
+//#endregion
 
 ```
 
@@ -37,8 +41,9 @@ await import("./second.js");
 ```js
 import "./css.js";
 import assert from "node:assert";
-// second.js
+//#region second.js
 assert.strictEqual(globalThis.cssResult, "a:1");
+//#endregion
 
 ```
 
@@ -50,20 +55,22 @@ assert.strictEqual(globalThis.cssResult, "a:1");
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// color.js
+//#region color.js
 var setOpacity;
 function init_color() {
 	return (init_color = __esmMin((() => {
 		setOpacity = (color, opacity) => `${color}:${opacity}`;
 	})))();
 }
-// css.js
+//#endregion
+//#region css.js
 function init_css() {
 	return (init_css = __esmMin((() => {
 		init_color();
 		globalThis.cssResult = setOpacity("a", 1);
 	})))();
 }
+//#endregion
 export { init_css as t };
 
 ```
@@ -74,13 +81,14 @@ export { init_css as t };
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_css } from "./css.js";
 import assert from "node:assert";
-// first.js
+//#region first.js
 function init_first() {
 	return (init_first = __esmMin((() => {
 		init_css();
 		assert.strictEqual(globalThis.cssResult, "a:1");
 	})))();
 }
+//#endregion
 init_first();
 
 ```
@@ -89,13 +97,14 @@ init_first();
 
 ```js
 import { t as __esmMin } from "./rolldown-runtime.js";
-// main.js
+//#region main.js
 function init_main() {
 	return (init_main = __esmMin((async () => {
 		await import("./first.js");
 		await import("./second.js");
 	})))();
 }
+//#endregion
 await init_main();
 
 ```
@@ -114,13 +123,14 @@ export { __esmMin as t };
 import { t as __esmMin } from "./rolldown-runtime.js";
 import { t as init_css } from "./css.js";
 import assert from "node:assert";
-// second.js
+//#region second.js
 function init_second() {
 	return (init_second = __esmMin((() => {
 		init_css();
 		assert.strictEqual(globalThis.cssResult, "a:1");
 	})))();
 }
+//#endregion
 init_second();
 
 ```

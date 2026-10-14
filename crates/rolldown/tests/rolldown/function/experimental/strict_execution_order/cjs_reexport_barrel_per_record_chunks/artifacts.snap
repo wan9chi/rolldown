@@ -7,7 +7,7 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-// node_modules/split-barrel/cn.js
+//#region node_modules/split-barrel/cn.js
 var cn;
 function init_cn() {
 	return (init_cn = __esmMin((() => {
@@ -15,7 +15,8 @@ function init_cn() {
 		cn = () => "cn";
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 var loadA, loadB;
 function init_main() {
 	return (init_main = __esmMin((() => {
@@ -25,6 +26,7 @@ function init_main() {
 		loadB = () => import("./route-b.js");
 	})))();
 }
+//#endregion
 init_main();
 export { loadA, loadB };
 
@@ -43,7 +45,7 @@ export { __esmMin as n, __toESM as r, __commonJSMin as t };
 ```js
 import { n as __esmMin, r as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import "./split-barrel.js";
-// node_modules/split-barrel/a.cjs
+//#region node_modules/split-barrel/a.cjs
 var require_a = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("cjs-a");
 	module.exports = "a";
@@ -54,7 +56,8 @@ function init_split_barrel_cjs_0() {
 		import_a = /* @__PURE__ */ __toESM(require_a(), 1);
 	})))();
 }
-// route-a.js
+//#endregion
+//#region route-a.js
 var value;
 function init_route_a() {
 	return (init_route_a = __esmMin((() => {
@@ -63,6 +66,7 @@ function init_route_a() {
 		value = import_a.default;
 	})))();
 }
+//#endregion
 init_route_a();
 export { value };
 
@@ -73,7 +77,7 @@ export { value };
 ```js
 import { n as __esmMin, r as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import "./split-barrel.js";
-// node_modules/split-barrel/b.cjs
+//#region node_modules/split-barrel/b.cjs
 var require_b = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("cjs-b");
 	module.exports = "b";
@@ -84,7 +88,8 @@ function init_split_barrel_cjs_1() {
 		import_b = /* @__PURE__ */ __toESM(require_b(), 1);
 	})))();
 }
-// route-b.js
+//#endregion
+//#region route-b.js
 var value;
 function init_route_b() {
 	return (init_route_b = __esmMin((() => {
@@ -93,6 +98,7 @@ function init_route_b() {
 		value = import_b.default;
 	})))();
 }
+//#endregion
 init_route_b();
 export { value };
 
@@ -102,10 +108,11 @@ export { value };
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-// node_modules/split-barrel/index.js
+//#region node_modules/split-barrel/index.js
 function init_split_barrel() {
 	return (init_split_barrel = __esmMin((() => {})))();
 }
+//#endregion
 export { init_split_barrel as t };
 
 ```
@@ -118,7 +125,7 @@ export { init_split_barrel as t };
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-// node_modules/split-barrel/cn.js
+//#region node_modules/split-barrel/cn.js
 var cn;
 function init_cn() {
 	return (init_cn = __esmMin((() => {
@@ -126,7 +133,8 @@ function init_cn() {
 		cn = () => "cn";
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 var loadA, loadB;
 function init_main() {
 	return (init_main = __esmMin((() => {
@@ -136,6 +144,7 @@ function init_main() {
 		loadB = () => import("./route-b.js");
 	})))();
 }
+//#endregion
 init_main();
 export { loadA, loadB };
 
@@ -154,7 +163,7 @@ export { __esmMin as n, __toESM as r, __commonJSMin as t };
 ```js
 import { n as __esmMin, r as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import "./split-barrel.js";
-// node_modules/split-barrel/a.cjs
+//#region node_modules/split-barrel/a.cjs
 var require_a = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("cjs-a");
 	module.exports = "a";
@@ -165,7 +174,8 @@ function init_split_barrel_cjs_0() {
 		import_a = /* @__PURE__ */ __toESM(require_a(), 1);
 	})))();
 }
-// route-a.js
+//#endregion
+//#region route-a.js
 var value;
 function init_route_a() {
 	return (init_route_a = __esmMin((() => {
@@ -174,6 +184,7 @@ function init_route_a() {
 		value = import_a.default;
 	})))();
 }
+//#endregion
 init_route_a();
 export { value };
 
@@ -184,7 +195,7 @@ export { value };
 ```js
 import { n as __esmMin, r as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import "./split-barrel.js";
-// node_modules/split-barrel/b.cjs
+//#region node_modules/split-barrel/b.cjs
 var require_b = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("cjs-b");
 	module.exports = "b";
@@ -195,7 +206,8 @@ function init_split_barrel_cjs_1() {
 		import_b = /* @__PURE__ */ __toESM(require_b(), 1);
 	})))();
 }
-// route-b.js
+//#endregion
+//#region route-b.js
 var value;
 function init_route_b() {
 	return (init_route_b = __esmMin((() => {
@@ -204,6 +216,7 @@ function init_route_b() {
 		value = import_b.default;
 	})))();
 }
+//#endregion
 init_route_b();
 export { value };
 
@@ -213,10 +226,11 @@ export { value };
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-// node_modules/split-barrel/index.js
+//#region node_modules/split-barrel/index.js
 function init_split_barrel() {
 	return (init_split_barrel = __esmMin((() => {})))();
 }
+//#endregion
 export { init_split_barrel as t };
 
 ```

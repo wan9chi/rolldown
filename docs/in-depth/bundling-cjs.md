@@ -30,18 +30,21 @@ module.exports = { value: 'foo' };
 When bundled, it produces:
 
 ```js
-// \0rolldown/runtime.js
+// #region \0rolldown/runtime.js
 // ...runtime code
+// #endregion
 
-// foo.js
+// #region foo.js
 var require_foo = __commonJS({
   'foo.js'(exports, module) {
     module.exports = { value: 'foo' };
   },
 });
 
-// index.js
+// #endregion
+// #region index.js
 const getFooExports = () => require_foo();
+// #endregion
 ```
 
 In this example, the `foo.js` module won't be executed until `getFooExports()` is called, maintaining the lazy-loading behavior of CommonJS.
@@ -65,19 +68,23 @@ module.exports = { value: 'foo' };
 Bundled output:
 
 ```js
-// \0rolldown/runtime.js
+// #region \0rolldown/runtime.js
 // ...runtime code
+// #endregion
 
-// foo.js
+// #region foo.js
 var require_foo = __commonJS({
   'foo.js'(exports, module) {
     module.exports = { value: 'foo' };
   },
 });
 
-// index.js
+// #endregion
+// #region index.js
 var import_foo = __toESM(require_foo());
 console.log(import_foo.value);
+
+// #endregion
 ```
 
 The `__toESM` helper ensures that CommonJS exports are properly converted to ES module format, allowing seamless access to the exported values.

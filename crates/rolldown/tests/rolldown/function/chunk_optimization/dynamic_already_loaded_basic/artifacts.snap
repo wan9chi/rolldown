@@ -7,9 +7,10 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { t as value } from "./main.js";
-// dynamic.js
+//#region dynamic.js
 console.log("dynamic", value);
 const dynamic = value;
+//#endregion
 export { dynamic };
 
 ```
@@ -17,14 +18,16 @@ export { dynamic };
 ## main.js
 
 ```js
-// shared.js
+//#region shared.js
 console.log("shared");
 const value = "shared";
-// main.js
+//#endregion
+//#region main.js
 console.log("main", value);
 function load() {
 	return import("./dynamic.js");
 }
+//#endregion
 export { load, value as t };
 
 ```
@@ -37,9 +40,10 @@ export { load, value as t };
 
 ```js
 import { t as value } from "./shared.js";
-// dynamic.js
+//#region dynamic.js
 console.log("dynamic", value);
 const dynamic = value;
+//#endregion
 export { dynamic };
 
 ```
@@ -48,11 +52,12 @@ export { dynamic };
 
 ```js
 import { t as value } from "./shared.js";
-// main.js
+//#region main.js
 console.log("main", value);
 function load() {
 	return import("./dynamic.js");
 }
+//#endregion
 export { load };
 
 ```
@@ -60,9 +65,10 @@ export { load };
 ### shared.js
 
 ```js
-// shared.js
+//#region shared.js
 console.log("shared");
 const value = "shared";
+//#endregion
 export { value as t };
 
 ```

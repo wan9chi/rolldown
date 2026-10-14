@@ -7,8 +7,8 @@ source: crates/rolldown_testing/src/integration_test.rs
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-import { n as init_barrel_cjs_1, t as init_barrel_cjs_0 } from "./outer.js";
-// bare.js
+import { n as init_barrel_cjs_0, r as init_barrel_cjs_1 } from "./outer.js";
+//#region bare.js
 function init_bare() {
 	return (init_bare = __esmMin((() => {
 		init_barrel_cjs_0();
@@ -16,6 +16,7 @@ function init_bare() {
 		globalThis.__events.push("bare");
 	})))();
 }
+//#endregion
 init_bare();
 
 ```
@@ -24,8 +25,8 @@ init_bare();
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-import { n as init_barrel_cjs_1, t as init_barrel_cjs_0 } from "./outer.js";
-// node_modules/pure-leaves/cn.js
+import { n as init_barrel_cjs_0, r as init_barrel_cjs_1 } from "./outer.js";
+//#region node_modules/pure-leaves/cn.js
 function cn(...values) {
 	return values.filter(Boolean).join(" ");
 }
@@ -34,7 +35,8 @@ function init_cn() {
 		globalThis.__events.push("cn");
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function loadRoute() {
 	return import("./route.js");
 }
@@ -44,6 +46,7 @@ function init_main() {
 		globalThis.__events.push(`main:${cn("a", "b")}`);
 	})))();
 }
+//#endregion
 init_main();
 export { loadRoute };
 
@@ -53,7 +56,7 @@ export { loadRoute };
 
 ```js
 import { n as __esmMin, t as __commonJSMin } from "./rolldown-runtime.js";
-// effect-before.cjs
+//#region effect-before.cjs
 var require_effect_before = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("effect-before");
 	module.exports = {};
@@ -63,7 +66,8 @@ function init_barrel_cjs_0() {
 		require_effect_before();
 	})))();
 }
-// effect-after.cjs
+//#endregion
+//#region effect-after.cjs
 var require_effect_after = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("effect-after");
 	module.exports = {};
@@ -73,7 +77,15 @@ function init_barrel_cjs_1() {
 		require_effect_after();
 	})))();
 }
-export { init_barrel_cjs_1 as n, init_barrel_cjs_0 as t };
+//#endregion
+//#region barrel.js
+//#endregion
+//#region outer.js
+function init_outer() {
+	return (init_outer = __esmMin((() => {})))();
+}
+//#endregion
+export { init_barrel_cjs_0 as n, init_barrel_cjs_1 as r, init_outer as t };
 
 ```
 
@@ -89,8 +101,8 @@ export { __esmMin as n, __toESM as r, __commonJSMin as t };
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-import { n as init_barrel_cjs_1, t as init_barrel_cjs_0 } from "./outer.js";
-// node_modules/pure-leaves/stack.js
+import { n as init_barrel_cjs_0, r as init_barrel_cjs_1 } from "./outer.js";
+//#region node_modules/pure-leaves/stack.js
 var Stack;
 function init_stack() {
 	return (init_stack = __esmMin((() => {
@@ -98,7 +110,8 @@ function init_stack() {
 		Stack = class {};
 	})))();
 }
-// route.js
+//#endregion
+//#region route.js
 var stack;
 function init_route() {
 	return (init_route = __esmMin((() => {
@@ -107,6 +120,7 @@ function init_route() {
 		stack = new Stack();
 	})))();
 }
+//#endregion
 init_route();
 export { stack };
 
@@ -120,8 +134,8 @@ export { stack };
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-import { n as init_barrel_cjs_1, t as init_barrel_cjs_0 } from "./outer.js";
-// bare.js
+import { n as init_barrel_cjs_0, r as init_barrel_cjs_1 } from "./outer.js";
+//#region bare.js
 function init_bare() {
 	return (init_bare = __esmMin((() => {
 		init_barrel_cjs_0();
@@ -129,6 +143,7 @@ function init_bare() {
 		globalThis.__events.push("bare");
 	})))();
 }
+//#endregion
 init_bare();
 
 ```
@@ -137,8 +152,8 @@ init_bare();
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-import { n as init_barrel_cjs_1, t as init_barrel_cjs_0 } from "./outer.js";
-// node_modules/pure-leaves/cn.js
+import { n as init_barrel_cjs_0, r as init_barrel_cjs_1 } from "./outer.js";
+//#region node_modules/pure-leaves/cn.js
 function cn(...values) {
 	return values.filter(Boolean).join(" ");
 }
@@ -147,7 +162,8 @@ function init_cn() {
 		globalThis.__events.push("cn");
 	})))();
 }
-// main.js
+//#endregion
+//#region main.js
 function loadRoute() {
 	return import("./route.js");
 }
@@ -157,6 +173,7 @@ function init_main() {
 		globalThis.__events.push(`main:${cn("a", "b")}`);
 	})))();
 }
+//#endregion
 init_main();
 export { loadRoute };
 
@@ -166,7 +183,7 @@ export { loadRoute };
 
 ```js
 import { n as __esmMin, t as __commonJSMin } from "./rolldown-runtime.js";
-// effect-before.cjs
+//#region effect-before.cjs
 var require_effect_before = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("effect-before");
 	module.exports = {};
@@ -176,7 +193,8 @@ function init_barrel_cjs_0() {
 		require_effect_before();
 	})))();
 }
-// effect-after.cjs
+//#endregion
+//#region effect-after.cjs
 var require_effect_after = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("effect-after");
 	module.exports = {};
@@ -186,7 +204,15 @@ function init_barrel_cjs_1() {
 		require_effect_after();
 	})))();
 }
-export { init_barrel_cjs_1 as n, init_barrel_cjs_0 as t };
+//#endregion
+//#region barrel.js
+//#endregion
+//#region outer.js
+function init_outer() {
+	return (init_outer = __esmMin((() => {})))();
+}
+//#endregion
+export { init_barrel_cjs_0 as n, init_barrel_cjs_1 as r, init_outer as t };
 
 ```
 
@@ -202,8 +228,8 @@ export { __esmMin as n, __toESM as r, __commonJSMin as t };
 
 ```js
 import { n as __esmMin } from "./rolldown-runtime.js";
-import { n as init_barrel_cjs_1, t as init_barrel_cjs_0 } from "./outer.js";
-// node_modules/pure-leaves/stack.js
+import { n as init_barrel_cjs_0, r as init_barrel_cjs_1 } from "./outer.js";
+//#region node_modules/pure-leaves/stack.js
 var Stack;
 function init_stack() {
 	return (init_stack = __esmMin((() => {
@@ -211,7 +237,8 @@ function init_stack() {
 		Stack = class {};
 	})))();
 }
-// route.js
+//#endregion
+//#region route.js
 var stack;
 function init_route() {
 	return (init_route = __esmMin((() => {
@@ -220,6 +247,7 @@ function init_route() {
 		stack = new Stack();
 	})))();
 }
+//#endregion
 init_route();
 export { stack };
 
@@ -233,8 +261,9 @@ export { stack };
 
 ```js
 import "./outer.js";
-// bare.js
+//#region bare.js
 globalThis.__events.push("bare");
+//#endregion
 
 ```
 
@@ -242,16 +271,18 @@ globalThis.__events.push("bare");
 
 ```js
 import "./outer.js";
-// node_modules/pure-leaves/cn.js
+//#region node_modules/pure-leaves/cn.js
 globalThis.__events.push("cn");
 function cn(...values) {
 	return values.filter(Boolean).join(" ");
 }
-// main.js
+//#endregion
+//#region main.js
 globalThis.__events.push(`main:${cn("a", "b")}`);
 function loadRoute() {
 	return import("./route.js");
 }
+//#endregion
 export { loadRoute };
 
 ```
@@ -260,18 +291,22 @@ export { loadRoute };
 
 ```js
 // HIDDEN [\0rolldown/runtime.js]
-// effect-before.cjs
+//#region effect-before.cjs
 var require_effect_before = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("effect-before");
 	module.exports = {};
 }));
-// effect-after.cjs
+//#endregion
+//#region effect-after.cjs
 var require_effect_after = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	globalThis.__events.push("effect-after");
 	module.exports = {};
 }));
+//#endregion
+//#region barrel.js
 require_effect_before();
 require_effect_after();
+//#endregion
 
 ```
 
@@ -279,12 +314,14 @@ require_effect_after();
 
 ```js
 import "./outer.js";
-// node_modules/pure-leaves/stack.js
+//#region node_modules/pure-leaves/stack.js
 globalThis.__events.push("stack");
 var Stack = class {};
-// route.js
+//#endregion
+//#region route.js
 globalThis.__events.push("route");
 const stack = new Stack();
+//#endregion
 export { stack };
 
 ```

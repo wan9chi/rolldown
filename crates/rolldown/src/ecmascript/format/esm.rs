@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use arcstr::ArcStr;
 use itertools::Itertools;
 use rolldown_common::{
   AddonRenderContext, ChunkIdx, ExportsKind, ExternalModule, ImportAttribute, ImportKind,
@@ -7,20 +8,19 @@ use rolldown_common::{
   SymbolRef,
 };
 use rolldown_sourcemap::SourceJoiner;
-use rolldown_utils::{
-  concat_string,
-  ecmascript::{escape_non_ascii, to_ecma_string_literal, to_module_import_export_name_with_ascii},
-};
+use rolldown_utils::{concat_string, ecmascript::to_module_import_export_name};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::{
-  share_factory::render_inline_records,
-  utils::{is_use_strict_directive, render_chunk_directives},
-};
 use crate::{
   ecmascript::ecma_generator::{RenderedModuleSource, RenderedModuleSources},
   types::generator::GenerateContext,
   utils::chunk::render_chunk_exports::{render_chunk_exports, render_wrapped_entry_chunk},
+};
+use json_escape_simd::escape;
+
+use super::{
+  share_factory::render_inline_records,
+  utils::{is_use_strict_directive, render_chunk_directives},
 };
 
 /// `carried_sources`: the inline common chunk records this file carries, finalized and printed
@@ -87,8 +87,9 @@ pub fn render_esm<'code>(
           // An absent attribute is just an empty suffix, so both cases collapse to a
           // single `append_source` (same shape `create_import_declaration` uses below).
           source_joiner.append_source(concat_string!(
-            "export * from ",
-            to_ecma_string_literal(&ext_name, ctx.options.charset.is_ascii()),
+            "export * from \"",
+            ext_name,
+            "\"",
             with_clause.map(|attr| concat_string!(" ", attr.to_string())).unwrap_or_default(),
             "\n"
           ));
@@ -189,7 +190,6 @@ fn render_chunk_content<'code>(
     crate::hmr::module_graph_delta::render_register_graph_source(
       &ctx.link_output.module_table,
       ctx.chunk.modules.iter().copied(),
-      &ctx.link_output.user_defined_entry_modules,
       None,
     )
   } else {
@@ -343,7 +343,6 @@ fn render_chunk_content<'code>(
 
 fn render_esm_chunk_imports(ctx: &GenerateContext<'_>) -> Option<String> {
   let mut s = String::new();
-  let ascii_only = ctx.options.charset.is_ascii();
   ctx.chunk.imports_from_other_chunks.iter().for_each(|(exporter_id, items)| {
     let importee_chunk = &ctx.chunk_graph.chunk_table[*exporter_id];
     let mut default_alias = vec![];
@@ -363,22 +362,17 @@ fn render_esm_chunk_imports(ctx: &GenerateContext<'_>) -> Option<String> {
           .link_output
           .symbol_db
           .canonical_name_for_or_original(canonical_ref, &ctx.chunk.canonical_names);
-        let rendered_imported = escape_non_ascii(imported, ascii_only);
         let alias = &ctx.render_export_items_index_vec[*exporter_id]
           .get(&item.import_ref)
           .expect("should have export item index")[0];
         if alias.as_str() == imported {
-          Some(to_module_import_export_name_with_ascii(alias.as_str(), ascii_only))
+          Some(to_module_import_export_name(alias.as_str()))
         } else {
           if alias.as_str() == "default" {
-            default_alias.push(rendered_imported.into_owned());
+            default_alias.push(imported.into());
             return None;
           }
-          Some(concat_string!(
-            to_module_import_export_name_with_ascii(alias, ascii_only),
-            " as ",
-            rendered_imported
-          ))
+          Some(concat_string!(to_module_import_export_name(alias), " as ", imported))
         }
       })
       .collect::<Vec<_>>();
@@ -390,7 +384,6 @@ fn render_esm_chunk_imports(ctx: &GenerateContext<'_>) -> Option<String> {
       &default_alias,
       &ctx.chunk.import_path_for(importee_chunk),
       None,
-      ascii_only,
     ));
   });
   let mut rendered_external_import_namespace_modules = FxHashSet::default();
@@ -454,10 +447,9 @@ fn bare_import_attributes(
 fn create_import_declaration(
   module_table: &ModuleTable,
   mut specifiers: Vec<String>,
-  default_alias: &[String],
+  default_alias: &[ArcStr],
   path: &str,
   with_clause: Option<(ModuleIdx, ImportRecordIdx)>,
-  ascii_only: bool,
 ) -> String {
   let mut ret = String::new();
   let with_clause_string = with_clause.and_then(|(module_idx, record_idx)| {
@@ -482,15 +474,16 @@ fn create_import_declaration(
     ret.push_str("{ ");
     ret.push_str(&specifiers.join(", "));
     ret.push_str(" } from ");
-    ret.push_str(&to_ecma_string_literal(path, ascii_only));
+    ret.push_str(&escape(path));
   } else if let Some(first_default_alias) = first_default_alias {
     ret.push_str("import ");
     ret.push_str(first_default_alias);
     ret.push_str(" from ");
-    ret.push_str(&to_ecma_string_literal(path, ascii_only));
+    ret.push_str(&escape(path));
   } else {
-    ret.push_str("import ");
-    ret.push_str(&to_ecma_string_literal(path, ascii_only));
+    ret.push_str("import \"");
+    ret.push_str(path);
+    ret.push('"');
   }
 
   if let Some(with_clause) = with_clause_string {
@@ -514,7 +507,6 @@ where
   I: Iterator<Item = &'a (ModuleIdx, rolldown_common::NamedImport)>,
 {
   let mut s = String::new();
-  let ascii_only = ctx.options.charset.is_ascii();
   let mut default_alias = vec![];
   let specifiers = named_imports
     .filter_map(|(_importer, named_import)| {
@@ -534,7 +526,6 @@ where
         .link_output
         .symbol_db
         .canonical_name_for_or_original(canonical_ref, &ctx.chunk.canonical_names);
-      let rendered_alias = escape_non_ascii(alias, ascii_only);
       match &named_import.imported {
         Specifier::Star => {
           if rendered_external_import_namespace_modules.contains(&importee.idx) {
@@ -543,25 +534,22 @@ where
           rendered_external_import_namespace_modules.insert(importee.idx);
           *is_importee_rendered = true;
           s.push_str("import * as ");
-          s.push_str(&rendered_alias);
+          s.push_str(alias);
           s.push_str(" from ");
-          s.push_str(&to_ecma_string_literal(
-            &importee.get_import_path(ctx.chunk, ctx.resolved_paths),
-            ascii_only,
-          ));
+          s.push_str(&escape(&importee.get_import_path(ctx.chunk, ctx.resolved_paths)));
           s.push_str(";\n");
           None
         }
         Specifier::Literal(imported) => {
           if alias == imported.as_str() {
-            Some(rendered_alias.into_owned())
+            Some(alias.into())
           } else {
             if imported.as_str() == "default" {
-              default_alias.push(rendered_alias.into_owned());
+              default_alias.push(alias.into());
               return None;
             }
-            let imported = to_module_import_export_name_with_ascii(imported, ascii_only);
-            Some(concat_string!(imported, " as ", rendered_alias))
+            let imported = to_module_import_export_name(imported);
+            Some(concat_string!(imported, " as ", alias))
           }
         }
       }
@@ -588,7 +576,6 @@ where
       &default_alias,
       &importee.get_import_path(ctx.chunk, ctx.resolved_paths),
       with_clause,
-      ascii_only,
     ));
   }
   s
