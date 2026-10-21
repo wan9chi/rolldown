@@ -26,7 +26,10 @@ function stop() {
 	return "stop";
 }
 // daemon.js
-var daemon_exports = /* @__PURE__ */ __exportAll({ start: () => start });
+var daemon_exports = /* @__PURE__ */ __exportAll({
+	start: () => start,
+	stop: () => stop
+});
 export { __commonJSMin as i, start as n, stop as r, daemon_exports as t };
 
 ```

@@ -114,9 +114,6 @@ impl<'me, 'ast: 'me> VisitJs<'ast> for AstScanner<'me, 'ast> {
       }
 
       self.visit_statement(stmt);
-      if self.last_nested_this_stmt_idx != Some(self.current_stmt_idx) {
-        self.mark_functions_never_reading_this(stmt);
-      }
       // Tree-shaking side effects / global reads / pure annotations come from the analyzer.
       // Top-level reads of imported bindings are detected by a separate uniform walk so the
       // signal is complete by construction (no per-expression-form gaps).
@@ -347,9 +344,7 @@ impl<'me, 'ast: 'me> VisitJs<'ast> for AstScanner<'me, 'ast> {
     walk_js::walk_member_expression(self, it);
   }
   fn visit_this_expression(&mut self, it: &ast::ThisExpression) {
-    if self.is_this_nested() {
-      self.last_nested_this_stmt_idx = Some(self.current_stmt_idx);
-    } else {
+    if !self.is_this_nested() {
       self.top_level_this_expr_set.insert(it.node_id());
     }
     walk_js::walk_this_expression(self, it);
@@ -476,11 +471,14 @@ impl<'me, 'ast: 'me> VisitJs<'ast> for AstScanner<'me, 'ast> {
 impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
   fn handle_top_level_await(&mut self, span: Span) {
     if !self.immutable_ctx.flat_options.keep_esm_import_export_syntax() {
-      self.result.errors.push(BuildDiagnostic::invalid_tla_format(
+      self.result.errors.push(BuildDiagnostic::unsupported_feature(
         self.immutable_ctx.id.as_arc_str().clone(),
         self.immutable_ctx.source.clone(),
         span,
-        self.immutable_ctx.options.format.as_str().into(),
+        format!(
+          "Top-level await is currently not supported with the '{format}' output format",
+          format = self.immutable_ctx.options.format
+        ),
       ));
     }
     self.result.ast_usage.insert(EcmaModuleAstUsage::TopLevelAwait);
