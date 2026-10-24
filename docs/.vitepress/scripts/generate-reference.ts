@@ -72,6 +72,9 @@ async function runTypedoc(entryPoints: string[]): Promise<void> {
     out: './reference',
     entryPoints,
     readme: 'none',
+    // Replay: link sources to main instead of the checked-out commit, so the reference doesn't
+    // depend on the commit, which isn't a task input; a fresh build then matches a cache hit.
+    gitRevision: 'main',
     // `@kind` documents a plugin hook's kind, e.g. `@kind async parallel`.
     // It is rendered by `custom-theme-plugin.ts`, not by the default comment partial.
     blockTags: [...OptionDefaults.blockTags, '@kind'],
