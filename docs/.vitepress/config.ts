@@ -233,7 +233,9 @@ const sidebarForResources: DefaultTheme.SidebarItem[] = [
 const config = defineConfig({
   title: 'Rolldown',
   description: 'Fast Rust-based bundler for JavaScript with Rollup-compatible API',
-  lastUpdated: true,
+  // Replay: off, so pages don't carry dates from git, which isn't a task input (CI's depth-1
+  // checkout dates every page with the checked-out commit); a fresh build then matches a hit.
+  lastUpdated: false,
   cleanUrls: true,
   sitemap: {
     hostname: 'https://rolldown.rs',
