@@ -18,10 +18,6 @@ on:
       - 'packages/rolldown/tsconfig*.json'
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.ref_name != 'main' }}
-
 jobs:
   # Builds/validates the docs. Runs untrusted PR code, so it has NO `environment`; its
   # `id-token` permission is for remote cache uploads (fork PRs get no OIDC token).
@@ -30,6 +26,11 @@ jobs:
   docs-validation:
     name: Docs Validation
     runs-on: ubuntu-latest
+    # Replay: upstream's workflow-level concurrency, on this job only, so a new push cancels the
+    # cached job as upstream but not the previous run's Docs Verify job.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+      cancel-in-progress: ${{ github.ref_name != 'main' }}
     permissions:
       # Remote cache uploads authenticate with a GitHub Actions OIDC token.
       id-token: write
@@ -67,29 +68,48 @@ jobs:
       - if: ${{ !cancelled() }}
         run: vp run --last-details
 
-      # Replay check: hash what the cached tasks left, to compare with a fresh build at the end.
+      # Replay check: hash what the cached tasks left (and copy the text files), for Docs Verify.
       - if: ${{ !cancelled() }}
-        run: node .github/replay/outputs.mjs snapshot "${{ runner.temp }}/cached-outputs.json" "${{ runner.temp }}/cached-outputs"
+        run: node .github/replay/outputs.mjs snapshot "${{ runner.temp }}/cached/outputs.json" "${{ runner.temp }}/cached/files"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: replay-cached-outputs
+          path: ${{ runner.temp }}/cached
+          retention-days: 3
 
-      # Replay check: rebuild from a clean tree without the cache, and compare the outputs with the
-      # cached run's. A difference in a task that hit is a false hit unless the file is
-      # nondeterministic (known: assets/style.<hash>.css, the CSS hash in every .html,
-      # .vitepress/cache/graphviz/manifest.json). These steps don't affect the job's result.
-      - if: ${{ !cancelled() }}
-        continue-on-error: true
-        shell: bash
-        env:
-          VP_REMOTE_CACHE: 'off'
-        run: |
-          git checkout -- . && git clean -fdxq -e node_modules -e .vite-hooks
+  # Replay check: rebuild from a clean checkout without the cache, and compare the outputs with
+  # the cached job's. A difference in a task that hit is a false hit unless the file is
+  # nondeterministic (known: assets/style.<hash>.css, the CSS hash in every .html,
+  # .vitepress/cache/graphviz/manifest.json, llms*.txt). Off the cached job's path, so the
+  # replay's schedule doesn't wait for it; it doesn't affect anything the cache sees.
+  docs-verify:
+    name: Docs Verify
+    needs: docs-validation
+    runs-on: ubuntu-latest
+    env:
+      VP_REMOTE_CACHE: 'off'
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+
+      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
+        with:
+          version: '0.0.0-commit.a37c40a3a57a4ab175a9e02fd99b774982578c1e'
+          cache: true
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: replay-cached-outputs
+          path: ${{ runner.temp }}/cached
+
+      - run: |
           vp run --no-cache --filter rolldown-docs generate
           vp run --no-cache --filter rolldown-docs build
-      - if: ${{ !cancelled() }}
-        continue-on-error: true
+      - continue-on-error: true
         run: |
           node .github/replay/outputs.mjs snapshot "${{ runner.temp }}/fresh-outputs.json"
-          node .github/replay/outputs.mjs compare "${{ runner.temp }}/cached-outputs.json" "${{ runner.temp }}/fresh-outputs.json" "${{ runner.temp }}/cached-outputs"
-          node .github/replay/outputs.mjs collect "${{ runner.temp }}/cached-outputs.json" "${{ runner.temp }}/fresh-outputs.json" "${{ runner.temp }}/cached-outputs" "${{ runner.temp }}/replay-diff"
+          node .github/replay/outputs.mjs compare "${{ runner.temp }}/cached/outputs.json" "${{ runner.temp }}/fresh-outputs.json" "${{ runner.temp }}/cached/files"
+          node .github/replay/outputs.mjs collect "${{ runner.temp }}/cached/outputs.json" "${{ runner.temp }}/fresh-outputs.json" "${{ runner.temp }}/cached/files" "${{ runner.temp }}/replay-diff"
       - if: ${{ !cancelled() }}
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
