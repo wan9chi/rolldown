@@ -27,11 +27,13 @@ impl Plugin for EmitOther {
   }
 }
 
-// Only `other.js` loads `lazy.js`, so the runtime host check by entries accepts the chunk of
-// `other.js`. But the host exports the helpers to `lazy.js`, and the `exports-only` signature of
-// `other.js` is strict, because `other.js` has exports. An emitted entry is a user-defined entry, so
-// it must keep its signature: the runtime goes into its own chunk, as when `other.js` is an `input`
-// entry. Before the fix, the emitted entry hosted the runtime and became a facade.
+// Only `other.js` loads `lazy.js`. So `lazy.js` is a late entry, and the chunk of `other.js` has
+// the covering bits of the runtime. As the host, that chunk must export the helpers to `lazy.js`,
+// and these exports change the signature of `other.js`. That signature is fixed, because `other.js`
+// has exports and the default `exports-only` applies. An emitted entry must keep its signature, as
+// an `input` entry does, so the runtime goes into its own chunk. Before the fix, the chunk of
+// `other.js` became the host, and the emitted entry became a facade.
+// See internal-docs/code-splitting/implementation.md#runtime-module-placement
 // See https://github.com/rolldown/rolldown/issues/11351
 #[tokio::test(flavor = "multi_thread")]
 async fn emitted_entry_with_strict_signature_does_not_host_runtime() {
