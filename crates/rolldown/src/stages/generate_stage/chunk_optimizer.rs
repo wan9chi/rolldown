@@ -1709,12 +1709,18 @@ impl GenerateStage<'_> {
   /// to *export* those helper symbols. On a user-defined entry whose
   /// `preserveEntrySignatures` fixes its surface, that leaks internal helper
   /// names onto the declared signature, so the runtime must not merge there.
+  /// An entry from `this.emitFile({ type: 'chunk' })` is a user-defined entry too. Its signature
+  /// comes from its `preserveSignature` option, or from `preserveEntrySignatures` when the
+  /// option is not set. `preserve_strict_entry_signatures` gives such an entry a facade when the
+  /// helpers change its signature (`issues/11351_dynamic_import`).
   ///
   /// Safe when any of:
   /// - the target is the only consumer (helpers stay internal — no re-export),
-  /// - the target is not a user-defined entry (a common chunk has no signature),
+  /// - the target is not a user-defined or emitted entry (a common chunk has no signature),
   /// - `preserveEntrySignatures` allows extra exports: `allow-extension`/`false`,
   ///   or `exports-only` for an entry that declares no exports.
+  ///
+  /// See internal-docs/code-splitting/implementation.md#runtime-module-placement.
   fn runtime_merge_preserves_target_signature(
     &self,
     chunk_graph: &ChunkGraph,
@@ -1730,7 +1736,7 @@ impl GenerateStage<'_> {
     let ChunkKind::EntryPoint { meta, module: entry_module_idx, .. } = target_chunk.kind else {
       return true;
     };
-    if !meta.contains(ChunkMeta::UserDefinedEntry) {
+    if !meta.intersects(ChunkMeta::UserDefinedEntry | ChunkMeta::EmittedChunk) {
       return true;
     }
     match target_chunk.preserve_entry_signature {
