@@ -1,0 +1,19 @@
+---
+source: crates/rolldown_testing/src/integration_test.rs
+---
+# Assets
+
+## main.js
+
+```js
+import assert from "node:assert";
+// HIDDEN [\0rolldown/runtime.js]
+(/* @__PURE__ */ __commonJSMin(((exports) => {
+	if (typeof window === "undefined") {
+		exports.unused = 1;
+		globalThis.effectInIf = true;
+	}
+})))();
+assert.strictEqual(globalThis.effectInIf, true);
+
+```
