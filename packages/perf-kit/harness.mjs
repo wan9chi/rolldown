@@ -4474,7 +4474,7 @@ function printWorkerSummary(report, hadBaseline) {
     }
     for (const r of movedRoutes) {
       console.log(
-        `  ${r.path}: +${Math.round(r.delta)}ms moved into this route against ${Math.round(gain)}ms gained at startup - an isolate whose first request is ${r.path} gains little or nothing`,
+        `  ${r.path}: +${Math.round(r.delta)}ms moved into this route against ${Math.round(gain)}ms gained at startup - startup and the startup limit keep the gain; first-request latency on ${r.path} gains little or nothing`,
       );
     }
   }

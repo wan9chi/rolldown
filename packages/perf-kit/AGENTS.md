@@ -108,9 +108,11 @@ on the worker). The loop below is unchanged, with these differences:
   from `wrangler check startup` on the same build, before and after.
 - **A deferral moves work, it does not delete it.** The first request that needs a deferred
   module pays its load, once per isolate. Pin the routes that matter with `--request` and
-  read the "cost MOVED here" line next to the startup gain. perf-kit does not know the
-  route mix; an isolate whose first request needs the module gains nothing. Agent chats and
-  RPC run over WebSockets: pin them as `--request 'ws:/path|<message>'`, with a message that
+  read the "cost MOVED here" line next to the startup gain. Startup and Cloudflare's startup
+  limit keep the gain even when the first request needs the module; that request's latency
+  does not. The task decides: for startup, defer that code too and name the moved cost in
+  the answer; for first-request latency, such a deferral gains nothing. Agent chats and RPC
+  run over WebSockets: pin them as `--request 'ws:/path|<message>'`, with a message that
   reaches the deferred code (an RPC call, a chat turn).
 - **Durable Object and Workflow classes are loaded by name.** The entry must export each class,
   so a dynamic import cannot replace the export. A lazy wrapper class can move the class
@@ -159,8 +161,8 @@ on the worker). The loop below is unchanged, with these differences:
   floor, defer two or three of them in one round (a host, a route family, a `scheduled` or
   `queue` handler) and judge the group. A module that several importers share leaves startup
   only when all of them are deferred: `what-if <a> <b>` prints the measured time of the group
-  next to each one alone. Stop when the rows left are code the first request needs, or groups
-  you tried, not when each row is small.
+  next to each one alone. Stop when the rows left are groups you tried, not when each row is
+  small. Code the first request needs is a stop only for a first-request latency task.
 - **A near-0 price is not a "no".** Self time charges a library call (zod, drizzle) to the
   library, so a module whose top level calls it prices near 0 ms. Run `worker-attrib` once on
   the `ROLLDOWN_PERF_KIT_ATTRIB=1` build: `what-if` and the groups then charge each call to
