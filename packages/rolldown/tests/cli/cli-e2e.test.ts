@@ -121,8 +121,8 @@ describe('cli options for bundling', () => {
       const cwd = cliFixturesDir('cli-multi-entries');
       const status = await execa('rolldown', ['1.ts', '--input', './2.js', flag], { cwd });
       expect(status.exitCode).toBe(0);
-      expect(status.stdout).toContain(output);
-      expect(status.stdout).not.toContain('Either use --input');
+      expect(cleanStdout(status.stdout)).toContain(output);
+      expect(cleanStdout(status.stdout)).not.toContain('Either use --input');
     },
   );
 
