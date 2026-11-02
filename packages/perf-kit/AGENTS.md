@@ -112,10 +112,16 @@ on the worker). The loop below is unchanged, with these differences:
   route mix; an isolate whose first request needs the module gains nothing. Agent chats and
   RPC run over WebSockets: pin them as `--request 'ws:/path|<message>'`, with a message that
   reaches the deferred code (an RPC call, a chat turn).
-- **Durable Object and Workflow classes are roots.** The runtime loads them by name, so their
-  modules stay eager with their whole closure. `cut <module> --root <class modules>` lands
-  the cut below them; without `--root`, every cut points at the entry's class exports,
-  which cannot become dynamic. The scan prints the class names from `wrangler.json`.
+- **Durable Object and Workflow classes are loaded by name.** The entry must export each class,
+  so a dynamic import cannot replace the export. A lazy wrapper class can move the class
+  module out of startup: export a class with the same name that imports the implementation
+  on the first call and forwards to it. A Workflow forwards `run()`. A Durable Object forwards
+  every handler and RPC method it has (`fetch`, `alarm`, `webSocket*`) to one implementation
+  instance, which it creates once. Read a Durable Object's constructor first: work there
+  (`blockConcurrencyWhile`, storage reads) must still run before the first call. The scan
+  names the module of each class and prices wrappers for all of them together ("class
+  exports"). To keep the classes eager instead, `cut <module> --root <class modules>` lands
+  the cut below them.
 - **Three kinds of edge, three kinds of fix.** `why <module>` names the importers. An importer
   under `node_modules` is upstream: when the library is only used in async code, a lazy shim
   behind a Vite alias is the app-side fix. A module reached only from a synchronous
@@ -144,7 +150,28 @@ on the worker). The loop below is unchanged, with these differences:
   every later `worker-scan` times that copy next to the current build, runs alternated, and
   prints `vs pinned build` with each pair. Machine load moves both series alike, so the line
   holds where a number from an earlier scan drifts by several milliseconds. It adds up every
-  change since the pin: re-pin with `--pin` after each kept change.
+  change since the pin: re-pin with `--pin` after each kept change. Under the 3 ms floor, a
+  change that is lower in all 5 pairs also prints `IMPROVEMENT beyond noise - small`: keep it.
+  When 4 of 5 pairs lean one way, the scan times 4 more pairs and needs 8 of 9. A change with
+  no effect lands on both sides.
+- **Small rows add up: defer a group.** "startup CPU by import" lists the measured startup
+  time that one deferral removes, and its rows do not overlap. When every row is under the
+  floor, defer two or three of them in one round (a host, a route family, a `scheduled` or
+  `queue` handler) and judge the group. A module that several importers share leaves startup
+  only when all of them are deferred: `what-if <a> <b>` prints the measured time of the group
+  next to each one alone. Stop when the rows left are code the first request needs, or groups
+  you tried, not when each row is small.
+- **A near-0 price is not a "no".** Self time charges a library call (zod, drizzle) to the
+  library, so a module whose top level calls it prices near 0 ms. Run `worker-attrib` once on
+  the `ROLLDOWN_PERF_KIT_ATTRIB=1` build: `what-if` and the groups then charge each call to
+  the module that makes it. GC and parse/compile have no module at all; `what-if` adds an
+  estimate by bytes. A large data module (a generated JSON spec) saves more than it prices.
+  Try a deferral that removes 100 KB or more and judge it with the pinned scan.
+- **A dynamic import cannot leave a chunk group.** `manualChunks` or `advancedChunks` can put
+  packages that only dynamic imports reach into a chunk that loads at startup (`vendor`). The
+  scan lists them ("loaded at startup although only dynamic imports reach them"), and
+  `what-if` says when a deferred package sits in such a chunk. Take those packages out of the
+  group in the build config, in the Worker environment only, and rebuild.
 - **The pinned routes must answer 2xx.** A 404 or 5xx never ran the handler, so no moved load
   can show on it, and the scan says so. Pin routes the app serves. Do not invent a `.dev.vars`
   to get past a 5xx: without the real variables the first-request numbers stay invalid.

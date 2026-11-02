@@ -39,25 +39,32 @@ export const COVERAGE_MIN_WRANGLER = '4.108.0';
  * never ships a runtime of its own: the number must come from the workerd the app pins.
  */
 export function resolveWorkerTools(appDir) {
-  const require = createRequire(path.join(appDir, 'package.json'));
-  const resolveOrNull = (id) => {
+  const appRequire = createRequire(path.join(appDir, 'package.json'));
+  const tryResolve = (req, id) => {
     try {
-      return require.resolve(id);
+      return req.resolve(id);
     } catch {
       return null;
     }
   };
-  const miniflarePath = resolveOrNull('miniflare');
-  const wranglerPath = resolveOrNull('wrangler');
+  const wranglerPath = tryResolve(appRequire, 'wrangler');
+  // Isolated installs (pnpm, bun workspaces) link only direct dependencies, so the app may
+  // see wrangler and not miniflare or workerd: those come from wrangler's own directory.
+  const wranglerRequire = wranglerPath ? createRequire(wranglerPath) : null;
+  const requireFor = (id) =>
+    tryResolve(appRequire, id) || !wranglerRequire || !tryResolve(wranglerRequire, id)
+      ? appRequire
+      : wranglerRequire;
+  const miniflarePath = tryResolve(requireFor('miniflare'), 'miniflare');
   if (!miniflarePath || !wranglerPath) {
     throw new Error(
-      `${appDir} has no ${!miniflarePath ? 'miniflare' : 'wrangler'} - add wrangler as a dev dependency ` +
+      `${appDir} has no ${!wranglerPath ? 'wrangler' : 'miniflare'} - add wrangler as a dev dependency ` +
         "(it brings miniflare and workerd). perf-kit runs the app's own workerd, never one of its own.",
     );
   }
   const version = (id) => {
     try {
-      return require(`${id}/package.json`).version;
+      return requireFor(id)(`${id}/package.json`).version;
     } catch {
       return null;
     }

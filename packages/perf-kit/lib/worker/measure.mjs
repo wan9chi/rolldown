@@ -31,6 +31,58 @@ import {
 export const NOISE_FLOOR_MS = 3;
 export const NOISE_FLOOR_PCT = 2;
 export const COLD_MIN_BYTES = 4 * 1024;
+// Under the floor, pairs that fall on one side still decide: a no-op lands on both sides.
+// The sign test allows a no-op that chance at most (5 of 5 pairs, or 8 of 9). The median
+// must also be this large, so rounding alone cannot make the series one-sided.
+export const PAIRED_MAX_TAIL = 1 / 32;
+export const PAIRED_MIN_MS = 0.5;
+// A 5-pair series with 4 pairs on one side is ambiguous: `worker-scan` times more pairs.
+export const PAIRED_EXTEND_TO = 9;
+
+/** The chance that a no-op puts at least `k` of `n` pairs on one given side. */
+export function signTail(k, n) {
+  let ways = 0;
+  let choose = 1; // C(n, i), built up from C(n, 0)
+  for (let i = 0; i <= n; i++) {
+    if (i >= k) ways += choose;
+    choose = (choose * (n - i)) / (i + 1);
+  }
+  return ways / 2 ** n;
+}
+
+const sideCount = (pairs, deltaMs) => pairs.filter((p) => (deltaMs < 0 ? p < 0 : p > 0)).length;
+
+/**
+ * Verdict on the pairs `current - pinned` timed in one scan. Beyond the floor the median
+ * decides; under it, a change that the sign test puts on one side still counts, as `small`.
+ */
+export function pairedVerdict({ pairs, deltaMs, appStartupMs }) {
+  const floor = Math.max(NOISE_FLOOR_MS, (NOISE_FLOOR_PCT / 100) * (appStartupMs ?? 0));
+  const kind = deltaMs < 0 ? 'improvement' : 'regression';
+  if (Math.abs(deltaMs) >= floor) return { kind, small: false, floor };
+  const side = sideCount(pairs, deltaMs);
+  const oneSided =
+    Math.abs(deltaMs) >= PAIRED_MIN_MS && signTail(side, pairs.length) <= PAIRED_MAX_TAIL;
+  return oneSided ? { kind, small: true, floor, side } : { kind: 'noise', small: false, floor };
+}
+
+/** True when a short series leans one way without deciding: time more pairs. */
+export function needsMorePairs({ pairs, deltaMs, appStartupMs }) {
+  if (pairs.length >= PAIRED_EXTEND_TO) return false;
+  if (pairedVerdict({ pairs, deltaMs, appStartupMs }).kind !== 'noise') return false;
+  return Math.abs(deltaMs) >= PAIRED_MIN_MS && sideCount(pairs, deltaMs) >= pairs.length - 1;
+}
+
+/** The words `worker-scan` prints for a `pairedVerdict`. */
+export function pairedCall(verdict, pairCount) {
+  const floor = Math.round(verdict.floor);
+  if (verdict.kind === 'noise') return `within noise (floor ${floor}ms) - no effect proven`;
+  const word = verdict.kind === 'improvement' ? 'IMPROVEMENT' : 'REGRESSION';
+  if (!verdict.small) return `${word} beyond noise`;
+  const side = verdict.kind === 'improvement' ? 'lower' : 'higher';
+  const count = verdict.side === pairCount ? `all ${pairCount}` : `${verdict.side} of ${pairCount}`;
+  return `${word} beyond noise - small: ${side} in ${count} pairs (under the ${floor}ms floor)`;
+}
 
 const round1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
 
@@ -275,10 +327,13 @@ export function outputLocator(outDir) {
 export function attributeProfile(profile, { outDir, mainName }) {
   const summary = summarizeProfile(profile);
   const mapFile = path.join(outDir, `${mainName}.map`);
-  if (!fs.existsSync(mapFile))
+  // An entry that only re-exports from a manual chunk has no map; the chunks that run do.
+  const map = fs.existsSync(mapFile) ? JSON.parse(fs.readFileSync(mapFile, 'utf8')) : null;
+  const anyMap = () =>
+    fs.readdirSync(outDir, { recursive: true }).some((f) => String(f).endsWith('.js.map'));
+  if (!map && !anyMap())
     return { summary, rows: null, totalMs: null, ownership: null, missingSourcemap: true };
   const code = fs.readFileSync(path.join(outDir, mainName), 'utf8');
-  const map = JSON.parse(fs.readFileSync(mapFile, 'utf8'));
   const { rows, totalMs, ownership } = profileStartup(profile, {
     code,
     map,

@@ -104,6 +104,10 @@ import {
   NOISE_FLOOR_PCT as WORKER_NOISE_FLOOR_PCT,
   attributeCoverage,
   attributeProfile,
+  PAIRED_EXTEND_TO,
+  needsMorePairs,
+  pairedCall,
+  pairedVerdict,
   coverageRun as workerCoverageRun,
   cpuProfileRun,
   firstRequests,
@@ -112,6 +116,18 @@ import {
   summarizeWorkerStartup,
 } from './lib/worker/measure.mjs';
 import { evaluatingModules, shortModule, topLevelCalls, whyModule } from './lib/worker/attrib.mjs';
+import {
+  classModules,
+  cpuByModule,
+  cpuByOutputFile,
+  cpuOf,
+  isVirtual,
+  lazyInStartupChunks,
+  libraryShare,
+  sourceCpu,
+  startupGroups,
+  wrapperPrice,
+} from './lib/worker/startup-cpu.mjs';
 import { ATTRIB_DIR, SHIM_FILE, attribOutDir, writeViteConfigShim } from './lib/worker/config.mjs';
 import {
   discoverPages,
@@ -3104,7 +3120,7 @@ async function cmdWhatIf(argv) {
   }
   if (!targets.length) return;
   if (targets.length > 1) {
-    printCombinedWhatIf(graph, targets, keep);
+    printCombinedWhatIf(graph, targets, keep, lastWorkerCpu(built));
     return;
   }
   const target = targets[0];
@@ -3124,9 +3140,14 @@ async function cmdWhatIf(argv) {
       `cut ${result.cutEdges.length} static import edge(s), from: ${result.cutEdges.join(', ')}`,
     );
   }
+  const cpu = lastWorkerCpu(built);
   console.log(
-    `removes ${kb(result.removedBytes)} / ${result.removedCount} module(s) from the initial load${keep.length ? ` (keeping ${keep.length} sentry module(s) eager)` : ''}:`,
+    `removes ${kb(result.removedBytes)} / ${result.removedCount} module(s) from the initial load${keep.length ? ` (keeping ${keep.length} sentry module(s) eager)` : ''}` +
+      `${cpuSegment(graph, cpu, result.removed)}:`,
   );
+  // Before the module list: an agent often reads only the first lines.
+  printCpuCaveat(graph, cpu, result.removed, result.removedBytes);
+  printGroupChunkWarning(graph, cpu, result.removed);
   const shown = result.removed.slice(0, 20);
   for (const mod of shown) {
     console.log(`  ${kb(mod.bytes).padStart(10)}  ${mod.id}`);
@@ -3149,7 +3170,7 @@ async function cmdWhatIf(argv) {
     );
   }
   console.log(
-    `\nnext: make those importer(s) load it with a dynamic import(), rebuild, run the app's functional check, then \`${CLI} scan\` to confirm the LCP effect.`,
+    `\nnext: make those importer(s) load it with a dynamic import(), rebuild, run the app's functional check, then ${cpu ? `\`${CLI} worker-scan\` to confirm the startup effect` : `\`${CLI} scan\` to confirm the LCP effect`}.`,
   );
 }
 
@@ -3181,17 +3202,21 @@ function printRootedLoad(graph) {
 // the comparison against the summed-individually total: shared internals dominated by no
 // single target only leave the initial load when the whole group is deferred, so the
 // combined free can exceed the sum (the firebase / sibling-routes pattern).
-function printCombinedWhatIf(graph, targets, keep) {
+function printCombinedWhatIf(graph, targets, keep, cpu = null) {
   const keepRoots = keep.filter((k) => !targets.includes(k));
   const overrides = targets.flatMap((t) => deferAllInto(graph, t));
   const combined = evalOverrides(graph, overrides, keepRoots.length ? keepRoots : null);
-  const summed = targets.reduce((sum, t) => sum + whatIf(graph, t, keep).removedBytes, 0);
+  const singles = targets.map((t) => whatIf(graph, t, keep));
+  const summed = singles.reduce((sum, r) => sum + r.removedBytes, 0);
   const ids = targets.map((t) => graph.modules[t].id);
   console.log(`what-if deferred (combined): ${ids.join(', ')}`);
   console.log(
     `removes ${kb(combined.removedBytes)} / ${combined.removedCount} module(s) from the initial load` +
-      `${keepRoots.length ? ` (keeping ${keepRoots.length} sentry module(s) eager)` : ''}:`,
+      `${keepRoots.length ? ` (keeping ${keepRoots.length} sentry module(s) eager)` : ''}` +
+      `${cpuSegment(graph, cpu, combined.removed, singles)}:`,
   );
+  printCpuCaveat(graph, cpu, combined.removed, combined.removedBytes);
+  printGroupChunkWarning(graph, cpu, combined.removed);
   const shown = combined.removed.slice(0, 20);
   for (const mod of shown) console.log(`  ${kb(mod.bytes).padStart(10)}  ${mod.id}`);
   if (combined.removed.length > shown.length)
@@ -3215,7 +3240,7 @@ function printCombinedWhatIf(graph, targets, keep) {
     );
   }
   console.log(
-    `\nnext: make each importer load its target with a dynamic import(), rebuild, run the app's functional check, then \`${CLI} scan\` to confirm the LCP effect.`,
+    `\nnext: make each importer load its target with a dynamic import(), rebuild, run the app's functional check, then ${cpu ? `\`${CLI} worker-scan\` to confirm the startup effect` : `\`${CLI} scan\` to confirm the LCP effect`}.`,
   );
 }
 
@@ -3929,6 +3954,7 @@ function workerTargetPaths(outDir) {
     profile: path.join(dir, 'startup.cpuprofile'),
     coverage: path.join(dir, 'startup-coverage.json'),
     attribProfile: path.join(dir, 'attrib.cpuprofile'),
+    attribCpu: path.join(dir, 'attrib-cpu.json'),
   };
 }
 
@@ -3952,6 +3978,144 @@ function workerReportCandidates(opts) {
     sticky.app,
     path.resolve(sticky.app, sticky.dist ?? 'dist', sticky.worker),
   );
+}
+
+/**
+ * Measured startup CPU per module of the remembered Worker, when `graph` is that Worker's
+ * report. Null otherwise (a browser target, no scan yet). See `workerCpu`.
+ */
+function lastWorkerCpu(graph) {
+  const sticky = readJson(WORKER_TARGET_FILE);
+  if (!sticky || !graph?.file) return null;
+  const outDir = path.resolve(sticky.app, sticky.dist ?? 'dist', sticky.worker);
+  if (!workerReportDirs(sticky.app, outDir).includes(graph.file)) return null;
+  const paths = workerTargetPaths(outDir);
+  const metrics = readJson(paths.metrics);
+  const wc = workerCpu(graph, paths, sticky.app, metrics?.profile?.bySource);
+  if (wc) {
+    wc.bytesRate = bytesRate(metrics.profile);
+    wc.groupChunks = groupChunkModules(graph, outDir, metrics.coverage?.groupChunks ?? []);
+  }
+  return wc;
+}
+
+/** Graph module index -> output chunk, for the chunks a chunk group keeps at startup. */
+function groupChunkModules(graph, outDir, chunks) {
+  const byIdx = new Map();
+  for (const chunk of chunks) {
+    const map = readJson(path.join(outDir, `${chunk}.map`));
+    for (const source of map?.sources ?? []) {
+      for (const form of graphIdCandidates(source)) {
+        const hit = resolveModule(graph, form);
+        if (hit && !hit.ambiguous) {
+          byIdx.set(hit.index, chunk);
+          break;
+        }
+      }
+    }
+  }
+  return byIdx;
+}
+
+/** Deferred modules that a chunk group keeps in a startup chunk: the import alone frees nothing. */
+function printGroupChunkWarning(graph, wc, removed) {
+  if (!wc?.groupChunks?.size) return;
+  const idOf = new Map(graph.modules.map((m, i) => [m, i]));
+  const byChunk = new Map();
+  for (const m of removed) {
+    const chunk = wc.groupChunks.get(idOf.get(m));
+    if (chunk) byChunk.set(chunk, (byChunk.get(chunk) ?? 0) + (m.bytes ?? 0));
+  }
+  for (const [chunk, bytes] of byChunk) {
+    if (bytes < 16 * 1024) continue;
+    console.log(
+      `  ${kb(bytes)} of these sit in ${chunk}, a chunk that loads at startup and holds modules only dynamic imports reach (a chunk group).` +
+        ' A dynamic import keeps them in startup until the chunk config (manualChunks, advancedChunks) takes them out of that group.',
+    );
+  }
+}
+
+/**
+ * GC and parse/compile have no module in the profile. Their share of a deferral is estimated
+ * by bytes: this Worker's GC + "(program)" time over its startup closure, from the last scan.
+ */
+function bytesRate(profile) {
+  const sm = profile?.summary;
+  if (!sm || !profile.closureBytes) return null;
+  const ms = (sm.gcMs ?? 0) + (sm.programMs ?? 0);
+  return { ms, bytes: profile.closureBytes, perByte: ms / profile.closureBytes };
+}
+
+/**
+ * The CPU a deferral is priced with. The last `worker-attrib` charges a library call to the
+ * module whose top level makes it (`kind: 'evaluating'`). Without it, the scan's self time
+ * charges the call to the library (`kind: 'self'`), and `library` says how much that hides.
+ */
+function workerCpu(graph, paths, appDir, bySource) {
+  const isApp = (id) => isVirtual(id) || fs.existsSync(path.resolve(appDir, id));
+  const attrib = readJson(paths.attribCpu);
+  if (attrib?.byFile) {
+    const builtAt = graph.file && fs.existsSync(graph.file) ? fs.statSync(graph.file).mtimeMs : 0;
+    return {
+      kind: 'evaluating',
+      cpu: cpuByOutputFile(graph, attrib.byFile),
+      isApp,
+      partial: attrib.complete === false,
+      older: attrib.atMs < builtAt,
+    };
+  }
+  if (!bySource) return null;
+  const cpu = cpuByModule(graph, bySource);
+  return { kind: 'self', cpu, isApp, library: libraryShare(graph, cpu, isApp) };
+}
+
+/** The CPU part of a what-if line: `removed` priced, plus each target alone (`singles`). */
+function cpuSegment(graph, wc, removed, singles = null) {
+  if (!wc) return '';
+  const price = (mods) => ms(cpuOf(graph, wc.cpu, mods));
+  const each = singles ? `; ${singles.map((r) => price(r.removed)).join(' + ')} one at a time` : '';
+  if (wc.kind === 'self')
+    return `, ${price(removed)} of measured self time (last worker-scan${each})`;
+  const when = wc.older ? ', run before the current build' : '';
+  return `, ${price(removed)} of startup CPU with the library calls they make (last worker-attrib${when}${each})`;
+}
+
+/** The estimated GC and parse/compile share of a deferral, as its own line. */
+function printBytesEstimate(wc, cpuMs, removedBytes) {
+  const rate = wc?.bytesRate;
+  if (!rate) return false;
+  const est = removedBytes * rate.perByte;
+  console.log(
+    `  + about ${ms(est)} of GC and parse/compile, about ${ms(cpuMs + est)} in all: an estimate by bytes` +
+      ` (the last worker-scan: ${ms(rate.ms)} over a ${kb(rate.bytes)} startup closure).` +
+      ' A large data module or a package with many objects often saves more; worker-scan measures it.',
+  );
+  return true;
+}
+
+/** What the CPU price of a what-if leaves out. */
+function printCpuCaveat(graph, wc, removed, removedBytes) {
+  if (!wc) return;
+  const lib = wc.library;
+  if (wc.kind === 'self' && lib.ms >= 1 && lib.ms >= 0.3 * lib.totalMs) {
+    const top = lib.top
+      .slice(0, 3)
+      .map(([p, v]) => `${p} ${ms(v)}`)
+      .join(', ');
+    console.log(
+      `  self time charges a library call to the library: ${ms(lib.ms)} of ${ms(lib.totalMs)} is in libraries (${top}).` +
+        ' A module whose top level calls them can price near 0ms here and still cost that time.' +
+        ` For the price with those calls, build with ROLLDOWN_PERF_KIT_ATTRIB=1 and run \`${CLI} worker-attrib\`; what-if then uses it.`,
+    );
+  }
+  if (
+    !printBytesEstimate(wc, cpuOf(graph, wc.cpu, removed), removedBytes) &&
+    removedBytes >= 100 * 1024
+  ) {
+    console.log(
+      `  GC and parse/compile time is not in that number: ${kb(removedBytes)} leaves startup, and a large data module saves more than it prices.`,
+    );
+  }
 }
 
 /**
@@ -4094,24 +4258,35 @@ async function runWorkerTiming(ctx, { runs, warmup, pinned = null }) {
   }
   const main = [];
   const base = [];
-  for (let i = 0; i < runs; i++) {
+  const timePair = async (i, total) => {
     const order = i % 2 === 0 ? [ctx, pinned] : [pinned, ctx];
     for (const c of order) {
       const run = await timedImport(c, { target: c.mainName });
       (c === ctx ? main : base).push(run);
     }
     process.stderr.write(
-      `run ${i + 1}/${runs}: import ${ms(main[i].ms)} (pinned build ${ms(base[i].ms)})\n`,
+      `run ${i + 1}/${total}: import ${ms(main[i].ms)} (pinned build ${ms(base[i].ms)})\n`,
     );
+  };
+  for (let i = 0; i < runs; i++) await timePair(i, runs);
+  const paired = () => {
+    const pairs = main.map((r, i) => Math.round((r.ms - base[i].ms) * 10) / 10);
+    const appStartupMs = summarizeWorkerStartup({ floor, main: base }).metrics[
+      'worker.app_startup_ms'
+    ];
+    return { appStartupMs, deltaMs: median(pairs), pairs };
+  };
+  // A short series that leans one way without deciding gets more pairs, not a coin flip.
+  let extendedFrom = null;
+  if (needsMorePairs(paired())) {
+    extendedFrom = runs;
+    process.stderr.write(
+      `the pairs lean one way without deciding: ${PAIRED_EXTEND_TO - runs} more pairs...\n`,
+    );
+    for (let i = runs; i < PAIRED_EXTEND_TO; i++) await timePair(i, PAIRED_EXTEND_TO);
   }
   const summary = summarizeWorkerStartup({ floor, main });
-  const pinnedSummary = summarizeWorkerStartup({ floor, main: base });
-  const pairs = main.map((r, i) => Math.round((r.ms - base[i].ms) * 10) / 10);
-  summary.pinnedBuild = {
-    appStartupMs: pinnedSummary.metrics['worker.app_startup_ms'],
-    deltaMs: median(pairs),
-    pairs,
-  };
+  summary.pinnedBuild = { ...paired(), extendedFrom };
   return summary;
 }
 
@@ -4240,13 +4415,8 @@ function printWorkerSummary(report, hadBaseline) {
     const sign = (v) => `${v >= 0 ? '+' : ''}${Math.round(v * 10) / 10}`;
     console.log(
       `vs pinned build (timed in this scan, runs alternated): app startup ${sign(paired.deltaMs)}ms, ` +
-        `median of ${paired.pairs.length} pairs [${paired.pairs.map(sign).join(' ')}] - ` +
-        noiseCall(
-          paired.deltaMs,
-          paired.appStartupMs,
-          WORKER_NOISE_FLOOR_MS,
-          WORKER_NOISE_FLOOR_PCT,
-        ),
+        `median of ${paired.pairs.length} pairs${paired.extendedFrom ? ` (${paired.pairs.length - paired.extendedFrom} added: the first ${paired.extendedFrom} leaned one way)` : ''} [${paired.pairs.map(sign).join(' ')}] - ` +
+        pairedCall(pairedVerdict(paired), paired.pairs.length),
     );
     console.log(
       '  every change since the pin; re-pin with --pin after a kept change so this is the last change alone',
@@ -4370,6 +4540,17 @@ function printWorkerLeads(report, cov, prof, graph, top) {
       `\n(no startup CPU by module: ${report.worker.main}.map is missing - build the worker environment with sourcemaps; \`${CLI} worker-config\` sets that)`,
     );
   }
+  const wc =
+    prof?.rows && graph
+      ? workerCpu(
+          graph,
+          workerTargetPaths(report.worker.outDir),
+          report.worker.app,
+          sourceCpu(prof.rows),
+        )
+      : null;
+  if (wc) printStartupGroups(graph, wc, prof, report.worker.app);
+  const cpu = wc?.cpu ?? null;
 
   if (cov?.totals) {
     const t = cov.totals;
@@ -4377,6 +4558,7 @@ function printWorkerLeads(report, cov, prof, graph, top) {
       `\nevaluated at startup: ${kb(t.readyBytes)} of ${kb(t.totalBytes)} in the static closure (${t.moduleCount} modules, ${Math.round((t.readyBytes / Math.max(1, t.totalBytes)) * 100)}% executed)` +
         `${cov.runtimeScripts.length ? `; ${cov.runtimeScripts.length} runtime module(s) loaded (${cov.runtimeScripts.slice(0, 5).join(', ')}${cov.runtimeScripts.length > 5 ? ', ...' : ''})` : ''}`,
     );
+    if (graph) printLazyInStartupChunks(graph, cov.modules);
     if (cov.cold.length) {
       console.log(
         `\ncold at startup - in the closure, never executed to start (${cov.cold.length}):`,
@@ -4418,13 +4600,127 @@ function printWorkerLeads(report, cov, prof, graph, top) {
         : `\n(no module-graph.json for this worker: \`${CLI} worker-config --app <appDir>\` writes a build config that collects it; then graph / what-if / cut / why price every candidate)`,
     );
   } else {
+    const names = workerClassNames(report.worker.outDir);
+    if (names.length) printClassExports(graph, cpu, names, report.worker.app);
     console.log(
-      `\nnext: \`${CLI} why <module>\` names the importers and the chain from the entry; \`${CLI} cut <module> --root <class modules>\` the fewest imports to make dynamic.` +
-        ' Durable Object and Workflow classes are loaded by name: pass the modules that define them as --root, or every cut points at the entry.',
+      `\nnext: \`${CLI} why <module>\` names the importers and the chain from the entry; \`${CLI} what-if <a> <b>\` prices a group of deferrals (bytes and measured startup CPU);` +
+        ` \`${CLI} cut <module> --root <class modules>\` the fewest imports to make dynamic while the classes stay eager.`,
     );
-    const classes = workerClassNames(report.worker.outDir);
-    if (classes.length) console.log(`  class exports in wrangler.json: ${classes.join(', ')}`);
   }
+}
+
+/**
+ * Startup CPU grouped by import: each row is the CPU that one deferral removes (the
+ * module's dominator subtree), so rows under the noise floor can be added up. `wc` comes
+ * from `workerCpu`. See lib/worker/startup-cpu.mjs.
+ */
+function printStartupGroups(graph, wc, prof, appDir) {
+  // App modules are files under the Vite root (or virtual); package ids are package-relative.
+  const { cpu, isApp } = wc;
+  const groups = startupGroups(graph, cpu, { isApp });
+  const short = (id) => (path.isAbsolute(id) ? path.relative(appDir, id) : id);
+  if (!groups?.rows.length) return;
+  const self = wc.kind === 'self';
+  const totalMs = self
+    ? prof.ownership?.appMs
+    : [...cpu.byIdx.values()].reduce((sum, v) => sum + v, 0);
+  console.log(
+    self
+      ? `\nstartup CPU by import (self time summed over what deferring that import removes; rows do not overlap):`
+      : `\nstartup CPU by import (from the last worker-attrib${wc.older ? ', run before the current build' : ''}: each module with the library calls its top level makes, summed over what deferring that import removes; rows do not overlap):`,
+  );
+  console.log(
+    `  under ${short(groups.anchor.id)} (${ms(groups.anchor.ms)} of the ${ms(totalMs)} ${self ? 'app-module time' : 'module time'}; its own top level ${ms(groups.anchorSelfMs)}):`,
+  );
+  const who = (r) =>
+    r.importers > 1
+      ? `  (${r.importers} importers: \`${CLI} cut ${short(r.id)}\` lists the fewest edges)`
+      : '';
+  for (const r of groups.rows) {
+    console.log(
+      `    ${String(r.ms).padStart(7)}ms ${String(r.modules).padStart(5)} module(s)  ${short(r.id)}${who(r)}`,
+    );
+    for (const c of r.children) {
+      console.log(
+        `      ${String(c.ms).padStart(7)}ms ${String(c.modules).padStart(5)} module(s)  ${short(c.id)}${who(c)}`,
+      );
+    }
+  }
+  if (groups.restCount) {
+    console.log(`    ${String(groups.restMs).padStart(7)}ms in ${groups.restCount} smaller row(s)`);
+  }
+  const lib = groups.rows.find((r) => !isApp(r.id));
+  if (self && lib && lib === groups.rows[0]) {
+    console.log(
+      `  ${short(lib.id)} is library code: its time is charged to the library, not to the app module whose top level calls it.` +
+        ` \`${CLI} worker-attrib\` on the attribution build charges it to those modules, and this view and what-if then use it.`,
+    );
+  }
+  if (cpu.unmatchedMs >= 1) {
+    console.log(`  ${ms(cpu.unmatchedMs)} of mapped time matched no module in the build graph`);
+  }
+  console.log(
+    `  rows under the noise floor add up: defer two or three in one round and judge the group; \`${CLI} what-if <a> <b>\` prices them together.`,
+  );
+  const sm = prof.summary;
+  if (sm && sm.gcMs + sm.programMs >= 5) {
+    console.log(
+      `  GC ${ms(sm.gcMs)} and parse/compile ${ms(sm.programMs)} have no module row: \`${CLI} what-if\` estimates the share of a deferral by the bytes it removes.`,
+    );
+  }
+}
+
+/**
+ * Modules that load at startup only because a chunk group put them with startup code.
+ * The graph calls them lazy, so `what-if` prices their deferral at 0; the chunk config is the
+ * lever. See lib/worker/startup-cpu.mjs.
+ */
+function printLazyInStartupChunks(graph, covModules) {
+  const lazy = lazyInStartupChunks(graph, covModules);
+  if (lazy.bytes < 16 * 1024) return;
+  console.log(
+    `\nloaded at startup although only dynamic imports reach them: ${kb(lazy.bytes)} / ${lazy.count} module(s), in a chunk with startup code:`,
+  );
+  for (const [script, bytes] of lazy.byScript.slice(0, 4)) {
+    console.log(`  ${kb(bytes).padStart(10)}  ${script}`);
+  }
+  console.log(
+    `  by package: ${lazy.byPackage
+      .slice(0, 10)
+      .map(([p, b]) => `${p} ${kb(b)}`)
+      .join(', ')}`,
+  );
+  console.log(
+    '  the chunk config (manualChunks, advancedChunks groups) puts them there, and a dynamic import saves nothing while the target shares a chunk with startup code.' +
+      ' Take these packages out of that group, rebuild, then worker-scan. Check the same for every package you defer.',
+  );
+}
+
+/**
+ * Durable Object and Workflow classes: the module that defines each one, and what lazy
+ * wrapper classes (same name, the implementation imported on the first call) would move.
+ */
+function printClassExports(graph, cpu, names, appDir) {
+  const found = classModules(graph, names, appDir);
+  const missing = names.filter((n) => !found.some((c) => c.name === n));
+  console.log(`\nclass exports in wrangler.json (the runtime loads them by name): ${names.length}`);
+  const price = found.length ? wrapperPrice(graph, cpu ?? { byIdx: new Map() }, found) : null;
+  if (price) {
+    console.log(
+      `  lazy wrapper classes for all of them would move ${kb(price.removedBytes)} / ${price.removedCount} module(s)` +
+        `${cpu ? `, ${ms(price.ms)} of measured startup CPU` : ''} out of startup:`,
+    );
+    for (const c of price.perClass.slice(0, 8)) {
+      console.log(
+        `    ${cpu ? `${String(c.ms).padStart(7)}ms ` : ''}${c.name.padEnd(28)} ${path.isAbsolute(c.id) ? path.relative(appDir, c.id) : c.id}`,
+      );
+    }
+    if (price.perClass.length > 8) console.log(`    ... +${price.perClass.length - 8} more`);
+    console.log(
+      '  a wrapper keeps the class name in the entry and imports the implementation on the first call (AGENTS.md, "classes loaded by name")',
+    );
+  }
+  if (missing.length) console.log(`  no module found for: ${missing.join(', ')}`);
 }
 
 /** Durable Object and Workflow class names the config binds; their modules are roots. */
@@ -4535,6 +4831,10 @@ async function cmdWorkerScan(argv) {
           ownership: prof.ownership,
           totalMs: prof.totalMs,
           rows: prof.rows?.slice(0, 40) ?? null,
+          // Every mapped row, so `what-if` can price the measured CPU of any group later.
+          bySource: prof.rows ? sourceCpu(prof.rows) : null,
+          // With GC and parse/compile, the rate `what-if` estimates their share by bytes with.
+          closureBytes: graph ? evalOverrides(graph, []).eagerBytes : null,
         }
       : null,
     coverage: cov
@@ -4546,6 +4846,10 @@ async function cmdWorkerScan(argv) {
           cold: cov.cold.slice(0, 20),
           idle: cov.idle.slice(0, 20),
           packages: cov.packages.slice(0, 30),
+          // Startup chunks that hold modules only dynamic imports reach: `what-if` checks them.
+          groupChunks: graph
+            ? lazyInStartupChunks(graph, cov.modules).byScript.map(([c]) => c)
+            : [],
         }
       : null,
     notes,
@@ -4602,7 +4906,14 @@ async function cmdWorkerAttrib(argv) {
   fs.mkdirSync(ctx.paths.dir, { recursive: true });
   fs.writeFileSync(ctx.paths.attribProfile, JSON.stringify(profile));
   const graph = loadModuleGraph(workerReportDirs(target.appDir, outDir, opts.report));
-  const { rows, pairs } = evaluatingModules(profile, { outDir, graph, top: Number(opts.top) });
+  const { rows, pairs, byFile } = evaluatingModules(profile, {
+    outDir,
+    graph,
+    top: Number(opts.top),
+  });
+  // Stored with the Worker's own scan data: what-if and the scan's groups price with it.
+  fs.mkdirSync(target.paths.dir, { recursive: true });
+  writeJson(target.paths.attribCpu, { atMs: Date.now(), complete: importRan, byFile });
   const calls = topLevelCalls(profile, outputLocator(outDir));
   console.log(
     `\nstartup CPU by evaluating module${importRan ? '' : ' (partial)'} (its own top level plus the library calls it makes):`,
@@ -4625,6 +4936,10 @@ async function cmdWorkerAttrib(argv) {
   }
   printRuntimeStderr(ctx);
   console.log(`\nprofile: ${ctx.paths.attribProfile}`);
+  console.log(
+    `what-if and the worker-scan groups now price with this time (${path.relative(process.cwd(), target.paths.attribCpu)}).` +
+      ' Rerun this command after an edit changes what a module does at its top level.',
+  );
 }
 
 /** How to name an app directory in a hint: relative when it is below cwd, absolute otherwise. */
