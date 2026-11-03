@@ -748,7 +748,9 @@ impl GenerateStage<'_> {
   ///   prediction is exempt from this direction: it filters `load_dependencies`, the same edges
   ///   the pre-prediction bits reachability trusted, so its over-predictions are exactly
   ///   main-parity — e.g. constant inlining drops a symbol's import without touching
-  ///   `load_dependencies`.
+  ///   `load_dependencies`, and can still orphan an annotated-side-effectful chunk: a
+  ///   side-effectful module between a removed barrel and a side-effect-free declaring module ends
+  ///   up in a chunk that no entry imports (#10688).
   ///
   /// Service imports hang on the entry (possibly facade) chunk, so entry chunks predict them via
   /// their `entry_module_idx` — hosted or not — plus the facade edge to the chunk hosting a
