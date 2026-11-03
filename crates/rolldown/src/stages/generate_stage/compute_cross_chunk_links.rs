@@ -466,7 +466,9 @@ impl GenerateStage<'_> {
   }
 
   /// The members that the included statements of a module read through a namespace import, such as
-  /// `ns.SIZE` for `import * as ns from './ui.js'`, each with the record of that import.
+  /// `ns.SIZE` for `import * as ns from './ui.js'`, each with the record of that import. They are
+  /// sorted by the `exec_order` of the modules that declare them, because the order of the reads
+  /// does not say in which order the imported module runs those modules.
   fn namespace_member_reads(&self, module: &NormalModule) -> Vec<(ImportRecordIdx, SymbolRef)> {
     if !module.named_imports.values().any(|named_import| named_import.imported.is_star()) {
       return vec![];
@@ -493,6 +495,10 @@ impl GenerateStage<'_> {
         }
       }
     }
+    let symbol_db = &self.link_output.symbol_db;
+    reads.sort_by_key(|&(_, symbol_ref)| {
+      self.link_output.module_table[symbol_db.canonical_ref_for(symbol_ref).owner].exec_order()
+    });
     reads
   }
 
