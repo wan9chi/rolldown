@@ -708,8 +708,10 @@ fn handle_include_symbol(
       });
     if has_side_effects {
       // As for a constant that is not inlined, a module declared side-effect free runs its whole
-      // body, not only the side-effect statements that read no binding.
+      // body, not only the side-effect statements that read no binding, and a wrapped module runs
+      // when the reader calls its `init_*`.
       drain_body_demand_stmts(ctx, canonical_ref);
+      demand_esm_initialization(ctx, symbol_ref, canonical_ref);
       ctx.pending.push(WorkItem::Module(owner));
     }
     return;
