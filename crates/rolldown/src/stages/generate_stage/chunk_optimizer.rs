@@ -1456,10 +1456,10 @@ impl GenerateStage<'_> {
   /// because `assign_chunk_exec_orders` keys a common chunk on its first module, and the runtime
   /// module has `exec_order` 0. `sort_chunk_importees` then puts the host first in every import
   /// list, and the source order walk moves back only the importees that it ranks. An importee that
-  /// the walk does not reach, for example a chunk that the importer reads through a namespace import
-  /// of a re-export module without side effects, keeps its position and runs after the host. In
-  /// `code_splitting/runtime_host_import_order_namespace_import`, `c` would import the chunk of
-  /// `common.js` before the chunk of `init.js`, and `common.js` would read a global before
+  /// the walk does not reach, for example a chunk that the importer gets a binding from through an
+  /// `export *` of a re-export module that tree shaking removes, keeps its position and runs after
+  /// the host. In `code_splitting/runtime_host_import_order_export_star`, `c` would import the
+  /// chunk of `common.js` before the chunk of `init.js`, and `common.js` would read a global before
   /// `init.js` sets it.
   ///
   /// The check sorts the imports of each importer of the host twice, with the `exec_order` of the

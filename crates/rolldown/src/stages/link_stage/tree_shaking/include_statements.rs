@@ -698,11 +698,7 @@ fn handle_include_symbol(
 
   if is_bypassed_inlined_constant(ctx, canonical_ref, include_reason) {
     // Reading the constant still evaluates its module, so the module's side effects and those of
-    // its dependencies stay, as when the constant is not inlined. A simulated-facade include does
-    // not read the constant (see below).
-    if include_reason.contains(SymbolIncludeReason::SimulatedFacadeChunk) {
-      return;
-    }
+    // its dependencies stay, as when the constant is not inlined.
     let owner = canonical_ref.owner;
     let (modules, metas) = (ctx.modules, ctx.metas);
     let has_side_effects =

@@ -13,7 +13,7 @@ use oxc_index::{IndexVec, index_vec};
 use oxc_str::CompactStr;
 use rolldown_common::{
   ChunkIdx, ChunkKind, ChunkMeta, CrossChunkImportItem, EntryPointKind, ExportsKind, ImportKind,
-  ImportRecordIdx, ImportRecordMeta, Module, ModuleIdx, NamedImport, OutputFormat,
+  ImportRecordIdx, ImportRecordMeta, Module, ModuleIdx, NamedImport, NormalModule, OutputFormat,
   PostChunkOptimizationOperation, PreserveEntrySignatures, RUNTIME_HELPER_NAMES,
   ResolvedImportRecord, RuntimeHelper, SymbolOrMemberExprRef, SymbolRef, SymbolRefDb,
   TaggedSymbolRef, UsedSymbolRefs, UsedSymbolRefsBuilder, UsedSymbolRefsView, WrapKind,
@@ -467,16 +467,13 @@ impl GenerateStage<'_> {
 
   /// The members that the included statements of a module read through a namespace import, such as
   /// `ns.SIZE` for `import * as ns from './ui.js'`, each with the record of that import.
-  fn namespace_member_reads(&self, module_idx: ModuleIdx) -> Vec<(ImportRecordIdx, SymbolRef)> {
-    let Some(module) = self.link_output.module_table[module_idx].as_normal() else {
-      return vec![];
-    };
+  fn namespace_member_reads(&self, module: &NormalModule) -> Vec<(ImportRecordIdx, SymbolRef)> {
     if !module.named_imports.values().any(|named_import| named_import.imported.is_star()) {
       return vec![];
     }
-    let meta = &self.link_output.metas[module_idx];
+    let meta = &self.link_output.metas[module.idx];
     let mut reads = vec![];
-    for (stmt_idx, stmt_info) in self.link_output.stmt_infos[module_idx].iter_enumerated() {
+    for (stmt_idx, stmt_info) in self.link_output.stmt_infos[module.idx].iter_enumerated() {
       if !meta.stmt_info_included.has_bit(stmt_idx) {
         continue;
       }
@@ -549,7 +546,7 @@ impl GenerateStage<'_> {
           .named_imports
           .values()
           .map(|named_import| (named_import.record_idx, named_import.imported_as))
-          .chain(self.namespace_member_reads(module_idx))
+          .chain(self.namespace_member_reads(module))
           .flat_map(|(record_idx, symbol_ref)| {
             let canonical_ref = symbol_db.canonical_ref_for(symbol_ref);
             let namespace_owner = symbol_db
