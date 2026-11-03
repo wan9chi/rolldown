@@ -465,11 +465,20 @@ impl GenerateStage<'_> {
     owners
   }
 
-  /// The members that the included statements of a module read through a namespace import, such as
-  /// `ns.SIZE` for `import * as ns from './ui.js'`, each with the record of that import. They are
-  /// sorted by the `exec_order` of the modules that declare them, because the order of the reads
-  /// does not say in which order the imported module runs those modules.
-  fn namespace_member_reads(&self, module: &NormalModule) -> Vec<(ImportRecordIdx, SymbolRef)> {
+  /// Whether the output keeps the module that declares an inlined constant, because the module or
+  /// one of its dependencies has side effects.
+  fn keeps_constant_owner(&self, owner: ModuleIdx) -> bool {
+    self.link_output.module_table[owner].side_effects().has_side_effects()
+      || self.link_output.metas[owner]
+        .has_side_effectful_dependency(&self.link_output.module_table.modules)
+  }
+
+  /// The inlined constants that the included statements of a module read through a namespace
+  /// import, such as `ns.SIZE` for `import * as ns from './ui.js'`, each with the record of that
+  /// import. Only constants whose module the output keeps count, because the output imports the
+  /// chunk of such a module for them. They are sorted by the `exec_order` of their modules, the
+  /// order that the chunks have without ranks.
+  fn namespace_constant_reads(&self, module: &NormalModule) -> Vec<(ImportRecordIdx, SymbolRef)> {
     if !module.named_imports.values().any(|named_import| named_import.imported.is_star()) {
       return vec![];
     }
@@ -489,7 +498,13 @@ impl GenerateStage<'_> {
         if !named_import.imported.is_star() {
           continue;
         }
-        if let Some(symbol_ref) = member_expr.represent_symbol_ref(&meta.resolved_member_expr_refs)
+        let Some(symbol_ref) = member_expr.represent_symbol_ref(&meta.resolved_member_expr_refs)
+        else {
+          continue;
+        };
+        let canonical_ref = self.link_output.symbol_db.canonical_ref_for(symbol_ref);
+        if self.link_output.global_constant_symbol_map.contains_key(&canonical_ref)
+          && self.keeps_constant_owner(canonical_ref.owner)
         {
           reads.push((named_import.record_idx, symbol_ref));
         }
@@ -543,8 +558,9 @@ impl GenerateStage<'_> {
         continue;
       }
       // The modules that declare the bindings of each import record, sorted by record: the bindings
-      // that it imports by name, and the members read through it as a namespace, such as `ns.SIZE`.
-      // The runtime chunk is not ranked, so that it keeps its position.
+      // that it imports by name, and the inlined constants read through it as a namespace whose
+      // modules the output keeps, such as `ns.SIZE`. The runtime chunk is not ranked, so that it
+      // keeps its position.
       let binding_owners = binding_owners.get_or_insert_with(|| {
         let symbol_db = &self.link_output.symbol_db;
         let runtime_idx = self.link_output.runtime.id();
@@ -552,7 +568,7 @@ impl GenerateStage<'_> {
           .named_imports
           .values()
           .map(|named_import| (named_import.record_idx, named_import.imported_as))
-          .chain(self.namespace_member_reads(module))
+          .chain(self.namespace_constant_reads(module))
           .flat_map(|(record_idx, symbol_ref)| {
             let canonical_ref = symbol_db.canonical_ref_for(symbol_ref);
             let namespace_owner = symbol_db
@@ -1918,10 +1934,7 @@ impl GenerateStage<'_> {
             {
               continue;
             }
-            if !self.link_output.module_table[owner].side_effects().has_side_effects()
-              && !self.link_output.metas[owner]
-                .has_side_effectful_dependency(&self.link_output.module_table.modules)
-            {
+            if !self.keeps_constant_owner(owner) {
               continue;
             }
             let Some(owner_chunk_idx) = chunk_graph.module_to_chunk[owner] else {

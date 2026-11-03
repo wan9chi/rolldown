@@ -8,10 +8,6 @@ source: crates/rolldown_testing/src/integration_test.rs
 ```js
 // ui/a.js
 (globalThis.log ??= []).push("a");
-function A() {
-	return "a";
-}
-export { A as t };
 
 ```
 
@@ -20,19 +16,15 @@ export { A as t };
 ```js
 // ui/b.js
 (globalThis.log ??= []).push("b");
-function B() {
-	return "b";
-}
-export { B as t };
 
 ```
 
 ## x.js
 
 ```js
-import { t as A } from "./a.js";
+import "./a.js";
 // x.js
-const x = A();
+const x = "a";
 export { x };
 
 ```
@@ -40,9 +32,9 @@ export { x };
 ## y.js
 
 ```js
-import { t as B } from "./b.js";
+import "./b.js";
 // y.js
-const y = B();
+const y = "b";
 export { y };
 
 ```
@@ -50,10 +42,10 @@ export { y };
 ## z.js
 
 ```js
-import { t as A } from "./a.js";
-import { t as B } from "./b.js";
+import "./a.js";
+import "./b.js";
 // z.js
-const z = [B(), A()];
+const z = ["b", "a"];
 export { z };
 
 ```

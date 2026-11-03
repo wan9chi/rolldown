@@ -129,8 +129,8 @@ impl LinkStage<'_> {
             });
           });
         // `eval` can read any imported binding, so tree shaking keeps every import of a module that
-        // calls it (see `include_module`). The modules that declare those bindings load too, also
-        // when no statement names a binding.
+        // calls it (see `include_module`). The modules that declare those bindings are its
+        // dependencies too, so they get a chunk even when no statement names a binding.
         if meta.is_included
           && module.meta.has_eval()
           && matches!(module.module_type, ModuleType::Js | ModuleType::Jsx)
