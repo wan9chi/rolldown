@@ -83,6 +83,9 @@ pub struct IncludeContext<'a> {
   pub bailout_cjs_tree_shaking_modules: FxHashSet<ModuleIdx>,
   /// Cache for [`external_importer_modes`], keyed by external module.
   pub external_importer_modes: FxHashMap<ModuleIdx, ExternalInteropUse>,
+  /// Cache for whether the module that declares an inlined constant, or one of its dependencies,
+  /// has side effects (see [`handle_include_symbol`]), keyed by that module.
+  pub inlined_constant_owner_side_effects: FxHashMap<ModuleIdx, bool>,
   /// Tracks whether any new module was included during the current convergence iteration.
   /// Used to detect fixpoint without O(N) scanning of `is_module_included_vec`.
   pub module_inclusion_changed: bool,
@@ -151,6 +154,7 @@ impl<'a> IncludeContext<'a> {
       normal_symbol_exports_chain_map,
       bailout_cjs_tree_shaking_modules: FxHashSet::default(),
       external_importer_modes: FxHashMap::default(),
+      inlined_constant_owner_side_effects: FxHashMap::default(),
       module_inclusion_changed: false,
       module_namespace_included_reason,
       json_module_none_self_reference_included_symbol: FxHashMap::default(),
@@ -696,9 +700,13 @@ fn handle_include_symbol(
     // Reading the constant still evaluates its module, so the module's side effects and those of
     // its dependencies stay, as when the constant is not inlined.
     let owner = canonical_ref.owner;
-    if ctx.modules[owner].side_effects().has_side_effects()
-      || ctx.metas[owner].has_side_effectful_dependency(ctx.modules)
-    {
+    let (modules, metas) = (ctx.modules, ctx.metas);
+    let has_side_effects =
+      *ctx.inlined_constant_owner_side_effects.entry(owner).or_insert_with(|| {
+        modules[owner].side_effects().has_side_effects()
+          || metas[owner].has_side_effectful_dependency(modules)
+      });
+    if has_side_effects {
       ctx.pending.push(WorkItem::Module(owner));
     }
     return;
