@@ -280,7 +280,7 @@ impl<'me, 'ast: 'me> VisitJs<'ast> for AstScanner<'me, 'ast> {
             self.cjs_module_ident.get_or_insert(Span::new(id.span.start, id.span.start + 6));
             // `module.exports = <value>` replaces the entire exports object,
             // so all prior `exports.xxx` constants are stale.
-            self.has_module_exports_reassignment = true;
+            self.has_cjs_exports_reassignment = true;
           }
           if id.name == "exports" && self.is_global_identifier_reference(id) {
             self.cjs_exports_ident.get_or_insert(Span::new(id.span.start, id.span.start + 7));
@@ -296,7 +296,12 @@ impl<'me, 'ast: 'me> VisitJs<'ast> for AstScanner<'me, 'ast> {
 
               self.declare_link_only_symbol_ref(exported_symbol.symbol);
 
-              if let Some(value) = self.extract_constant_value_from_expr(Some(&node.right)) {
+              // Only an unconditional `=` assigns the RHS value to `exports.test`.
+              // Compound and logical assignments also depend on its previous value.
+              if node.operator == ast::AssignmentOperator::Assign
+                && self.is_unconditional_module_level_expr()
+                && let Some(value) = self.extract_constant_value_from_expr(Some(&node.right))
+              {
                 self.add_constant_symbol(exported_symbol.symbol, ConstExportMeta::new(value, true));
               }
 
@@ -509,6 +514,23 @@ impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
     Some(symbol_id)
   }
 
+  /// Returns whether the expression being visited runs whenever its module runs: no top-level
+  /// `return` comes before it, and it is the expression of a module-level statement, nested only in
+  /// sequences, parentheses and assignments that always evaluate their right side.
+  fn is_unconditional_module_level_expr(&self) -> bool {
+    if self.result.ast_usage.contains(EcmaModuleAstUsage::TopLevelReturn) {
+      return false;
+    }
+    let [AstKind::ExpressionStatement(_), rest @ ..] = self.visit_path.as_slice() else {
+      return false;
+    };
+    rest.iter().all(|kind| match kind {
+      AstKind::AssignmentExpression(assignment) => !assignment.operator.is_logical(),
+      AstKind::SequenceExpression(_) | AstKind::ParenthesizedExpression(_) => true,
+      _ => false,
+    })
+  }
+
   /// Module-level code runs in source order, so it reads a root `var` declared later as
   /// `undefined`. `export { x }` only forwards the binding.
   fn record_var_read_before_declaration(&mut self, ident_ref: &IdentifierReference) {
@@ -538,10 +560,24 @@ impl<'me, 'ast: 'me> AstScanner<'me, 'ast> {
               CjsGlobalAssignmentType::ModuleExportsAssignment,
             );
             self.update_ast_usage_for_commonjs_export(v.as_ref());
+            // `module.exports.test = ...` writes the same property as `exports.test = ...`.
+            if let Some(CommonJsAstType::ExportsPropWrite(prop)) = v {
+              self.cjs_named_exports_usage.entry(prop).or_default().write += 1;
+            }
           }
           "exports" => {
             self.result.ast_usage.insert(EcmaModuleAstUsage::ExportsRef);
-            // exports = {} will not change the module.exports object, so we just ignore it;
+            // A write to the binding can detach it from `module.exports`, including
+            // destructuring and loop targets. Property writes only read the binding.
+            if self
+              .result
+              .symbol_ref_db
+              .scoping()
+              .get_reference(ident_ref.reference_id())
+              .is_write()
+            {
+              self.has_cjs_exports_reassignment = true;
+            }
             let v =
               self.commonjs_export_analyzer(ident_ref, CjsGlobalAssignmentType::ExportsAssignment);
             self.update_ast_usage_for_commonjs_export(v.as_ref());
