@@ -13,10 +13,10 @@ use oxc_index::{IndexVec, index_vec};
 use oxc_str::CompactStr;
 use rolldown_common::{
   ChunkIdx, ChunkKind, ChunkMeta, CrossChunkImportItem, EntryPointKind, ExportsKind, ImportKind,
-  ImportRecordMeta, Module, ModuleIdx, NamedImport, OutputFormat, PostChunkOptimizationOperation,
-  PreserveEntrySignatures, RUNTIME_HELPER_NAMES, ResolvedImportRecord, RuntimeHelper,
-  SymbolOrMemberExprRef, SymbolRef, SymbolRefDb, TaggedSymbolRef, UsedSymbolRefs,
-  UsedSymbolRefsBuilder, UsedSymbolRefsView, WrapKind,
+  ImportRecordIdx, ImportRecordMeta, Module, ModuleIdx, NamedImport, OutputFormat,
+  PostChunkOptimizationOperation, PreserveEntrySignatures, RUNTIME_HELPER_NAMES,
+  ResolvedImportRecord, RuntimeHelper, SymbolOrMemberExprRef, SymbolRef, SymbolRefDb,
+  TaggedSymbolRef, UsedSymbolRefs, UsedSymbolRefsBuilder, UsedSymbolRefsView, WrapKind,
 };
 use rolldown_utils::index_vec_ext::IndexVecRefExt as _;
 use rolldown_utils::indexmap::{FxIndexMap, FxIndexSet};
@@ -465,6 +465,40 @@ impl GenerateStage<'_> {
     owners
   }
 
+  /// The members that the included statements of a module read through a namespace import, such as
+  /// `ns.SIZE` for `import * as ns from './ui.js'`, each with the record of that import.
+  fn namespace_member_reads(&self, module_idx: ModuleIdx) -> Vec<(ImportRecordIdx, SymbolRef)> {
+    let Some(module) = self.link_output.module_table[module_idx].as_normal() else {
+      return vec![];
+    };
+    if !module.named_imports.values().any(|named_import| named_import.imported.is_star()) {
+      return vec![];
+    }
+    let meta = &self.link_output.metas[module_idx];
+    let mut reads = vec![];
+    for (stmt_idx, stmt_info) in self.link_output.stmt_infos[module_idx].iter_enumerated() {
+      if !meta.stmt_info_included.has_bit(stmt_idx) {
+        continue;
+      }
+      for reference in &stmt_info.referenced_symbols {
+        let SymbolOrMemberExprRef::MemberExpr(member_expr) = reference else {
+          continue;
+        };
+        let Some(named_import) = module.named_imports.get(&member_expr.object_ref) else {
+          continue;
+        };
+        if !named_import.imported.is_star() {
+          continue;
+        }
+        if let Some(symbol_ref) = member_expr.represent_symbol_ref(&meta.resolved_member_expr_refs)
+        {
+          reads.push((named_import.record_idx, symbol_ref));
+        }
+      }
+    }
+    reads
+  }
+
   /// Pushes the modules that the static imports of a module lead to, in source order. Only the
   /// imports that tree shaking keeps count, because the output does not have the other imports. An
   /// import is kept when its module is in `load_dependencies`, the dependencies that survive tree
@@ -505,16 +539,19 @@ impl GenerateStage<'_> {
         importees.push(importee);
         continue;
       }
-      // The modules that declare the bindings of each import record, sorted by record. The runtime
-      // chunk is not ranked, so that it keeps its position.
+      // The modules that declare the bindings of each import record, sorted by record: the bindings
+      // that it imports by name, and the members read through it as a namespace, such as `ns.SIZE`.
+      // The runtime chunk is not ranked, so that it keeps its position.
       let binding_owners = binding_owners.get_or_insert_with(|| {
         let symbol_db = &self.link_output.symbol_db;
         let runtime_idx = self.link_output.runtime.id();
         let mut owners = module
           .named_imports
           .values()
-          .flat_map(|named_import| {
-            let canonical_ref = symbol_db.canonical_ref_for(named_import.imported_as);
+          .map(|named_import| (named_import.record_idx, named_import.imported_as))
+          .chain(self.namespace_member_reads(module_idx))
+          .flat_map(|(record_idx, symbol_ref)| {
+            let canonical_ref = symbol_db.canonical_ref_for(symbol_ref);
             let namespace_owner = symbol_db
               .get(canonical_ref)
               .namespace_alias
@@ -522,7 +559,7 @@ impl GenerateStage<'_> {
               .map(|ns| ns.namespace_ref.owner);
             std::iter::once(canonical_ref.owner)
               .chain(namespace_owner)
-              .map(|owner| (named_import.record_idx, owner))
+              .map(move |owner| (record_idx, owner))
           })
           .filter(|&(_, owner)| owner != module_idx && owner != runtime_idx)
           .collect::<Vec<_>>();
