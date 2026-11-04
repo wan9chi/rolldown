@@ -127,7 +127,12 @@ on the worker). The loop below is unchanged, with these differences:
 - **Durable Object and Workflow classes are loaded by name.** The entry must export each class,
   so a dynamic import cannot replace the export. A lazy wrapper class can move the class
   module out of startup: export a class with the same name that imports the implementation
-  on the first call and forwards to it. A wrapper changes no class code, so the app tests
+  on the first call and forwards to it. The wrapper must extend the runtime base class of the
+  original. For a Durable Object that is `DurableObject`, also when the original extends a
+  library class such as `Agent`. For a Workflow it is `WorkflowEntrypoint`. Both come from
+  `cloudflare:workers`, so the base class adds nothing to startup. Without it, the runtime
+  rejects every RPC call on the class's stub ("does not support RPC"). `fetch` still works,
+  so a route check does not show the break. A wrapper changes no class code, so the app tests
   still cover the class. A typecheck checks each forward, but it cannot find a method that
   the wrapper does not forward. A Workflow forwards `run()`. A Durable Object forwards
   every handler and RPC method it has (`fetch`, `alarm`, `webSocket*`) to one implementation

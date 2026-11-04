@@ -5098,6 +5098,10 @@ function printClassExports(graph, wc, classes, found, appDir, unlock) {
     console.log(
       `  lazy wrapper classes for all of them would move ${kb(price.removedBytes)} / ${price.removedCount} module(s) out of startup${timeOf(price)}`,
     );
+    // Without the base class, workerd rejects every RPC call on the stub, and fetch still works.
+    console.log(
+      '  a wrapper extends the runtime base class of the original (DurableObject or WorkflowEntrypoint from cloudflare:workers): without it, every RPC call on the stub fails',
+    );
     // A Workflow wrapper forwards one method; a Durable Object wrapper forwards all of them.
     const workflows = found.filter((c) => c.kind === 'workflow');
     const objects = found.filter((c) => c.kind === 'durable-object');
