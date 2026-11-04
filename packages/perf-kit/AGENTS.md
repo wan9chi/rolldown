@@ -106,6 +106,16 @@ on the worker). The loop below is unchanged, with these differences:
   sits outside it. `worker-scan` against the pinned baseline is the keep-or-revert signal.
   Cloudflare's startup limit counts the same scope; the number to quote in a PR comes
   from `wrangler check startup` on the same build, before and after.
+- **A handler runs per event.** The main module's top level runs once, at startup; `fetch`,
+  `scheduled` and `queue` run per event. An import that only code inside a function reads can
+  load in that function, with `await import()`. When that function is not `async` (the scan
+  marks the row `(sync)`), make it `async` when every caller can await it, or load the import
+  in an async function that runs first. The scan lists these imports ("imports that only code
+  inside functions reads") and prices moving all of them: modules they share leave startup
+  only when every import that reaches them moves.
+  In the other modules, an `async` function already returns a promise: an `await import()`
+  inside it changes no caller. The scan lists those imports too ("imports that only async
+  functions read"), with the text and data modules they load.
 - **A deferral moves work, it does not delete it.** The first request that needs a deferred
   module pays its load, once per isolate. Pin the routes that matter with `--request` and
   read the "cost MOVED here" line next to the startup gain. Startup and Cloudflare's startup
@@ -117,13 +127,19 @@ on the worker). The loop below is unchanged, with these differences:
 - **Durable Object and Workflow classes are loaded by name.** The entry must export each class,
   so a dynamic import cannot replace the export. A lazy wrapper class can move the class
   module out of startup: export a class with the same name that imports the implementation
-  on the first call and forwards to it. A Workflow forwards `run()`. A Durable Object forwards
+  on the first call and forwards to it. A wrapper changes no class code, so the app tests
+  still cover the class. A typecheck checks each forward, but it cannot find a method that
+  the wrapper does not forward. A Workflow forwards `run()`. A Durable Object forwards
   every handler and RPC method it has (`fetch`, `alarm`, `webSocket*`) to one implementation
   instance, which it creates once. Read a Durable Object's constructor first: work there
   (`blockConcurrencyWhile`, storage reads) must still run before the first call. The scan
   names the module of each class and prices wrappers for all of them together ("class
-  exports"). To keep the classes eager instead, `cut <module> --root <class modules>` lands
-  the cut below them.
+  exports"), and for the Workflow and the Durable Object classes apart, with GC and
+  parse/compile estimated by bytes. Modules that two or more classes share leave only when
+  every class has a wrapper. When the class modules also import what a handler import
+  reaches, the scan prints how much more leaves when both move, and the wrappers' total
+  after those imports move. To keep the classes eager
+  instead, `cut <module> --root <class modules>` lands the cut below them.
 - **Three kinds of edge, three kinds of fix.** `why <module>` names the importers. An importer
   under `node_modules` is upstream: when the library is only used in async code, a lazy shim
   behind a Vite alias is the app-side fix. A module reached only from a synchronous
@@ -155,7 +171,20 @@ on the worker). The loop below is unchanged, with these differences:
   change since the pin: re-pin with `--pin` after each kept change. Under the 3 ms floor, a
   change that is lower in all 5 pairs also prints `IMPROVEMENT beyond noise - small`: keep it.
   When 4 of 5 pairs lean one way, the scan times 4 more pairs and needs 8 of 9. A change with
-  no effect lands on both sides.
+  no effect lands on both sides. Beyond the floor, the pairs must agree too (4 of 5, 7 of 9).
+- **Less code can time slower.** V8 sizes its young generation by what startup allocated so
+  far. A deferral that takes a large early allocation out of startup can keep it small longer,
+  and the extra scavenges can cost more than the code saved. When the import got slower but
+  startup only lost modules, the scan times both builds again with the young generation fixed.
+  When that series shows no rise, the rise is heap sizing, not the change, and `KEEP` reads
+  that series. A later change can move the sizing back.
+- **The modules at startup have no noise.** Under the paired line, the scan compares the
+  startup closure (the modules the static imports load) and the bytes the isolate loads with
+  the pinned build: the same build always gives the same numbers. When the time stays within
+  noise and startup lost 1% of its bytes (32 KB at least) or 10% of its modules (50 at least),
+  the scan prints `KEEP`: keep the change. When neither moved, the deferral took nothing out
+  of startup: another static import still reaches the module (`why`). A `WARNING` that the
+  build is older than a source file means a build failed or did not run: rebuild first.
 - **Small rows add up: defer a group.** "startup CPU by import" lists the measured startup
   time that one deferral removes, and its rows do not overlap. When every row is under the
   floor, defer two or three of them in one round (a host, a route family, a `scheduled` or
@@ -163,12 +192,12 @@ on the worker). The loop below is unchanged, with these differences:
   only when all of them are deferred: `what-if <a> <b>` prints the measured time of the group
   next to each one alone. Stop when the rows left are groups you tried, not when each row is
   small. Code the first request needs is a stop only for a first-request latency task.
-- **A near-0 price is not a "no".** Self time charges a library call (zod, drizzle) to the
-  library, so a module whose top level calls it prices near 0 ms. Run `worker-attrib` once on
-  the `ROLLDOWN_PERF_KIT_ATTRIB=1` build: `what-if` and the groups then charge each call to
-  the module that makes it. GC and parse/compile have no module at all; `what-if` adds an
-  estimate by bytes. A large data module (a generated JSON spec) saves more than it prices.
-  Try a deferral that removes 100 KB or more and judge it with the pinned scan.
+- **A near-0 price is not a "no".** Self time charges a library call to the library, so a
+  module whose top level calls it prices near 0 ms. Run `worker-attrib` once on the
+  `ROLLDOWN_PERF_KIT_ATTRIB=1` build: `what-if` and the groups then charge each call to the
+  module that makes it. GC and parse/compile have no module at all; `what-if` adds an estimate
+  by bytes. A large data module (a big JSON file) saves more than it prices. Try a deferral
+  that removes 100 KB or more and judge it with the pinned scan.
 - **A dynamic import cannot leave a chunk group.** `manualChunks` or `advancedChunks` can put
   packages that only dynamic imports reach into a chunk that loads at startup (`vendor`). The
   scan lists them ("loaded at startup although only dynamic imports reach them"), and

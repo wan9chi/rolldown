@@ -106,6 +106,7 @@ export function cpuOf(graph, cpu, modules) {
 /**
  * Dominator-subtree CPU: `ms[i]` is the self time of every module that leaves startup when
  * all static imports of `i` become dynamic (the build's `idom` tree is over static edges).
+ * `count[i]` and `bytes[i]` are the module count and the bytes of that subtree.
  */
 export function retainedCpu(graph, cpu) {
   const n = graph.modules.length;
@@ -118,6 +119,7 @@ export function retainedCpu(graph, cpu) {
   });
   const ms = new Float64Array(n);
   const count = new Int32Array(n);
+  const bytes = new Float64Array(n);
   // Iterative post-order: a deep import chain must not overflow the stack.
   for (const root of roots) {
     const stack = [[root, 0]];
@@ -132,14 +134,16 @@ export function retainedCpu(graph, cpu) {
       stack.pop();
       ms[v] += cpu.byIdx.get(v) ?? 0;
       count[v] += 1;
+      bytes[v] += graph.modules[v].bytes ?? 0;
       const up = graph.modules[v].idom;
       if (up != null && up >= 0 && up !== v && graph.modules[up].staticReachable) {
         ms[up] += ms[v];
         count[up] += count[v];
+        bytes[up] += bytes[v];
       }
     }
   }
-  return { children, ms, count, roots };
+  return { children, ms, count, bytes, roots };
 }
 
 /**
@@ -262,9 +266,20 @@ export function classModules(graph, names, rootDir) {
 }
 
 /**
+ * The modules that leave startup only when both edge sets move: with one set alone, the
+ * other still imports them (a class module and a handler import that reach the same code).
+ * Returns graph module objects, largest first.
+ */
+export function leaveOnlyTogether(graph, a, b) {
+  const alone = new Set([...evalOverrides(graph, a).removed, ...evalOverrides(graph, b).removed]);
+  return evalOverrides(graph, [...a, ...b]).removed.filter((m) => !alone.has(m));
+}
+
+/**
  * What lazy wrapper classes would move: every static import of every class module
  * deferred at once (the wrapper stays in the entry, the implementation loads on the first
- * call). Per class, the time only that class holds.
+ * call). Per class, what only that class holds; `shared`, what leaves only when every class
+ * has a wrapper (modules that two or more classes reach).
  */
 export function wrapperPrice(graph, cpu, classes) {
   const targets = [...new Set(classes.map((c) => c.index))];
@@ -274,12 +289,39 @@ export function wrapperPrice(graph, cpu, classes) {
     targets.flatMap((t) => deferAllInto(graph, t)),
   );
   const tree = retainedCpu(graph, cpu);
+  const ms = cpuOf(graph, cpu, combined.removed);
+  const own = { count: 0, bytes: 0, ms: 0 };
+  const isTarget = new Set(targets);
+  const insideOther = (t) => {
+    for (let up = graph.modules[t].idom; up != null && up >= 0; up = graph.modules[up].idom) {
+      if (isTarget.has(up)) return true;
+      if (graph.modules[up].idom === up) break;
+    }
+    return false;
+  };
+  for (const t of targets) {
+    if (insideOther(t)) continue;
+    own.count += tree.count[t];
+    own.bytes += tree.bytes[t];
+    own.ms += tree.ms[t];
+  }
   return {
-    ms: cpuOf(graph, cpu, combined.removed),
+    ms,
+    removed: combined.removed,
     removedCount: combined.removedCount,
     removedBytes: combined.removedBytes,
     perClass: classes
-      .map((c) => ({ ...c, ms: round1(tree.ms[c.index]), modules: tree.count[c.index] }))
-      .sort((a, b) => b.ms - a.ms),
+      .map((c) => ({
+        ...c,
+        ms: round1(tree.ms[c.index]),
+        modules: tree.count[c.index],
+        bytes: tree.bytes[c.index],
+      }))
+      .sort((a, b) => b.ms - a.ms || b.bytes - a.bytes),
+    shared: {
+      count: Math.max(0, combined.removedCount - own.count),
+      bytes: Math.max(0, combined.removedBytes - own.bytes),
+      ms: round1(Math.max(0, ms - own.ms)),
+    },
   };
 }

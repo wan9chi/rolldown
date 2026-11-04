@@ -97,6 +97,7 @@ import {
   createStderrCollector,
   loadWorkerOptions,
   resolveWorkerTools,
+  supportsV8Flags,
   timedImport,
 } from './lib/worker/launch.mjs';
 import {
@@ -105,6 +106,11 @@ import {
   attributeCoverage,
   attributeProfile,
   PAIRED_EXTEND_TO,
+  CLOSURE_MIN_MODULES,
+  FIXED_YOUNG_V8_FLAGS,
+  closureCall,
+  closureOnlyShrank,
+  keepVerdict,
   needsMorePairs,
   pairedCall,
   pairedVerdict,
@@ -123,12 +129,24 @@ import {
   cpuOf,
   isVirtual,
   lazyInStartupChunks,
+  leaveOnlyTogether,
   libraryShare,
   sourceCpu,
   startupGroups,
   wrapperPrice,
 } from './lib/worker/startup-cpu.mjs';
 import { ATTRIB_DIR, SHIM_FILE, attribOutDir, writeViteConfigShim } from './lib/worker/config.mjs';
+import {
+  asyncImportModules,
+  importUses,
+  loadParseAst,
+  mainModuleIndex,
+  matchImportTargets,
+  parseFile,
+  readOnlyInAsync,
+  readOnlyLater,
+  textModuleBytes,
+} from './lib/worker/handler-imports.mjs';
 import {
   discoverPages,
   gitState,
@@ -4093,21 +4111,25 @@ function printBytesEstimate(wc, cpuMs, removedBytes) {
   return true;
 }
 
+/** The self-time caveat: a library call is charged to the library, not to its caller. */
+function printLibraryCaveat(wc) {
+  const lib = wc?.library;
+  if (wc?.kind !== 'self' || !lib || lib.ms < 1 || lib.ms < 0.3 * lib.totalMs) return;
+  const top = lib.top
+    .slice(0, 3)
+    .map(([p, v]) => `${p} ${ms(v)}`)
+    .join(', ');
+  console.log(
+    `  self time charges a library call to the library: ${ms(lib.ms)} of ${ms(lib.totalMs)} is in libraries (${top}).` +
+      ' A module whose top level calls them can price near 0ms here and still cost that time.' +
+      ` For the price with those calls, build with ROLLDOWN_PERF_KIT_ATTRIB=1 and run \`${CLI} worker-attrib\`; what-if then uses it.`,
+  );
+}
+
 /** What the CPU price of a what-if leaves out. */
 function printCpuCaveat(graph, wc, removed, removedBytes) {
   if (!wc) return;
-  const lib = wc.library;
-  if (wc.kind === 'self' && lib.ms >= 1 && lib.ms >= 0.3 * lib.totalMs) {
-    const top = lib.top
-      .slice(0, 3)
-      .map(([p, v]) => `${p} ${ms(v)}`)
-      .join(', ');
-    console.log(
-      `  self time charges a library call to the library: ${ms(lib.ms)} of ${ms(lib.totalMs)} is in libraries (${top}).` +
-        ' A module whose top level calls them can price near 0ms here and still cost that time.' +
-        ` For the price with those calls, build with ROLLDOWN_PERF_KIT_ATTRIB=1 and run \`${CLI} worker-attrib\`; what-if then uses it.`,
-    );
-  }
+  printLibraryCaveat(wc);
   if (
     !printBytesEstimate(wc, cpuOf(graph, wc.cpu, removed), removedBytes) &&
     removedBytes >= 100 * 1024
@@ -4252,42 +4274,56 @@ async function runWorkerTiming(ctx, { runs, warmup, pinned = null }) {
   // The pinned build runs in the same scan, alternating with the current one (ABBA), so a
   // change in machine load moves both series alike instead of the verdict.
   process.stderr.write('main module, alternating with the pinned build...\n');
+  const { main, paired } = await pairedSeries(ctx, pinned, { runs, warmup, floor });
+  const summary = summarizeWorkerStartup({ floor, main });
+  summary.pinnedBuild = paired;
+  return summary;
+}
+
+/**
+ * Alternated pairs of the current and the pinned build: `current - pinned` per pair. The
+ * noise floor comes from `appStartupMs`, or from the `floor` series and the pinned runs.
+ * `v8Flags` go to every workerd of the series.
+ */
+async function pairedSeries(
+  ctx,
+  pinned,
+  { runs, warmup, floor = null, appStartupMs = null, v8Flags = [], label = '' },
+) {
   for (let i = 0; i < warmup; i++) {
-    await timedImport(ctx, { target: ctx.mainName });
-    await timedImport(pinned, { target: pinned.mainName });
+    await timedImport(ctx, { target: ctx.mainName, v8Flags });
+    await timedImport(pinned, { target: pinned.mainName, v8Flags });
   }
   const main = [];
   const base = [];
   const timePair = async (i, total) => {
     const order = i % 2 === 0 ? [ctx, pinned] : [pinned, ctx];
     for (const c of order) {
-      const run = await timedImport(c, { target: c.mainName });
+      const run = await timedImport(c, { target: c.mainName, v8Flags });
       (c === ctx ? main : base).push(run);
     }
     process.stderr.write(
-      `run ${i + 1}/${total}: import ${ms(main[i].ms)} (pinned build ${ms(base[i].ms)})\n`,
+      `${label}run ${i + 1}/${total}: import ${ms(main[i].ms)} (pinned build ${ms(base[i].ms)})\n`,
     );
   };
   for (let i = 0; i < runs; i++) await timePair(i, runs);
   const paired = () => {
     const pairs = main.map((r, i) => Math.round((r.ms - base[i].ms) * 10) / 10);
-    const appStartupMs = summarizeWorkerStartup({ floor, main: base }).metrics[
-      'worker.app_startup_ms'
-    ];
-    return { appStartupMs, deltaMs: median(pairs), pairs };
+    const app =
+      appStartupMs ??
+      summarizeWorkerStartup({ floor, main: base }).metrics['worker.app_startup_ms'];
+    return { appStartupMs: app, deltaMs: median(pairs), pairs };
   };
-  // A short series that leans one way without deciding gets more pairs, not a coin flip.
+  // A short series that leans one way, or disagrees beyond the floor, gets more pairs.
   let extendedFrom = null;
   if (needsMorePairs(paired())) {
     extendedFrom = runs;
     process.stderr.write(
-      `the pairs lean one way without deciding: ${PAIRED_EXTEND_TO - runs} more pairs...\n`,
+      `${label}the pairs do not decide yet: ${PAIRED_EXTEND_TO - runs} more pairs...\n`,
     );
     for (let i = runs; i < PAIRED_EXTEND_TO; i++) await timePair(i, PAIRED_EXTEND_TO);
   }
-  const summary = summarizeWorkerStartup({ floor, main });
-  summary.pinnedBuild = { ...paired(), extendedFrom };
-  return summary;
+  return { main, base, paired: { ...paired(), extendedFrom } };
 }
 
 /** The pinned build's copy, so later scans can time it next to the current build. */
@@ -4332,6 +4368,9 @@ function writeWorkerReport(
   const baseline = readJson(ctx.paths.baseline);
   const metrics = { ...summary.metrics };
   for (const r of requests ?? []) if (r.status < 500) metrics[`worker.request_ms:${r.path}`] = r.ms;
+  // Module bytes in the chunks the isolate loads at startup: unlike the time, the same build
+  // always gives the same number, and a chunk config change moves it.
+  if (coverage?.totals) metrics['worker.startup_loaded_bytes'] = coverage.totals.totalBytes;
   const report = {
     schemaVersion: 1,
     generatedAtMs: Date.now(),
@@ -4373,7 +4412,7 @@ function writeWorkerReport(
   return { report, hadBaseline: Boolean(baseline) };
 }
 
-function pinWorkerBaseline(ctx) {
+function pinWorkerBaseline(ctx, graph = null) {
   const state = readJson(ctx.paths.state);
   if (!state) throw new Error('nothing to pin - run worker-scan first');
   if (state.runs < 3) {
@@ -4383,9 +4422,111 @@ function pinWorkerBaseline(ctx) {
   }
   writeJson(ctx.paths.baseline, state);
   snapshotPinnedBuild(ctx);
+  // The pinned build's module graph: later scans diff their startup closure against it.
+  const pinnedGraph = path.join(ctx.paths.dir, PINNED_GRAPH);
+  if (graph?.file) fs.copyFileSync(graph.file, pinnedGraph);
+  else fs.rmSync(pinnedGraph, { force: true });
   console.log(
     `baseline pinned (app startup ${ms(state.metrics['worker.app_startup_ms'])}); later scans time this build next to theirs`,
   );
+}
+
+const PINNED_GRAPH = 'pinned-module-graph.json';
+
+/**
+ * The startup closure of the current build against the pinned build's: the modules that left
+ * or entered the static import closure. The graphs do not depend on machine load. A module
+ * that left the closure still loads when coverage finds it in a startup chunk (a chunk group).
+ */
+function pinnedClosureDiff(ctx, graph, cov) {
+  const pinned = loadModuleGraph([path.join(ctx.paths.dir, PINNED_GRAPH)]);
+  if (!pinned) return null;
+  const diff = diffGraphs(pinned, graph);
+  const before = evalOverrides(pinned, []);
+  const left = new Set(diff.left.map((m) => m.id));
+  let stillBytes = 0;
+  let stillCount = 0;
+  for (const m of cov?.modules ?? []) {
+    for (const form of graphIdCandidates(m.source)) {
+      const hit = resolveModule(graph, form);
+      if (!hit || hit.ambiguous) continue;
+      if (left.has(graph.modules[hit.index].id.replaceAll('\\', '/'))) {
+        stillBytes += graph.modules[hit.index].bytes;
+        stillCount += 1;
+      }
+      break;
+    }
+  }
+  return {
+    left: diff.left,
+    entered: diff.entered,
+    leftBytes: diff.leftBytes,
+    enteredBytes: diff.enteredBytes,
+    stillBytes,
+    stillCount,
+    covered: Boolean(cov?.modules),
+    pinnedBytes: before.eagerBytes,
+    pinnedModules: before.eager.size,
+    appDir: ctx.appDir,
+  };
+}
+
+/** A module id for a reader: relative to the app, without the Cloudflare module-rule markers. */
+function readableId(id, appDir) {
+  const rest = id.replace(/^__CLOUDFLARE_MODULE__\w+?__(.+?)(?:__CLOUDFLARE_MODULE__)?$/, '$1');
+  return path.isAbsolute(rest) ? path.relative(appDir, rest) : shortModule(rest);
+}
+
+/**
+ * The startup-closure lines under the paired verdict, and the call they add when the timing
+ * proves nothing. Startup that loads a share less (fewer modules in the static closure, or
+ * fewer bytes in the chunks the isolate loads) is a smaller startup: keep. When neither moved,
+ * the change took nothing out of startup. `loaded` is the delta of
+ * `worker.startup_loaded_bytes` against the pinned scan.
+ */
+function printClosureDiff(closure, loaded, verdict) {
+  if (!closure && !loaded) return;
+  const top = (list) =>
+    list
+      .slice(0, 3)
+      .map((m) => `${readableId(m.id, closure.appDir)} ${kb(m.bytes)}`)
+      .join(', ');
+  const moved = closure && (closure.left.length || closure.entered.length);
+  if (closure && !moved) {
+    console.log(
+      'startup closure vs pinned build: unchanged (the static import closure; no timing noise in it)',
+    );
+  } else if (closure) {
+    const { left, entered } = closure;
+    console.log(
+      `startup closure vs pinned build: ${left.length} module(s) / ${kb(closure.leftBytes)} moved out of startup, ${entered.length} / ${kb(closure.enteredBytes)} moved in (the static import closure; no timing noise in it)`,
+    );
+    if (left.length) console.log(`  moved out: ${top(left)}${left.length > 3 ? ', ...' : ''}`);
+    if (entered.length)
+      console.log(`  moved in: ${top(entered)}${entered.length > 3 ? ', ...' : ''}`);
+    if (closure.stillCount) {
+      console.log(
+        `  ${closure.stillCount} of the modules that moved out (${kb(closure.stillBytes)}) still load: a startup chunk holds them (a chunk group). Take them out of that group in the build config.`,
+      );
+    }
+  }
+  const loadedMoved = loaded && Math.abs(loaded.delta) >= 1024;
+  if (loadedMoved) {
+    console.log(
+      `loaded at startup vs pinned build: ${kb(loaded.prev)} -> ${kb(loaded.curr)} of modules in the chunks the isolate loads (coverage; the same build always gives the same number)`,
+    );
+  }
+  const call = closureCall(closure, loaded, verdict);
+  if (call?.kind === 'keep') {
+    console.log(
+      `  KEEP: startup loads ${call.bytes != null ? kb(call.bytes) : `${call.modules} module(s)`} less, and the time did not rise beyond noise${verdict.heapSizing ? ' with the young generation fixed' : ''}. A smaller startup is a gain the timing cannot resolve.`,
+    );
+  } else if (call?.kind === 'none') {
+    console.log(
+      '  no effect: neither the modules at startup nor the time moved. When the change was a deferral, the module is still reached through another static import:' +
+        ` \`${CLI} why <module>\` names it; move that import too, in the same round (\`${CLI} what-if <a> <b>\` prices the pair)`,
+    );
+  }
 }
 
 function noiseCall(delta, prev, floorMs, floorPct) {
@@ -4395,7 +4536,7 @@ function noiseCall(delta, prev, floorMs, floorPct) {
   return delta < 0 ? 'IMPROVEMENT beyond noise' : 'REGRESSION beyond noise';
 }
 
-function printWorkerSummary(report, hadBaseline) {
+function printWorkerSummary(report, hadBaseline, closure = null) {
   const m = report.metrics;
   console.log(
     `\n${report.label ? `[${report.label}] ` : ''}${report.runs} cold runs (fresh workerd each)`,
@@ -4415,11 +4556,29 @@ function printWorkerSummary(report, hadBaseline) {
     const sign = (v) => `${v >= 0 ? '+' : ''}${Math.round(v * 10) / 10}`;
     console.log(
       `vs pinned build (timed in this scan, runs alternated): app startup ${sign(paired.deltaMs)}ms, ` +
-        `median of ${paired.pairs.length} pairs${paired.extendedFrom ? ` (${paired.pairs.length - paired.extendedFrom} added: the first ${paired.extendedFrom} leaned one way)` : ''} [${paired.pairs.map(sign).join(' ')}] - ` +
+        `median of ${paired.pairs.length} pairs${paired.extendedFrom ? ` (${paired.pairs.length - paired.extendedFrom} added: the first ${paired.extendedFrom} did not decide)` : ''} [${paired.pairs.map(sign).join(' ')}] - ` +
         pairedCall(pairedVerdict(paired), paired.pairs.length),
     );
     console.log(
       '  every change since the pin; re-pin with --pin after a kept change so this is the last change alone',
+    );
+    const fixed = paired.fixedYoung;
+    if (fixed) {
+      const fixedVerdict = pairedVerdict(fixed);
+      console.log(
+        `  young generation fixed (V8 ${FIXED_YOUNG_V8_FLAGS.join(' ')}, both builds): app startup ${sign(fixed.deltaMs)}ms, median of ${fixed.pairs.length} pairs [${fixed.pairs.map(sign).join(' ')}] - ` +
+          pairedCall(fixedVerdict, fixed.pairs.length),
+      );
+      console.log(
+        fixedVerdict.kind === 'regression'
+          ? '  the rise stays with the young generation fixed: the change itself costs that time'
+          : '  the rise is V8 heap sizing, not the code that moved: V8 sizes its young generation by what startup allocated so far, and this change took an early allocation out. A later change can move it back.',
+      );
+    }
+    printClosureDiff(
+      closure,
+      report.baselineDelta?.['worker.startup_loaded_bytes'] ?? null,
+      keepVerdict(paired, fixed),
     );
   } else if (base) {
     console.log(
@@ -4516,7 +4675,7 @@ function printTopLevelCalls(calls, { top, withSource }) {
  * The leads, in the order a reader should take them: is the Worker's own code the cost,
  * which modules run at startup for how long, and what is parsed but not executed.
  */
-function printWorkerLeads(report, cov, prof, graph, top) {
+function printWorkerLeads(report, cov, prof, graph, top, handlers = null) {
   if (prof?.rows) {
     const own = prof.ownership;
     const sm = prof.summary;
@@ -4549,8 +4708,34 @@ function printWorkerLeads(report, cov, prof, graph, top) {
           sourceCpu(prof.rows),
         )
       : null;
+  if (wc) {
+    wc.bytesRate = bytesRate({
+      summary: prof.summary,
+      closureBytes: evalOverrides(graph, []).eagerBytes,
+    });
+    if (cov?.modules) {
+      wc.groupChunks = groupChunkModules(
+        graph,
+        report.worker.outDir,
+        lazyInStartupChunks(graph, cov.modules).byScript.map(([c]) => c),
+      );
+    }
+  }
+  if (graph) {
+    const classes = workerClasses(report.worker.outDir);
+    const found = classes.length
+      ? classModules(
+          graph,
+          classes.map((c) => c.name),
+          report.worker.app,
+        ).map((c) => ({ ...c, kind: classes.find((k) => k.name === c.name).kind }))
+      : [];
+    const unlock = classUnlock(graph, handlers, found);
+    printHandlerImports(graph, wc, handlers, report.worker.app, unlock);
+    printAsyncImports(graph, wc, handlers, report.worker.app);
+    if (classes.length) printClassExports(graph, wc, classes, found, report.worker.app, unlock);
+  }
   if (wc) printStartupGroups(graph, wc, prof, report.worker.app);
-  const cpu = wc?.cpu ?? null;
 
   if (cov?.totals) {
     const t = cov.totals;
@@ -4600,8 +4785,6 @@ function printWorkerLeads(report, cov, prof, graph, top) {
         : `\n(no module-graph.json for this worker: \`${CLI} worker-config --app <appDir>\` writes a build config that collects it; then graph / what-if / cut / why price every candidate)`,
     );
   } else {
-    const names = workerClassNames(report.worker.outDir);
-    if (names.length) printClassExports(graph, cpu, names, report.worker.app);
     console.log(
       `\nnext: \`${CLI} why <module>\` names the importers and the chain from the entry; \`${CLI} what-if <a> <b>\` prices a group of deferrals (bytes and measured startup CPU);` +
         ` \`${CLI} cut <module> --root <class modules>\` the fewest imports to make dynamic while the classes stay eager.`,
@@ -4670,6 +4853,194 @@ function printStartupGroups(graph, wc, prof, appDir) {
   }
 }
 
+// A lead row frees at least this much: bytes, or modules (a text module counts 0 bytes).
+const LEAD_MIN_BYTES = 16 * 1024;
+// The most app modules the scan reads for imports that only async functions read.
+const ASYNC_LEAD_MAX_FILES = 400;
+
+/**
+ * The main module's imports and where its code reads them (lib/worker/handler-imports.mjs),
+ * with the graph edge of each. Also the imports of the other app modules at startup that only
+ * `async` functions read (`asyncRows`). Null when the graph has no app main module.
+ */
+async function handlerImports(graph, appDir) {
+  const isApp = (id) =>
+    !isVirtual(id) &&
+    !id.replaceAll('\\', '/').includes('node_modules/') &&
+    fs.existsSync(path.resolve(appDir, id));
+  const main = mainModuleIndex(graph, isApp);
+  if (main == null) return null;
+  const file = path.resolve(appDir, graph.modules[main].id);
+  const parseAst = await loadParseAst(appDir);
+  if (!parseAst)
+    return {
+      main,
+      note: 'rolldown/parseAst did not load, so the scan did not read the main module',
+    };
+  const program = parseFile(parseAst, file, fs.readFileSync(file, 'utf8'));
+  if (!program) return { main, note: `${path.relative(appDir, file)} did not parse` };
+  const rows = importUses(program);
+  const targets = matchImportTargets(
+    graph,
+    main,
+    rows.map((r) => r.source),
+    appDir,
+  );
+  const asyncRows = [];
+  const candidates = asyncImportModules(graph, isApp, {
+    skip: main,
+    minBytes: LEAD_MIN_BYTES,
+    minModules: CLOSURE_MIN_MODULES,
+  });
+  for (const from of candidates.slice(0, ASYNC_LEAD_MAX_FILES)) {
+    const source = path.resolve(appDir, graph.modules[from].id);
+    let text;
+    try {
+      text = fs.readFileSync(source, 'utf8');
+    } catch {
+      continue;
+    }
+    const tree = parseFile(parseAst, source, text);
+    if (!tree) continue;
+    // Every source goes to the matcher: the last source left pairs with the last edge left.
+    const uses = importUses(tree);
+    const hits = matchImportTargets(
+      graph,
+      from,
+      uses.map((r) => r.source),
+      appDir,
+    );
+    for (const row of uses) {
+      if (readOnlyInAsync(row) && hits.has(row.source)) {
+        asyncRows.push({ from, to: hits.get(row.source), row });
+      }
+    }
+  }
+  return { main, rows, targets, asyncRows };
+}
+
+/**
+ * Imports that only code inside the main module's functions reads. A handler runs per event,
+ * so a dynamic import there takes the import's closure out of startup. Priced together
+ * (modules they share leave only then) and one at a time.
+ */
+function printHandlerImports(graph, wc, lead, appDir, unlock = null) {
+  if (!lead) return;
+  if (lead.note) {
+    console.log(`\n(imports read only in handlers: not checked - ${lead.note})`);
+    return;
+  }
+  const later = lead.rows.filter((r) => readOnlyLater(r) && lead.targets.has(r.source));
+  if (!later.length) return;
+  const edge = (r) => ({ from: lead.main, to: lead.targets.get(r.source), kind: 'defer' });
+  const all = evalOverrides(graph, later.map(edge));
+  if (all.removedBytes < LEAD_MIN_BYTES && !unlock) return;
+  const alone = later
+    .map((r) => ({ r, ...evalOverrides(graph, [edge(r)]) }))
+    .sort((a, b) => b.removedBytes - a.removedBytes || b.removedCount - a.removedCount);
+  const short = (id) => (path.isAbsolute(id) ? path.relative(appDir, id) : id);
+  const cut = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+  console.log(
+    `\nimports that only code inside functions reads (${short(graph.modules[lead.main].id)}): a handler runs per event, not at startup`,
+  );
+  let syncRows = 0;
+  for (const a of alone.slice(0, 12)) {
+    const names = a.r.names.filter((n) => n.reads).map((n) => n.name);
+    const fns = [...new Set(a.r.names.flatMap((n) => n.fns))];
+    const sync = !readOnlyInAsync(a.r);
+    if (sync) syncRows += 1;
+    console.log(
+      `    ${String(a.removedCount).padStart(5)} module(s) ${kb(a.removedBytes).padStart(10)}  ${cut(names.join(', '), 30).padEnd(30)} from ${cut(a.r.source, 36).padEnd(36)} read in ${cut(fns.join(', '), 40)}${sync ? ' (sync)' : ''}`,
+    );
+  }
+  if (alone.length > 12) console.log(`    ... +${alone.length - 12} more`);
+  if (syncRows) {
+    console.log(
+      '  (sync): a function that is not async reads it - make it async when every caller can await it, or load the import in an async function that runs first',
+    );
+  }
+  console.log(
+    `  all ${later.length} loaded inside the functions that read them: ${all.removedCount} module(s) / ${kb(all.removedBytes)} leave startup${cpuSegment(graph, wc, all.removed)}`,
+  );
+  printCpuCaveat(graph, wc, all.removed, all.removedBytes);
+  printGroupChunkWarning(graph, wc, all.removed);
+  const sum = alone.reduce((s, a) => s + a.removedCount, 0);
+  if (all.removedCount > sum) {
+    console.log(
+      `  together they free ${all.removedCount - sum} module(s) more than one at a time: a module they share leaves only when every import that reaches it moves`,
+    );
+  }
+  if (unlock) {
+    console.log(
+      `  with lazy class wrappers as well, ${unlock.removedCount} module(s) / ${kb(unlock.removedBytes)} more leave: the class modules import them too (class exports, below)`,
+    );
+  }
+  console.log(
+    '  the first event that runs such a function pays the load, once per isolate: a startup task takes that trade (AGENTS.md, "A handler runs per event")',
+  );
+}
+
+/**
+ * Imports of the other app modules at startup that only `async` functions read. Such a
+ * function already returns a promise, so an `await import()` inside it changes no caller.
+ */
+function printAsyncImports(graph, wc, lead, appDir) {
+  const rows = (lead?.asyncRows ?? [])
+    .map((a) => ({ ...a, ...evalOverrides(graph, [{ from: a.from, to: a.to, kind: 'defer' }]) }))
+    .filter((a) => a.removedBytes >= LEAD_MIN_BYTES || a.removedCount >= CLOSURE_MIN_MODULES)
+    .sort((a, b) => b.removedBytes - a.removedBytes || b.removedCount - a.removedCount);
+  if (!rows.length) return;
+  const edges = rows.map((a) => ({ from: a.from, to: a.to, kind: 'defer' }));
+  const all = evalOverrides(graph, edges);
+  const short = (id) => (path.isAbsolute(id) ? path.relative(appDir, id) : id);
+  const cut = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+  const files = (mods) => {
+    const t = textModuleBytes(mods);
+    return t.count ? ` (+${kb(t.bytes)} in ${t.count} text file(s))` : '';
+  };
+  console.log(
+    '\nimports that only async functions read, in the other app modules: an `await import()` inside the function changes no caller',
+  );
+  for (const a of rows.slice(0, 10)) {
+    const fns = [...new Set(a.row.names.flatMap((n) => n.fns))];
+    console.log(
+      `    ${String(a.removedCount).padStart(5)} module(s) ${kb(a.removedBytes).padStart(10)}${files(a.removed)}  ${cut(short(graph.modules[a.from].id), 44)} imports ${cut(a.row.source, 36)}, read in ${cut(fns.join(', '), 36)}`,
+    );
+  }
+  if (rows.length > 10) console.log(`    ... +${rows.length - 10} more`);
+  console.log(
+    `  all ${rows.length} loaded inside those functions: ${all.removedCount} module(s) / ${kb(all.removedBytes)}${files(all.removed)} leave startup${cpuSegment(graph, wc, all.removed)}`,
+  );
+  printGroupChunkWarning(graph, wc, all.removed);
+}
+
+/**
+ * The build is older than an app module it holds: a failed or skipped build left the last
+ * output, and the scan would time that.
+ */
+function staleBuildNote(ctx, graph) {
+  let builtAt;
+  try {
+    builtAt = fs.statSync(path.join(ctx.outDir, ctx.mainName)).mtimeMs;
+  } catch {
+    return null;
+  }
+  let newest = null;
+  for (const m of graph.modules) {
+    if (isVirtual(m.id) || m.id.replaceAll('\\', '/').includes('node_modules/')) continue;
+    let at;
+    try {
+      at = fs.statSync(path.resolve(ctx.appDir, m.id)).mtimeMs;
+    } catch {
+      continue;
+    }
+    if (at > builtAt + 1000 && (!newest || at > newest.at)) newest = { id: m.id, at };
+  }
+  if (!newest) return null;
+  const id = path.isAbsolute(newest.id) ? path.relative(ctx.appDir, newest.id) : newest.id;
+  return `the build is older than ${id} (changed ${Math.round((newest.at - builtAt) / 1000)}s after it): this scan timed the last build that succeeded. Rebuild, then scan again.`;
+}
+
 /**
  * Modules that load at startup only because a chunk group put them with startup code.
  * The graph calls them lazy, so `what-if` prices their deferral at 0; the chunk config is the
@@ -4699,38 +5070,121 @@ function printLazyInStartupChunks(graph, covModules) {
 /**
  * Durable Object and Workflow classes: the module that defines each one, and what lazy
  * wrapper classes (same name, the implementation imported on the first call) would move.
+ * Priced like the other leads: the CPU of `wc`, plus GC and parse/compile estimated by bytes.
  */
-function printClassExports(graph, cpu, names, appDir) {
-  const found = classModules(graph, names, appDir);
-  const missing = names.filter((n) => !found.some((c) => c.name === n));
-  console.log(`\nclass exports in wrangler.json (the runtime loads them by name): ${names.length}`);
-  const price = found.length ? wrapperPrice(graph, cpu ?? { byIdx: new Map() }, found) : null;
+function printClassExports(graph, wc, classes, found, appDir, unlock) {
+  const missing = classes.filter((c) => !found.some((f) => f.name === c.name)).map((c) => c.name);
+  console.log(
+    `\nclass exports in wrangler.json (the runtime loads them by name): ${classes.length}`,
+  );
+  const cpu = wc?.cpu ?? null;
+  const priceOf = (list) => wrapperPrice(graph, cpu ?? { byIdx: new Map() }, list);
+  const price = found.length ? priceOf(found) : null;
   if (price) {
+    const source =
+      wc?.kind === 'self'
+        ? 'of measured self time (last worker-scan)'
+        : `of startup CPU with the library calls they make (last worker-attrib${wc?.older ? ', run before the current build' : ''})`;
+    const timeOf = (p) => {
+      if (!cpu) return '';
+      const est = wc.bytesRate ? p.removedBytes * wc.bytesRate.perByte : null;
+      return (
+        `: ${ms(p.ms)} ${source}` +
+        (est != null
+          ? ` + about ${ms(est)} of GC and parse/compile (an estimate by bytes) = about ${ms(p.ms + est)}`
+          : '')
+      );
+    };
     console.log(
-      `  lazy wrapper classes for all of them would move ${kb(price.removedBytes)} / ${price.removedCount} module(s)` +
-        `${cpu ? `, ${ms(price.ms)} of measured startup CPU` : ''} out of startup:`,
+      `  lazy wrapper classes for all of them would move ${kb(price.removedBytes)} / ${price.removedCount} module(s) out of startup${timeOf(price)}`,
     );
+    // A Workflow wrapper forwards one method; a Durable Object wrapper forwards all of them.
+    const workflows = found.filter((c) => c.kind === 'workflow');
+    const objects = found.filter((c) => c.kind === 'durable-object');
+    if (workflows.length && objects.length) {
+      const w = priceOf(workflows);
+      const o = priceOf(objects);
+      console.log(
+        `  the ${workflows.length} Workflow class(es) alone: ${kb(w.removedBytes)} / ${w.removedCount} module(s)${timeOf(w)}. A Workflow wrapper forwards run() only.`,
+      );
+      console.log(
+        `  the ${objects.length} Durable Object class(es) alone: ${kb(o.removedBytes)} / ${o.removedCount} module(s)${timeOf(o)}. A Durable Object wrapper forwards fetch, alarm, the WebSocket handlers and every RPC method.`,
+      );
+    } else if (workflows.length) {
+      console.log('  all of them are Workflow classes: a Workflow wrapper forwards run() only');
+    }
+    console.log('  per class, what only that class holds:');
     for (const c of price.perClass.slice(0, 8)) {
       console.log(
-        `    ${cpu ? `${String(c.ms).padStart(7)}ms ` : ''}${c.name.padEnd(28)} ${path.isAbsolute(c.id) ? path.relative(appDir, c.id) : c.id}`,
+        `    ${cpu ? `${String(c.ms).padStart(7)}ms ` : ''}${String(c.modules).padStart(5)} module(s) ${kb(c.bytes).padStart(9)}  ${c.name.padEnd(28)} ${path.isAbsolute(c.id) ? path.relative(appDir, c.id) : c.id}`,
       );
     }
     if (price.perClass.length > 8) console.log(`    ... +${price.perClass.length - 8} more`);
+    if (price.shared.count) {
+      console.log(
+        `  ${price.shared.count} module(s) / ${kb(price.shared.bytes)}${cpu ? ` (${ms(price.shared.ms)})` : ''} of the total are shared by two or more classes: they leave only when every class has a wrapper`,
+      );
+    }
+    if (unlock) {
+      const u = {
+        ms: cpu ? cpuOf(graph, cpu, unlock.removed) : 0,
+        removedBytes: unlock.removedBytes,
+      };
+      // The wrapper set and the unlocked set do not overlap, so their sums are exact.
+      const t = { ms: price.ms + u.ms, removedBytes: price.removedBytes + unlock.removedBytes };
+      console.log(
+        `  with the imports above (only read in functions) moved too, ${unlock.removedCount} module(s) / ${kb(unlock.removedBytes)} more leave${timeOf(u)}: the class modules import them as well, so neither change alone frees them`,
+      );
+      console.log(
+        `  so after those imports move, the wrappers take ${price.removedCount + unlock.removedCount} module(s) / ${kb(t.removedBytes)} out of startup${timeOf(t)}`,
+      );
+    }
+    printLibraryCaveat(wc);
     console.log(
-      '  a wrapper keeps the class name in the entry and imports the implementation on the first call (AGENTS.md, "classes loaded by name")',
+      '  a wrapper keeps the class name in the entry and imports the implementation on the first call. It changes no class code: the app tests still cover the class, and a typecheck checks each forward (AGENTS.md, "classes loaded by name")',
     );
   }
   if (missing.length) console.log(`  no module found for: ${missing.join(', ')}`);
 }
 
-/** Durable Object and Workflow class names the config binds; their modules are roots. */
-function workerClassNames(outDir) {
+/**
+ * Durable Object and Workflow classes the config binds; their modules are roots. A class in
+ * both lists counts as a Durable Object: its wrapper must forward more.
+ */
+function workerClasses(outDir) {
   const config = readJson(path.join(outDir, 'wrangler.json'));
   if (!config) return [];
-  const names = new Set();
-  for (const b of config.durable_objects?.bindings ?? []) if (b.class_name) names.add(b.class_name);
-  for (const w of config.workflows ?? []) if (w.class_name) names.add(w.class_name);
-  return [...names];
+  const kinds = new Map();
+  for (const w of config.workflows ?? []) if (w.class_name) kinds.set(w.class_name, 'workflow');
+  for (const b of config.durable_objects?.bindings ?? []) {
+    if (b.class_name) kinds.set(b.class_name, 'durable-object');
+  }
+  return [...kinds].map(([name, kind]) => ({ name, kind }));
+}
+
+/** The edges the handler and async-function leads defer, all at once. */
+function leadEdges(lead) {
+  if (!lead || lead.note) return [];
+  return [
+    ...lead.rows
+      .filter((r) => readOnlyLater(r) && lead.targets.has(r.source))
+      .map((r) => ({ from: lead.main, to: lead.targets.get(r.source), kind: 'defer' })),
+    ...(lead.asyncRows ?? []).map((a) => ({ from: a.from, to: a.to, kind: 'defer' })),
+  ];
+}
+
+/**
+ * The modules that leave startup only when the lazy class wrappers and the lead imports both
+ * move: the class modules import them too, so each change alone frees none of them.
+ */
+function classUnlock(graph, lead, found) {
+  const edges = leadEdges(lead);
+  if (!edges.length || !found.length) return null;
+  const wrap = [...new Set(found.map((c) => c.index))].flatMap((t) => deferAllInto(graph, t));
+  const removed = leaveOnlyTogether(graph, wrap, edges);
+  const removedBytes = removed.reduce((sum, m) => sum + m.bytes, 0);
+  if (removedBytes < LEAD_MIN_BYTES && removed.length < CLOSURE_MIN_MODULES) return null;
+  return { removed, removedBytes, removedCount: removed.length };
 }
 
 function workerModuleGraph(ctx) {
@@ -4760,7 +5214,7 @@ async function cmdWorkerMeasure(argv) {
   const requests = await firstRequests(ctx, ctx.requests);
   const { report, hadBaseline } = writeWorkerReport(ctx, summary, { label: opts.label, requests });
   printWorkerSummary(report, hadBaseline);
-  if (opts.pin) pinWorkerBaseline(ctx);
+  if (opts.pin) pinWorkerBaseline(ctx, workerModuleGraph(ctx));
   printRuntimeStderr(ctx);
   console.log(`\nfull report: ${ctx.paths.metrics}`);
 }
@@ -4822,6 +5276,29 @@ async function cmdWorkerScan(argv) {
   }
 
   const graph = workerModuleGraph(ctx);
+  const stale = graph ? staleBuildNote(ctx, graph) : null;
+  const handlers = graph ? await handlerImports(graph, ctx.appDir) : null;
+  const closure = graph && pinned ? pinnedClosureDiff(ctx, graph, cov) : null;
+  const paired = summary.pinnedBuild;
+  if (
+    paired &&
+    closureOnlyShrank(closure) &&
+    pairedVerdict(paired).kind === 'regression' &&
+    supportsV8Flags(ctx.tools)
+  ) {
+    process.stderr.write(
+      'the import got slower, but startup only lost modules: both builds again, young generation fixed...\n',
+    );
+    paired.fixedYoung = (
+      await pairedSeries(ctx, pinned, {
+        runs: Number(opts.runs),
+        warmup: Number(opts.warmup),
+        appStartupMs: paired.appStartupMs,
+        v8Flags: FIXED_YOUNG_V8_FLAGS,
+        label: 'young generation fixed: ',
+      })
+    ).paired;
+  }
   const { report, hadBaseline } = writeWorkerReport(ctx, summary, {
     label: opts.label,
     requests,
@@ -4854,11 +5331,12 @@ async function cmdWorkerScan(argv) {
       : null,
     notes,
   });
-  printWorkerSummary(report, hadBaseline);
-  printWorkerLeads(report, cov, prof, graph, Number(opts.top));
+  if (stale) console.log(`\nWARNING: ${stale}`);
+  printWorkerSummary(report, hadBaseline, closure);
+  printWorkerLeads(report, cov, prof, graph, Number(opts.top), handlers);
   if (cov?.source) console.log(`\ncoverage: ${cov.source}`);
   for (const note of notes) console.log(`note: ${note}`);
-  if (opts.pin) pinWorkerBaseline(ctx);
+  if (opts.pin) pinWorkerBaseline(ctx, graph);
   printRuntimeStderr(ctx);
   console.log(`\nfull report: ${ctx.paths.metrics}`);
 }

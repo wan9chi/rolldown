@@ -8,7 +8,15 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { deferAllInto, evalOverrides } from '../lib/module-graph.mjs';
-import { needsMorePairs, pairedCall, pairedVerdict, signTail } from '../lib/worker/measure.mjs';
+import {
+  closureCall,
+  closureOnlyShrank,
+  keepVerdict,
+  needsMorePairs,
+  pairedCall,
+  pairedVerdict,
+  signTail,
+} from '../lib/worker/measure.mjs';
 import {
   classModules,
   cpuByModule,
@@ -16,6 +24,7 @@ import {
   cpuOf,
   isVirtual,
   lazyInStartupChunks,
+  leaveOnlyTogether,
   libraryShare,
   startupGroups,
   wrapperPrice,
@@ -163,6 +172,96 @@ test('class modules are found by their declaration, and wrappers price the closu
   }
 });
 
+test('a module that a class and a handler import both reach leaves only when both move', () => {
+  // entry -> worker; worker imports the app (read only in fetch) and exports a Workflow
+  // class; the app and the class both import the shared core, which imports a library
+  const g = makeGraph(
+    [
+      { id: '\\0virtual:entry', bytes: 0, imports: [[1, false]] },
+      {
+        id: 'src/worker.ts',
+        bytes: 1,
+        imports: [
+          [2, false],
+          [3, false],
+        ],
+      },
+      { id: 'src/app.ts', bytes: 10, imports: [[4, false]] },
+      { id: 'src/flows/job.ts', bytes: 20, imports: [[4, false]] },
+      { id: 'src/core.ts', bytes: 300, imports: [[5, false]] },
+      { id: 'lib/index.js', bytes: 400, imports: [] },
+    ],
+    ['\\0virtual:entry'],
+  );
+  const handler = [{ from: 1, to: 2, kind: 'defer' }];
+  const wrapper = deferAllInto(g, indexOf(g, 'src/flows/job.ts'));
+  assert.deepEqual(
+    evalOverrides(g, handler).removed.map((m) => m.id),
+    ['src/app.ts'],
+  );
+  assert.deepEqual(
+    evalOverrides(g, wrapper).removed.map((m) => m.id),
+    ['src/flows/job.ts'],
+  );
+  assert.deepEqual(
+    leaveOnlyTogether(g, wrapper, handler).map((m) => m.id),
+    ['lib/index.js', 'src/core.ts'],
+  );
+  assert.deepEqual(leaveOnlyTogether(g, wrapper, []), []);
+});
+
+test('wrappers: what each class holds alone, and what leaves only with every wrapper', () => {
+  // entry -> worker -> two Workflow modules; both import the SDK, one also its own helper
+  const g = makeGraph(
+    [
+      { id: '\\0virtual:entry', bytes: 0, imports: [[1, false]] },
+      {
+        id: 'src/worker.ts',
+        bytes: 1,
+        imports: [
+          [2, false],
+          [3, false],
+        ],
+      },
+      {
+        id: 'src/flows/image.ts',
+        bytes: 10,
+        imports: [
+          [4, false],
+          [5, false],
+        ],
+      },
+      { id: 'src/flows/music.ts', bytes: 20, imports: [[5, false]] },
+      { id: 'src/flows/image-helper.ts', bytes: 30, imports: [] },
+      { id: 'sdk/index.js', bytes: 400, imports: [] },
+    ],
+    ['\\0virtual:entry'],
+  );
+  const cpu = cpuByModule(g, {
+    '../src/flows/image.ts': 1,
+    '../src/flows/image-helper.ts': 2,
+    '../src/flows/music.ts': 0.5,
+    '../node_modules/sdk/index.js': 8,
+  });
+  const classes = [
+    { name: 'ImageWorkflow', index: indexOf(g, 'src/flows/image.ts'), id: 'src/flows/image.ts' },
+    { name: 'MusicWorkflow', index: indexOf(g, 'src/flows/music.ts'), id: 'src/flows/music.ts' },
+  ];
+  const price = wrapperPrice(g, cpu, classes);
+  assert.equal(price.removedCount, 4);
+  assert.equal(price.removedBytes, 460);
+  assert.equal(price.ms, 11.5);
+  assert.deepEqual(
+    price.perClass.map((c) => [c.name, c.ms, c.modules, c.bytes]),
+    [
+      ['ImageWorkflow', 3, 2, 40],
+      ['MusicWorkflow', 0.5, 1, 20],
+    ],
+  );
+  assert.deepEqual(price.shared, { count: 1, bytes: 400, ms: 8 });
+  assert.equal(price.removed.length, 4);
+});
+
 test('paired keep rule: the floor, or every pair on one side', () => {
   const call = (pairs, deltaMs) =>
     pairedCall(pairedVerdict({ pairs, deltaMs, appStartupMs: 30 }), pairs.length);
@@ -189,6 +288,61 @@ test('paired keep rule: the floor, or every pair on one side', () => {
   );
 });
 
+test('beyond the floor the pairs must agree: a few slow runs do not make a verdict', () => {
+  const verdict = (pairs, deltaMs) => pairedVerdict({ pairs, deltaMs, appStartupMs: 29 });
+  // A real series: the median is beyond the floor, the pairs fall on both sides
+  const round4 = [3.3, -1.4, 4.9, -0.5, 3.9];
+  assert.equal(
+    pairedCall(verdict(round4, 3.3), 5),
+    'within noise (floor 3ms) - the pairs disagree: the median is beyond the floor, higher in only 3 of 5 pairs',
+  );
+  assert.equal(needsMorePairs({ pairs: round4, deltaMs: 3.3, appStartupMs: 29 }), true);
+  // round 5: 4 of 5 lower still decides
+  assert.equal(
+    pairedCall(verdict([-4.4, 0.7, -0.2, -3.8, -4.5], -3.8), 5),
+    'IMPROVEMENT beyond noise',
+  );
+  // round 6: 8 of 9 higher
+  assert.equal(
+    pairedCall(verdict([-0.2, 6.7, 1.8, 6.9, 2.2, 7.8, 7, 5.7, 3.9], 5.7), 9),
+    'REGRESSION beyond noise',
+  );
+  // 6 of 9 is not agreement, and 9 pairs get no more
+  const six = [5, 5, 5, 5, 5, 5, -1, -1, -1];
+  assert.equal(verdict(six, 5).kind, 'noise');
+  assert.equal(needsMorePairs({ pairs: six, deltaMs: 5, appStartupMs: 29 }), false);
+});
+
+test('a rise that a fixed young generation does not repeat is heap sizing: the keep rule reads that series', () => {
+  const rise = { pairs: [2.9, 2.6, 5.3, 5.9, 2.6], deltaMs: 2.9, appStartupMs: 29 };
+  const flat = { pairs: [-0.7, -0.2, 1.6, 4.2, 1.2], deltaMs: 1.2, appStartupMs: 29 };
+  const stays = { pairs: [4.1, 5.2, 3.9, 6, 4.4], deltaMs: 4.4, appStartupMs: 29 };
+  assert.equal(pairedVerdict(rise).kind, 'regression');
+  const keep = keepVerdict(rise, flat);
+  assert.equal(keep.kind, 'noise');
+  assert.equal(keep.heapSizing, true);
+  assert.equal(keepVerdict(rise, stays).kind, 'regression');
+  assert.equal(keepVerdict(rise, null).kind, 'regression');
+  const better = { pairs: [-5, -6, -5.5, -4.8, -6.1], deltaMs: -5.5, appStartupMs: 29 };
+  assert.equal(keepVerdict(better, stays).kind, 'improvement');
+  // the KEEP rule then applies to the closure as for any noise verdict
+  const closure = {
+    left: [{ id: 'a', bytes: 251_700 }],
+    entered: [],
+    leftBytes: 251_700,
+    enteredBytes: 0,
+    stillBytes: 0,
+    stillCount: 0,
+    pinnedBytes: 3_990_000,
+    pinnedModules: 2000,
+  };
+  assert.equal(closureCall(closure, null, keep).kind, 'keep');
+  assert.equal(closureOnlyShrank(closure), true);
+  assert.equal(closureOnlyShrank({ ...closure, entered: [{ id: 'b', bytes: 1 }] }), false);
+  assert.equal(closureOnlyShrank({ ...closure, left: [] }), false);
+  assert.equal(closureOnlyShrank(null), false);
+});
+
 test('sign test: a no-op puts 5 of 5 or 8 of 9 pairs on one side by chance at most 1 in 32', () => {
   assert.equal(signTail(5, 5), 1 / 32);
   assert.equal(signTail(4, 5), 6 / 32);
@@ -211,12 +365,64 @@ test('sign test: a no-op puts 5 of 5 or 8 of 9 pairs on one side by chance at mo
 
 test('a series that leans one way without deciding gets more pairs', () => {
   const more = (pairs, deltaMs) => needsMorePairs({ pairs, deltaMs, appStartupMs: 30 });
-  // backlex run 5, round 1: the OpenAPI deferral that later measured -16ms
+  // A real series: a deferral that later measured -16ms
   assert.equal(more([-4.9, -0.3, -7.3, -1.6, 0.9], -1.6), true);
   assert.equal(more([-1.7, -0.7, -1.2, -1.3, -1], -1.2), false); // already decided
   assert.equal(more([-1.5, 3.9, 0.1, -1.6, -2], -1.5), false); // both sides
   assert.equal(more([-0.3, -0.2, 0.4, -0.1, -0.3], -0.2), false); // too small
   assert.equal(more([-1, -1, 1, -1, -1, -1, -1, -1, -1], -1), false); // already 9 pairs
+});
+
+test('within noise, a startup that lost enough bytes or modules is kept', () => {
+  const noise = { kind: 'noise' };
+  const KB = 1024;
+  const mods = (n, bytes = 0) => Array.from({ length: n }, (_, i) => ({ id: `m${i}`, bytes }));
+  const closure = (left, entered = [], o = {}) => ({
+    left,
+    entered,
+    leftBytes: left.reduce((s, m) => s + m.bytes, 0),
+    enteredBytes: entered.reduce((s, m) => s + m.bytes, 0),
+    stillCount: 0,
+    stillBytes: 0,
+    pinnedBytes: 1000 * KB,
+    pinnedModules: 1500,
+    ...o,
+  });
+  // A timing verdict decides alone.
+  assert.equal(closureCall(closure(mods(400, KB)), null, { kind: 'improvement' }), null);
+  assert.equal(closureCall(closure(mods(400, KB)), null, { kind: 'regression' }), null);
+  assert.deepEqual(closureCall(closure(mods(40, KB)), null, noise), {
+    kind: 'keep',
+    bytes: 40 * KB,
+    modules: 40,
+  });
+  // A deferral of 261 SQL text modules: 15.9 KB in the graph.
+  const sql = closure(mods(261, 62));
+  assert.deepEqual(closureCall(sql, null, noise), { kind: 'keep', bytes: null, modules: 261 });
+  // Modules a startup chunk still loads did not leave startup.
+  assert.equal(
+    closureCall(closure(mods(40, KB), [], { stillCount: 30, stillBytes: 30 * KB }), null, noise),
+    null,
+  );
+  // The floor grows with the startup: 1% of the bytes, 10% of the modules.
+  assert.equal(
+    closureCall(closure(mods(40, KB), [], { pinnedBytes: 5000 * KB }), null, noise),
+    null,
+  );
+  assert.equal(closureCall(closure(mods(60, 1), [], { pinnedModules: 1000 }), null, noise), null);
+  // A chunk-group change moves only the loaded bytes.
+  const loaded = (prev, curr) => ({ prev, curr, delta: curr - prev });
+  assert.deepEqual(closureCall(closure([]), loaded(800 * KB, 700 * KB), noise), {
+    kind: 'keep',
+    bytes: 100 * KB,
+    modules: 0,
+  });
+  assert.equal(closureCall(null, loaded(710.9 * KB, 683.7 * KB), noise), null);
+  // Nothing moved: the deferral took nothing out of startup.
+  assert.deepEqual(closureCall(closure([]), loaded(700 * KB, 700.5 * KB), noise), { kind: 'none' });
+  assert.deepEqual(closureCall(closure([]), null, noise), { kind: 'none' });
+  assert.equal(closureCall(closure(mods(3, KB)), null, noise), null);
+  assert.equal(closureCall(null, null, noise), null);
 });
 
 test('attribution output files map onto graph ids; library self time is reported apart', () => {
