@@ -1,7 +1,7 @@
 // Replay check: compare the outputs of the cached docs tasks with a fresh build.
 //
 //   node .github/replay/outputs.mjs snapshot <file> [<copy dir>]   hash build outputs into <file>,
-//                                                                    and copy them into <copy dir>
+//                                                                    and copy the text ones into <copy dir>
 //   node .github/replay/outputs.mjs compare <cached> <fresh> [<copy dir>]   with a copy dir, also print
 //                                       where each differing file's two versions differ
 //   node .github/replay/outputs.mjs collect <cached> <fresh> <copy dir> <out dir>
@@ -37,8 +37,11 @@ if (command === 'snapshot') {
       hashes[path] = `unreadable:${error.code}`;
     }
   }
+  mkdirSync(dirname(args[0]), { recursive: true });
   writeFileSync(args[0], JSON.stringify(hashes));
-  if (args[1]) for (const path of Object.keys(hashes)) copy(path, join(args[1], path));
+  // Copies feed `compare`'s deltas, so binary files (images, fonts) aren't copied.
+  const binary = /\.(png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|wasm|zst|gz)$/i;
+  if (args[1]) for (const path of Object.keys(hashes)) if (!binary.test(path)) copy(path, join(args[1], path));
   console.log(`replay-verify: snapshot of ${Object.keys(hashes).length} files`);
 } else if (command === 'compare') {
   const cached = JSON.parse(readFileSync(args[0], 'utf8'));
