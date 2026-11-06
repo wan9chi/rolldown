@@ -14,7 +14,10 @@ use rolldown_plugin_utils::{
   to_string_literal,
 };
 use rolldown_std_utils::relative_path_to_slash;
-use rolldown_utils::{ecmascript::to_usv_str, indexmap::FxIndexMap};
+use rolldown_utils::{
+  ecmascript::{to_module_import_export_name_with_ascii, to_usv_str},
+  indexmap::FxIndexMap,
+};
 use string_wizard::MagicString;
 use sugar_path::SugarPath;
 
@@ -73,13 +76,13 @@ struct ImportGlobFileData {
 }
 
 #[derive(Debug)]
-struct PathWithGlob<'a> {
+pub struct PathWithGlob<'a> {
   pub path: String,
   pub glob: &'a str,
 }
 
 impl<'a> PathWithGlob<'a> {
-  fn new(mut path: String, glob: &'a str) -> Self {
+  pub fn new(mut path: String, glob: &'a str) -> Self {
     let j = Self::split_path_and_glob_inner(&path, glob);
     let i = Self::find_glob_syntax(&glob[glob.len() - j..]);
     path.truncate(path.len() - i);
@@ -87,7 +90,7 @@ impl<'a> PathWithGlob<'a> {
   }
 
   /// `path` is literal, so its glob syntax is escaped, like vite's `globSafeResolvedPath`.
-  fn to_absolute_glob(&self) -> String {
+  pub fn to_absolute_glob(&self) -> String {
     let mut glob = String::with_capacity(self.path.len() + self.glob.len());
     for char in self.path.chars() {
       if matches!(char, '\\' | '*' | '?' | '[' | ']' | '{' | '}') {
@@ -319,7 +322,9 @@ impl<'ast> GlobImportVisit<'_> {
           Some("*") | None => {
             format!("* as {name}")
           }
-          Some(import) => format!("{{ {import} as {name} }}"),
+          Some(import) => {
+            format!("{{ {} as {name} }}", to_module_import_export_name_with_ascii(import, false))
+          }
         };
 
         self.import_decls.push(format!("import {module_specifier} from {formatted_file};"));
@@ -503,28 +508,30 @@ impl GlobImportVisit<'_> {
     let root_slash = root.to_slash_lossy();
 
     let mut is_relative = true;
-    let mut negated_globs = vec![];
     let mut positive_globs = vec![];
-
-    for value in values {
-      if let Some(glob) = value.strip_prefix('!') {
-        negated_globs.push(self.to_absolute_glob(
-          glob,
-          &dir_slash,
-          &root_slash,
-          options.base.as_deref(),
-        )?);
-      } else {
-        positive_globs.push(self.to_absolute_glob(
-          value,
-          &dir_slash,
-          &root_slash,
-          options.base.as_deref(),
-        )?);
-        if !value.starts_with('.') {
-          is_relative = false;
-        }
+    for value in values.iter().filter(|value| !value.starts_with('!')) {
+      positive_globs.push(self.to_absolute_glob(
+        value,
+        &dir_slash,
+        &root_slash,
+        options.base.as_deref(),
+      )?);
+      if !value.starts_with('.') {
+        is_relative = false;
       }
+    }
+
+    let common = self.get_common_base(&positive_globs).into_owned();
+
+    let mut negated_globs = vec![];
+    for glob in values.iter().filter_map(|value| value.strip_prefix('!')) {
+      // Like the `cwd` vite passes to tinyglobby, a negated `**` glob starts where the walk
+      // starts, which can be outside `root`.
+      negated_globs.push(if glob.starts_with("**") {
+        PathWithGlob::new(path_posix::join(&[&common, glob]).into_owned(), glob)
+      } else {
+        self.to_absolute_glob(glob, &dir_slash, &root_slash, options.base.as_deref())?
+      });
     }
 
     if negated_globs.is_empty() && positive_globs.is_empty() {
@@ -556,7 +563,6 @@ impl GlobImportVisit<'_> {
       return Some(());
     }
 
-    let common = self.get_common_base(&positive_globs).into_owned();
     let common_path = Path::new(&common);
 
     if self.is_dev_mode {

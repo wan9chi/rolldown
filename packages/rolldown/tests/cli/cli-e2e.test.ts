@@ -100,12 +100,31 @@ describe('cli options for bundling', () => {
     expect(status.stderr).not.toContain('Unknown');
   });
 
-  it('should handle `--input` and positional args as entries', async () => {
-    const cwd = cliFixturesDir('cli-multi-entries');
-    const status = await $({ cwd })`rolldown 1.ts --input ./2.js`;
-    expect(status.exitCode).toBe(0);
-    expect(cleanStdout(status.stdout)).toMatchSnapshot();
-  });
+  it.each([{ args: ['1.ts', '--input', './2.js'] }, { args: ['--input', '1.ts', '--', '2.js'] }])(
+    'should error when `--input` and positional args are both used: $args',
+    async ({ args }) => {
+      const cwd = cliFixturesDir('cli-multi-entries');
+      const status = await execa('rolldown', args, { cwd, reject: false });
+      expect(status.exitCode).toBe(1);
+      expect(status.stdout).toContain('Either use --input, or pass input path as argument');
+    },
+  );
+
+  it.each([
+    { flag: '--help', output: 'USAGE rolldown' },
+    { flag: '-h', output: 'USAGE rolldown' },
+    { flag: '--version', output: 'rolldown v' },
+    { flag: '-v', output: 'rolldown v' },
+  ])(
+    'should let $flag win over the `--input` and positional args conflict',
+    async ({ flag, output }) => {
+      const cwd = cliFixturesDir('cli-multi-entries');
+      const status = await execa('rolldown', ['1.ts', '--input', './2.js', flag], { cwd });
+      expect(status.exitCode).toBe(0);
+      expect(cleanStdout(status.stdout)).toContain(output);
+      expect(cleanStdout(status.stdout)).not.toContain('Either use --input');
+    },
+  );
 
   it.each([
     { args: ['--', '1.ts'], entries: ['1'] },
@@ -540,6 +559,19 @@ describe('config', () => {
       expect(fs.existsSync(path.join(cwd, 'dist/index.js'))).toBe(true);
     });
     controller.abort();
+  });
+});
+
+describe('diagnostics', () => {
+  it('should not color diagnostics when NO_COLOR is set', async () => {
+    const cwd = cliFixturesDir('diagnostic-color');
+    try {
+      await $({ cwd, env: { NO_COLOR: '1', FORCE_COLOR: undefined } })`rolldown index.js -d dist`;
+      expect.unreachable();
+    } catch (error: any) {
+      expect(error.stdout).toContain('[UNRESOLVED_IMPORT]');
+      expect(error.stdout).not.toContain('\x1b[');
+    }
   });
 });
 
