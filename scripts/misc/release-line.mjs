@@ -90,16 +90,35 @@ function checkVersionBelongsToLine(line, branch, version) {
   }
 }
 
+function checkVersionAgainstNpmLatest(line, version, npmLatest) {
+  if (line.kind === 'main') {
+    // Equal to npm `latest` when a partly failed release is rerun.
+    if (npmLatest !== undefined && compareVersions(version, npmLatest) < 0) {
+      throw new Error(
+        `v${version} is older than npm latest ${npmLatest}; release older minors from their vX.Y branch`,
+      );
+    }
+    return;
+  }
+  if (npmLatest === undefined || compareVersions(version, npmLatest) >= 0) {
+    throw new Error(
+      `v${version} is not older than npm latest ${npmLatest ?? '(none)'}; release it from main`,
+    );
+  }
+}
+
 /**
- * Checks the version a Prepare Release run is about to bump to.
- * @param {{ branch: string, version: string, currentVersion: string }} options
+ * Checks the version a Prepare Release run is about to bump to. It also applies
+ * the npm `latest` rule of publishing, before the release PR is opened.
+ * @param {{ branch: string, version: string, currentVersion: string, npmLatest: string | undefined }} options
  */
-function checkPrepareVersion({ branch, version, currentVersion }) {
+function checkPrepareVersion({ branch, version, currentVersion, npmLatest }) {
   const line = parseReleaseLine(branch);
   checkVersionBelongsToLine(line, branch, version);
   if (compareVersions(version, currentVersion) <= 0) {
     throw new Error(`${version} must be greater than the current version ${currentVersion}`);
   }
+  checkVersionAgainstNpmLatest(line, version, npmLatest);
 }
 
 /**
@@ -133,21 +152,10 @@ function resolvePublish({ branch, subject, version, npmLatest }) {
   parseVersion(version);
   const line = parseReleaseLine(branch);
   checkVersionBelongsToLine(line, branch, version);
+  checkVersionAgainstNpmLatest(line, version, npmLatest);
 
   if (line.kind === 'main') {
-    // Equal to npm `latest` when a partly failed release is rerun.
-    if (npmLatest !== undefined && compareVersions(version, npmLatest) < 0) {
-      throw new Error(
-        `v${version} is older than npm latest ${npmLatest}; release older minors from their vX.Y branch`,
-      );
-    }
     return { release: true, version, distTag: 'latest', makeLatest: true };
-  }
-
-  if (npmLatest === undefined || compareVersions(version, npmLatest) >= 0) {
-    throw new Error(
-      `v${version} is not older than npm latest ${npmLatest ?? '(none)'}; release it from main`,
-    );
   }
   return { release: true, version, distTag: 'previous', makeLatest: false };
 }
@@ -200,7 +208,8 @@ async function main() {
     const branch = requireOption(options, 'branch');
     const version = requireOption(options, 'version');
     const currentVersion = readRolldownVersion(cwd);
-    checkPrepareVersion({ branch, version, currentVersion });
+    const npmLatest = await fetchNpmLatest('rolldown');
+    checkPrepareVersion({ branch, version, currentVersion, npmLatest });
     console.log(`Preparing v${version} on ${branch} (current: ${currentVersion}).`);
   } else if (command === 'publish') {
     // Prints step outputs; redirect stdout to $GITHUB_OUTPUT.

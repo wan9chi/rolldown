@@ -13,7 +13,13 @@ Maintenance branches are created from the last release tag of a minor:
 git push origin v1.1.5:refs/heads/v1.1
 ```
 
-A maintenance branch can only release stable versions within `X.Y` that are lower than the current npm `latest`. This is enforced by `scripts/misc/release-line.mjs`.
+Each maintenance branch also needs its own Vite branch for the Vite and dev server tests, because Vite's `rolldown-canary` follows `main` and can fail on an older line. These branches are named after their Vite minor, for example `v1.2` uses `rolldown-canary-8.3`:
+
+1. In vitejs/vite, create `rolldown-canary-A.B`, where `A.B` is the latest Vite minor that ships rolldown `X.Y`. Base it on that Vite release line, plus any test fixes it needs.
+2. On `vX.Y`, set `viteBranch` in `scripts/src/setup-vite/checkout.ts` to that branch. The tests then use it as-is, without rebasing it onto Vite `main`.
+3. On `main`, add `vX.Y` and that branch to `maintenanceViteBranches` in `.github/workflows/vite-ecosystem-ci-trigger.yml`.
+
+A maintenance branch can only release stable versions within `X.Y` that are lower than the current npm `latest`. Prepare Release, Publish to NPM and Release Crates all check this with `scripts/misc/release-line.mjs`.
 
 ## Publishing
 
@@ -34,8 +40,10 @@ The changelog covers the commits since the last tag reachable from `target_branc
 
 1. Merge the fix into `main`.
 2. Create a branch from `vX.Y` and apply the fix with `git cherry-pick -x <commit>`.
-3. Open a pull request against `vX.Y` with the original title. Add the `ci: windows` label if the change affects platform-specific code.
+3. Open a pull request against `vX.Y` with the original title. Add the `ci: windows` label if the change affects platform-specific code, then rerun all jobs of the pull request's latest `CI` run. Adding the label alone does not start a run.
 4. Squash-merge the pull request.
+
+`/ecosystem-ci run` on a pull request against `vX.Y` builds Vite from the branch listed for `vX.Y` in `maintenanceViteBranches`.
 
 ## perf-kit
 
