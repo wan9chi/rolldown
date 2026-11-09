@@ -93,7 +93,7 @@ catalog:
   valibot: 1.5.0
   vite: ^8.0.0
   vitest: ^4.1.6
-  vue: ^3.5.35
+  vue: ^3.5.45
   web-tree-sitter: ^0.27.0
   ws: ^8.22.0
   yaml: ^2.9.1
@@ -125,6 +125,8 @@ trustPolicy: no-downgrade
 
 trustPolicyExcludePrune: true
 trustPolicyExclude:
+  # vite-plus preview builds from the registry bridge have no provenance.
+  - '@voidzero-dev/vite-plus-*'
   - chokidar@4.0.3
   - semver@6.3.1
   - rxjs@7.8.2

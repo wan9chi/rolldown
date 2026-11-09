@@ -13,8 +13,8 @@
     "test": "echo \"Use just test-node\"",
     "ci:build-release-binding": "pnpm --filter rolldown run build-binding:release",
     "docs": "pnpm --filter rolldown-docs run dev",
-    "docs:build": "pnpm --filter rolldown-docs run generate && pnpm --filter rolldown-docs run build",
-    "docs:void": "pnpm --filter rolldown-docs run generate && pnpm --filter rolldown-docs run void deploy",
+    "docs:build": "vp run --filter rolldown-docs generate && vp run --filter rolldown-docs build",
+    "docs:void": "vp run --filter rolldown-docs generate && pnpm --filter rolldown-docs run void deploy",
     "docs:preview": "pnpm --filter rolldown-docs run preview"
   },
   "devDependencies": {
@@ -28,7 +28,7 @@
     "remove-unused-vars": "^0.0.15",
     "rolldown": "workspace:*",
     "typescript": "catalog:",
-    "vite-plus": "^1.0.0"
+    "vite-plus": "https://registry-bridge.viteplus.dev/tarballs/vite-plus/0.0.0-commit.a37c40a3a57a4ab175a9e02fd99b774982578c1e/8f7a1c477110ed63e0265b5e85a7a5ce9d14be16.tgz"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

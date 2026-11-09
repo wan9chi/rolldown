@@ -24,12 +24,20 @@ concurrency:
 
 jobs:
   # Builds/validates the docs and, on main, decides whether the content needs deploying. Runs
-  # untrusted PR code, so it has NO `environment` and NO `id-token` permission — it cannot mint
-  # an OIDC token. The deploy is a separate main-only job below — we never deploy to Void from
-  # a PR.
+  # untrusted PR code, so it has NO `environment`; its `id-token` permission is for remote cache
+  # uploads (fork PRs get no OIDC token). The deploy is a separate main-only job below — we
+  # never deploy to Void from a PR.
   docs-validation:
     name: Docs Validation
     runs-on: ubuntu-latest
+    permissions:
+      # Remote cache uploads authenticate with a GitHub Actions OIDC token.
+      id-token: write
+    env:
+      # Remote task cache, on when the repository variable is set. Pushes and pull requests from
+      # this repository upload results; fork pull requests get no OIDC token and only download.
+      VP_REMOTE_CACHE_URL: ${{ vars.VP_REMOTE_CACHE_URL }}
+      VP_REMOTE_CACHE: ${{ !vars.VP_REMOTE_CACHE_URL && 'off' || (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && 'read-write' || 'read' }}
     outputs:
       # Deploy when this content's fingerprint hasn't been deployed before, or on manual dispatch.
       deploy: ${{ steps.deployed.outputs.cache-hit != 'true' || github.event_name == 'workflow_dispatch' }}
@@ -39,14 +47,14 @@ jobs:
 
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
-          version: '1.0.0'
+          version: '0.0.0-commit.a37c40a3a57a4ab175a9e02fd99b774982578c1e'
           cache: true
 
       - name: Generate API reference
         run: vp run --filter rolldown-docs generate
 
+      # Also on main, so pull requests can reuse main's cached build.
       - name: Build Docs
-        if: github.ref_name != 'main'
         run: vp run --filter rolldown-docs build
 
       # Deterministic fingerprint of the deployable content: git-tracked docs sources plus the
@@ -92,7 +100,7 @@ jobs:
 
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
-          version: '1.0.0'
+          version: '0.0.0-commit.a37c40a3a57a4ab175a9e02fd99b774982578c1e'
           cache: true
 
       - name: Deploy to Void

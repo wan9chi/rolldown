@@ -4,10 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vitepress dev",
-    "build": "vitepress build",
-    "build:cloudflare": "pnpm generate && pnpm build",
+    "build:cloudflare": "vp run generate && vp run build",
     "preview": "vitepress preview",
-    "generate": "node .vitepress/scripts/generate-reference.ts",
     "void": "void"
   },
   "dependencies": {
