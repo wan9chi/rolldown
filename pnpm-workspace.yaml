@@ -125,6 +125,8 @@ trustPolicy: no-downgrade
 
 trustPolicyExcludePrune: true
 trustPolicyExclude:
+  # vite-plus preview builds from the registry bridge have no provenance.
+  - '@voidzero-dev/vite-plus-*'
   - chokidar@4.0.3
   - semver@6.3.1
   - rxjs@7.8.2
