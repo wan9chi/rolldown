@@ -31,7 +31,7 @@ jobs:
     name: Docs Validation
     runs-on: ubuntu-latest
     env:
-      VP_REMOTE_CACHE_URL: https://voidzero-remote-cache.voidzero-docs.workers.dev/projects/rolldown
+      VP_REMOTE_CACHE_URL: https://voidzero-remote-cache.voidzero-docs.workers.dev/projects/rolldown-replay
       VP_REMOTE_CACHE: read
     outputs:
       # Deploy when this content's fingerprint hasn't been deployed before, or on manual dispatch.
@@ -51,6 +51,13 @@ jobs:
       - name: Build Docs
         if: github.ref_name != 'main'
         run: vp run --filter rolldown-docs build
+        env:
+          ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
+
+      - name: 'Fork verification: check the PR build'
+        if: github.ref_name != 'main'
+        run: .github/fork-verify/check-pr-build.sh
         env:
           ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
@@ -85,7 +92,7 @@ jobs:
   deploy-void:
     name: Deploy to Void
     needs: [docs-validation]
-    if: github.repository == 'rolldown/rolldown' && github.ref_name == 'main' && needs.docs-validation.outputs.deploy == 'true'
+    if: github.repository == 'wan9chi/rolldown' && github.ref_name == 'main' && needs.docs-validation.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment: void
     # `void deploy` authenticates via GitHub OIDC: with id-token:write (and no VOID_TOKEN set)
@@ -94,8 +101,8 @@ jobs:
     permissions:
       id-token: write
     env:
-      VOID_API_URL: https://api.void.cloud
-      VP_REMOTE_CACHE_URL: https://voidzero-remote-cache.voidzero-docs.workers.dev/projects/rolldown
+      VOID_API_URL: http://127.0.0.1:8787
+      VP_REMOTE_CACHE_URL: https://voidzero-remote-cache.voidzero-docs.workers.dev/projects/rolldown-replay
       VP_REMOTE_CACHE: ${{ github.event_name == 'push' && 'read-write' || 'read' }}
     steps:
       - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
@@ -111,6 +118,16 @@ jobs:
           ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
 
+      - name: 'Fork verification: start a mock Void API'
+        run: |
+          MOCK_VOID_LOG="$RUNNER_TEMP/mock-void-api.log" MOCK_VOID_MANIFEST="$RUNNER_TEMP/mock-void-manifest.txt" \
+            nohup node .github/fork-verify/mock-void-api.mjs > "$RUNNER_TEMP/mock-void-api.out" 2>&1 &
+          for _ in $(seq 50); do
+            curl -sf "$VOID_API_URL/.well-known/void-platform" > /dev/null && exit 0
+            sleep 0.2
+          done
+          exit 1
+
       - name: Connect to Void
         run: vp exec --filter rolldown-docs void connect "$VOID_API_URL" --no-login
 
@@ -118,6 +135,12 @@ jobs:
         run: vp run --filter rolldown-docs void deploy --dir .vitepress/dist
         env:
           VOID_PROJECT: rolldown
+
+      - name: 'Fork verification: what void deploy sent'
+        if: always()
+        run: .github/fork-verify/check-deploy.sh
+        env:
+          ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
 
       # Mark this fingerprint as deployed so the next identical-content run skips. The marker
       # file's contents are unused (the cache key is the fingerprint); an evicted marker only
