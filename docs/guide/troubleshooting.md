@@ -285,3 +285,5 @@ stack backtrace:
 ::: tip
 The next `npm install` replaces the binding package and deletes the unpacked file. Unpack the archive again after each install.
 :::
+
+This sentence exists only to verify docs caching in a fork.
