@@ -23,3 +23,12 @@ echo "::group::Files that differ between this build and a fresh, uncached build"
 diff -rq "$restored" "$dist" | sed "s#$RUNNER_TEMP/restored-dist#restored#; s#$dist#fresh#g" || true
 echo "::endgroup::"
 echo "Differing files: $(diff -rq "$restored" "$dist" | wc -l)"
+
+echo "::group::The same comparison after normalizing hashes, lastUpdated, lastmod and llms line order"
+python3 .github/fork-verify/compare-dist.py "$restored" "$dist"
+echo "::endgroup::"
+page=$(cd "$dist/assets" && ls guide_introduction.md.*.lean.js | head -1)
+restored_page=$(cd "$restored/assets" && ls guide_introduction.md.*.lean.js | head -1)
+echo "Checked-out commit time: $(git log -1 --format=%ct)"
+echo "guide/introduction lastUpdated, restored: $(grep -oE 'lastUpdated[^0-9]{0,4}[0-9]+' "$restored/assets/$restored_page" | head -1)"
+echo "guide/introduction lastUpdated, fresh:    $(grep -oE 'lastUpdated[^0-9]{0,4}[0-9]+' "$dist/assets/$page" | head -1)"
