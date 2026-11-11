@@ -37,3 +37,12 @@ changed = sorted(k for k in set(a) & set(b) if a[k] != b[k])
 print(f'Files: {len(a)} vs {len(b)}; after normalizing: {len(changed)} differ, {len(only_a)} only in the first, {len(only_b)} only in the second')
 for k in (changed + only_a + only_b)[:15]:
     print('  ', k)
+samples = [k for k in changed if k.endswith('.html')][:2] + [k for k in changed if not k.endswith('.html')][:2]
+for k in samples:
+    x, y = a[k], b[k]
+    if isinstance(x, bytes) or isinstance(y, bytes):
+        print(f'-- {k}: binary'); continue
+    i = next((n for n in range(min(len(x), len(y))) if x[n] != y[n]), min(len(x), len(y)))
+    print(f'-- {k}: first difference at character {i}')
+    print('   first:  ', repr(x[max(0, i - 80):i + 80]))
+    print('   second: ', repr(y[max(0, i - 80):i + 80]))
